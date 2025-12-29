@@ -3,101 +3,88 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CarKenya | Petty Cash Pro</title>
+    <title>CarKenya | Petty Cash Manager</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
-        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f1f5f9; }
+        .glass { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
     </style>
 </head>
-<body>
-    <nav class="sticky top-0 z-50 glass border-b border-slate-200 px-6 py-4 flex justify-between items-center">
+<body class="pb-20">
+    <nav class="sticky top-0 z-40 glass border-b border-slate-200 px-6 py-4 flex justify-between items-center">
         <div class="flex items-center gap-2">
-            <div class="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-emerald-200">CK</div>
-            <h1 class="text-xl font-bold tracking-tight text-slate-800">PettyCash<span class="text-emerald-600">Pro</span></h1>
+            <div class="w-10 h-10 bg-green-700 rounded-xl flex items-center justify-center text-white font-bold">CK</div>
+            <h1 class="text-xl font-bold text-slate-800">Petty Cash <span class="text-green-700 underline decoration-2">Manager</span></h1>
         </div>
-        <a href="financial-reports.html" class="text-sm font-semibold text-slate-500 hover:text-emerald-600 transition flex items-center gap-2">
-            Admin Dashboard <span class="text-lg">→</span>
-        </a>
+        <a href="financial-reports.html" class="bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-700 transition">Reports Dashboard →</a>
     </nav>
 
     <main class="max-w-6xl mx-auto p-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Current Balance</p>
-                <h2 id="balance-display" class="text-3xl font-bold text-slate-900 mt-1">KSH 0</h2>
-                <div class="mt-4 flex items-center text-[10px] font-bold text-emerald-600 bg-emerald-50 w-fit px-2 py-1 rounded-full uppercase">Real-time Sync Active</div>
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex flex-wrap gap-8 items-center justify-between mb-8">
+            <div class="flex gap-10">
+                <div>
+                    <p class="text-slate-500 text-[10px] font-black uppercase">Current Balance</p>
+                    <h2 id="current-balance" class="text-2xl font-black text-green-700">KSH 0</h2>
+                </div>
+                <div>
+                    <p class="text-slate-500 text-[10px] font-black uppercase">Today's Income</p>
+                    <h2 id="day-income" class="text-2xl font-black text-blue-600">KSH 0</h2>
+                </div>
+                <div>
+                    <p class="text-slate-500 text-[10px] font-black uppercase">Today's Expense</p>
+                    <h2 id="day-expense" class="text-2xl font-black text-rose-600">KSH 0</h2>
+                </div>
             </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Today's Spend</p>
-                <h2 id="spend-display" class="text-3xl font-bold text-rose-500 mt-1">KSH 0</h2>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-                <p class="text-slate-500 text-xs font-bold uppercase tracking-wider">Transactions</p>
-                <h2 id="count-display" class="text-3xl font-bold text-slate-900 mt-1">0</h2>
-            </div>
+            <button onclick="togglePrivacy()" id="privacy-btn" class="text-xs font-bold bg-slate-100 px-4 py-2 rounded-lg hover:bg-slate-200">🙈 Hide Balances</button>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            <div class="lg:col-span-1">
-                <div class="bg-white p-6 rounded-2xl shadow-xl border border-slate-100">
-                    <h3 class="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                        <span class="w-1.5 h-6 bg-emerald-500 rounded-full"></span> Record Entry
-                    </h3>
-                    <form id="tx-form" class="space-y-4">
-                        <div>
-                            <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Description</label>
-                            <input type="text" id="desc" required placeholder="e.g., Office Internet" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white transition outline-none">
-                        </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Amount (KSH)</label>
-                                <input type="number" id="amt" required placeholder="500" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white transition outline-none">
-                            </div>
-                            <div>
-                                <label class="block text-[10px] font-bold uppercase text-slate-400 mb-1 ml-1">Type</label>
-                                <select id="type" class="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white transition outline-none">
-                                    <option value="expense">Expense</option>
-                                    <option value="income">Income</option>
-                                </select>
-                            </div>
-                        </div>
-                        <button type="submit" class="w-full bg-slate-900 text-white font-bold py-4 rounded-xl hover:bg-emerald-600 transform active:scale-95 transition-all shadow-lg shadow-slate-200">
-                            Save Transaction
-                        </button>
-                    </form>
-                </div>
+            <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-200 h-fit">
+                <h3 class="text-lg font-bold mb-6 flex items-center gap-2 text-slate-800">
+                    <span class="w-1.5 h-6 bg-green-700 rounded-full"></span> New Transaction
+                </h3>
+                <form id="petty-form" class="space-y-4">
+                    <input type="text" id="desc" placeholder="Description (e.g. Fuel)" required class="w-full p-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-green-700 transition outline-none">
+                    <input type="text" id="recipient" placeholder="Recipient/Vendor" required class="w-full p-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-green-700 transition outline-none">
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="number" id="amt" placeholder="Amount" required class="w-full p-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-green-700 transition outline-none">
+                        <select id="type" class="w-full p-3 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-green-700 outline-none">
+                            <option value="expense">Expense</option>
+                            <option value="income">Income</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="w-full bg-green-700 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-green-800 transition transform active:scale-95">➕ Add Transaction</button>
+                </form>
             </div>
 
-            <div class="lg:col-span-2">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                    <div class="p-6 border-b border-slate-50 flex justify-between items-center">
-                        <h3 class="font-bold text-slate-800">Recent Transactions</h3>
-                        <span class="text-xs text-slate-400">Showing last 10</span>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left">
-                            <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-                                <tr>
-                                    <th class="px-6 py-4">Date/Time</th>
-                                    <th class="px-6 py-4">Description</th>
-                                    <th class="px-6 py-4 text-right">Amount</th>
-                                </tr>
-                            </thead>
-                            <tbody id="list-body" class="divide-y divide-slate-50">
-                                </tbody>
-                        </table>
-                    </div>
+            <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800">Recent Activity</h3>
+                    <div id="audit-status" class="text-[10px] font-bold text-green-600 uppercase bg-green-50 px-3 py-1 rounded-full">System Healthy</div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                            <tr>
+                                <th class="px-6 py-4">Time</th>
+                                <th class="px-6 py-4">Description</th>
+                                <th class="px-6 py-4">Recipient</th>
+                                <th class="px-6 py-4 text-right">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody id="petty-list" class="divide-y divide-slate-100"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </main>
 
+    <button onclick="toggleCalc()" class="fixed bottom-6 right-6 w-14 h-14 bg-green-700 text-white rounded-full shadow-2xl flex items-center justify-center text-2xl hover:bg-green-800 transition-all z-50">🧮</button>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCuUKCxYx0jYKqWOQaN82K5zFGlQsKQsK0",
@@ -112,60 +99,74 @@
         const db = getFirestore(app);
         const txRef = collection(db, "transactions");
 
-        // UI Elements
-        const form = document.getElementById('tx-form');
-        const listBody = document.getElementById('list-body');
-
-        // Form Submission
-        form.addEventListener('submit', async (e) => {
+        // Logic for Entry
+        document.getElementById('petty-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const data = {
+            const amt = parseFloat(document.getElementById('amt').value);
+            
+            // Audit Feature: Flag > 5,000
+            if(amt > 5000 && document.getElementById('type').value === 'expense') {
+                document.getElementById('audit-status').className = "text-[10px] font-bold text-orange-600 uppercase bg-orange-50 px-3 py-1 rounded-full";
+                document.getElementById('audit-status').textContent = "⚠️ High Expense Alert";
+            }
+
+            await addDoc(txRef, {
                 desc: document.getElementById('desc').value,
-                amount: parseFloat(document.getElementById('amt').value),
+                recipient: document.getElementById('recipient').value,
+                amount: amt,
                 type: document.getElementById('type').value,
                 timestamp: serverTimestamp(),
                 isPetty: true
-            };
-            try {
-                await addDoc(txRef, data);
-                form.reset();
-            } catch (err) { alert("Error saving: " + err.message); }
+            });
+            e.target.reset();
         });
 
-        // Real-time Listener
-        const q = query(txRef, orderBy("timestamp", "desc"), limit(10));
-        onSnapshot(q, (snapshot) => {
-            listBody.innerHTML = '';
-            let balance = 0, todaySpend = 0, count = 0;
+        // Real-time Feed & Totals
+        onSnapshot(query(txRef, orderBy("timestamp", "desc")), (snap) => {
+            const list = document.getElementById('petty-list');
+            list.innerHTML = '';
+            let total = 0, dayInc = 0, dayExp = 0;
             const today = new Date().toDateString();
 
-            snapshot.docs.forEach(doc => {
+            snap.docs.forEach(doc => {
                 const tx = doc.data();
-                const row = document.createElement('tr');
-                const color = tx.type === 'expense' ? 'text-rose-500' : 'text-emerald-600';
-                const dateStr = tx.timestamp ? tx.timestamp.toDate().toLocaleString() : 'Saving...';
-                
-                row.innerHTML = `
-                    <td class="px-6 py-4 text-xs text-slate-400 font-medium">${dateStr}</td>
-                    <td class="px-6 py-4 text-sm font-bold text-slate-700">${tx.desc}</td>
-                    <td class="px-6 py-4 text-sm font-black text-right ${color}">${tx.type === 'expense' ? '-' : '+'} ${tx.amount.toLocaleString()}</td>
-                `;
-                listBody.appendChild(row);
+                const isToday = tx.timestamp?.toDate().toDateString() === today;
+
+                if(tx.isPetty) {
+                    if(tx.type === 'income') {
+                        total += tx.amount;
+                        if(isToday) dayInc += tx.amount;
+                    } else {
+                        total -= tx.amount;
+                        if(isToday) dayExp += tx.amount;
+                    }
+
+                    const row = `<tr>
+                        <td class="px-6 py-4 text-xs text-slate-400 font-bold">${tx.timestamp?.toDate().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) || '...'}</td>
+                        <td class="px-6 py-4 text-sm font-bold text-slate-700">${tx.desc}</td>
+                        <td class="px-6 py-4 text-sm text-slate-500">${tx.recipient}</td>
+                        <td class="px-6 py-4 text-sm font-black text-right ${tx.type === 'expense' ? 'text-rose-500' : 'text-green-700'}">${tx.type === 'expense' ? '-' : '+'} ${tx.amount.toLocaleString()}</td>
+                    </tr>`;
+                    list.insertAdjacentHTML('beforeend', row);
+                }
             });
 
-            // Summary Logic (Query all for totals)
-            onSnapshot(txRef, (fullSnap) => {
-                let bal = 0, spend = 0;
-                fullSnap.docs.forEach(d => {
-                    const t = d.data();
-                    if(t.type === 'income') bal += t.amount; else bal -= t.amount;
-                    if(t.type === 'expense' && t.timestamp?.toDate().toDateString() === today) spend += t.amount;
-                });
-                document.getElementById('balance-display').textContent = `KSH ${bal.toLocaleString()}`;
-                document.getElementById('spend-display').textContent = `KSH ${spend.toLocaleString()}`;
-                document.getElementById('count-display').textContent = fullSnap.size;
-            });
+            document.getElementById('current-balance').textContent = `KSH ${total.toLocaleString()}`;
+            document.getElementById('day-income').textContent = `KSH ${dayInc.toLocaleString()}`;
+            document.getElementById('day-expense').textContent = `KSH ${dayExp.toLocaleString()}`;
         });
+
+        window.togglePrivacy = () => {
+            const bar = document.querySelectorAll('h2');
+            const btn = document.getElementById('privacy-btn');
+            if(btn.textContent.includes('Hide')) {
+                bar.forEach(h => h.classList.add('blur-md'));
+                btn.textContent = '👁️ Reveal Balances';
+            } else {
+                bar.forEach(h => h.classList.remove('blur-md'));
+                btn.textContent = '🙈 Hide Balances';
+            }
+        }
     </script>
 </body>
 </html>
