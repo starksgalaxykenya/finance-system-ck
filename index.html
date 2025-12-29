@@ -1488,14 +1488,39 @@
                 // Only show banks not already added locally
                 if (!existingBank) {
                     hasAvailableBanks = true;
+                    
+                    // Extract bank name from Firebase data
+                    // Try different possible field names for bank name
+                    const bankName = bankData.bankName || 
+                                   bankData.name || 
+                                   bankData.bank || 
+                                   bankData.bank_name || 
+                                   bankData.bankName || 
+                                   'Bank Account';
+                    
+                    // Extract account number
+                    const accountNumber = bankData.accountNumber || 
+                                        bankData.account || 
+                                        bankData.account_number || 
+                                        bankData.accountNumber || 
+                                        'N/A';
+                    
+                    // Extract branch
+                    const branch = bankData.branch || 
+                                 bankData.branchName || 
+                                 bankData.branch_name || 
+                                 bankData.branchName || 
+                                 '';
+                    
                     const bankOption = document.createElement('div');
                     bankOption.className = `p-4 border rounded-lg cursor-pointer transition-all hover:bg-gray-50 bg-white border-gray-200`;
                     bankOption.onclick = () => selectFirebaseBank(bankId, bankData);
                     bankOption.innerHTML = `
                         <div class="flex justify-between items-center">
                             <div>
-                                <h4 class="font-semibold text-gray-800">${bankData.bankName || 'Unnamed Bank'}</h4>
-                                <p class="text-sm text-gray-600">${bankData.accountNumber || 'No account number'}</p>
+                                <h4 class="font-semibold text-gray-800">${bankName}</h4>
+                                <p class="text-sm text-gray-600">Account: ${accountNumber}</p>
+                                ${branch ? `<p class="text-xs text-gray-500 mt-1">${branch}</p>` : ''}
                                 <p class="text-xs text-gray-500 mt-1">Click to add</p>
                             </div>
                             <i class="fas fa-chevron-right text-gray-400"></i>
@@ -1582,11 +1607,31 @@
     }
 
     function selectFirebaseBank(bankId, bankData) {
+        // Extract bank name from Firebase data with multiple possible field names
+        const bankName = bankData.bankName || 
+                       bankData.name || 
+                       bankData.bank || 
+                       bankData.bank_name || 
+                       bankData.bankName || 
+                       'Bank Account';
+        
+        const accountNumber = bankData.accountNumber || 
+                            bankData.account || 
+                            bankData.account_number || 
+                            bankData.accountNumber || 
+                            'N/A';
+        
+        const branch = bankData.branch || 
+                     bankData.branchName || 
+                     bankData.branch_name || 
+                     bankData.branchName || 
+                     '';
+        
         selectedFirebaseBank = {
             id: bankId,
-            name: bankData.bankName || 'Unnamed Bank',
-            accountNumber: bankData.accountNumber || '',
-            branch: bankData.branch || '',
+            name: bankName,
+            accountNumber: accountNumber,
+            branch: branch,
             data: bankData
         };
         
