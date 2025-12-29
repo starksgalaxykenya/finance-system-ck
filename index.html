@@ -91,11 +91,11 @@
         }
 
         /* Modal backdrop blur */
-      .modal-backdrop {
-    background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(0px);
-    -webkit-backdrop-filter: blur(0px);
-}
+        .modal-backdrop {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
 
         /* Bank card gradient effects */
         .bank-card-gradient {
@@ -221,6 +221,33 @@
             opacity: 1;
             transform: translateX(0);
         }
+
+        /* Tab content styling */
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Calculator tab styling */
+        .calc-tab-content {
+            display: none;
+        }
+        
+        .calc-tab-content.active {
+            display: block;
+        }
+
+        /* Bank step styling */
+        .bank-step {
+            display: none;
+        }
+        
+        .bank-step.active {
+            display: block;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -236,56 +263,56 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
-   <!-- Login Modal -->
-<div id="login-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
-    <div class="fixed inset-0 bg-black bg-opacity-50"></div>
-    <div class="flex items-center justify-center min-h-screen px-4">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-10">
-            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">🔐 Firebase Login</h2>
-            <p class="text-gray-600 mb-6 text-center">Connect to Firebase to sync bank data and receipts</p>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                    <input type="email" id="login-email" 
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                           placeholder="your@email.com">
-                </div>
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
+        <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-10">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">🔐 Firebase Login</h2>
+                <p class="text-gray-600 mb-6 text-center">Connect to Firebase to sync bank data and receipts</p>
                 
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                    <input type="password" id="login-password" 
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                           placeholder="••••••••">
-                </div>
-                
-                <button onclick="firebaseLogin()" 
-                        class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-                    <i class="fas fa-sign-in-alt mr-2"></i>Login to Firebase
-                </button>
-                
-                <div class="text-center mt-4">
-                    <button onclick="toggleFirebaseLogin()" 
-                            class="text-sm text-gray-500 hover:text-gray-700">
-                        Skip for now (Use Local Data)
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="login-email" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                               placeholder="your@email.com">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                        <input type="password" id="login-password" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                               placeholder="••••••••">
+                    </div>
+                    
+                    <button onclick="firebaseLogin()" 
+                            class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                        <i class="fas fa-sign-in-alt mr-2"></i>Login to Firebase
                     </button>
+                    
+                    <div class="text-center mt-4">
+                        <button onclick="toggleFirebaseLogin()" 
+                                class="text-sm text-gray-500 hover:text-gray-700">
+                            Skip for now (Use Local Data)
+                        </button>
+                    </div>
                 </div>
+                
+                <div id="firebase-status" class="mt-6 p-4 bg-blue-50 rounded-lg hidden">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <span id="firebase-status-text"></span>
+                    </p>
+                </div>
+                
+                <button onclick="toggleFirebaseLogin()" 
+                        class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
-            
-            <div id="firebase-status" class="mt-6 p-4 bg-blue-50 rounded-lg" style="display: none;">
-                <p class="text-sm text-blue-800">
-                    <i class="fas fa-info-circle mr-2"></i>
-                    <span id="firebase-status-text"></span>
-                </p>
-            </div>
-            
-            <button onclick="toggleFirebaseLogin()" 
-                    class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">
-                <i class="fas fa-times"></i>
-            </button>
         </div>
     </div>
-</div>
 
     <!-- Main Header -->
     <header class="bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg">
@@ -472,6 +499,13 @@
                                         </thead>
                                         <tbody id="transaction-list" class="bg-white divide-y divide-gray-200">
                                             <!-- Transactions will be inserted here -->
+                                            <tr>
+                                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                                    <i class="fas fa-exchange-alt text-3xl mb-3"></i>
+                                                    <p>No transactions yet</p>
+                                                    <p class="text-sm mt-2">Add your first transaction above</p>
+                                                </td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -792,6 +826,13 @@
                                         </thead>
                                         <tbody id="transfer-history" class="bg-white divide-y divide-gray-200">
                                             <!-- Transfer history will be inserted here -->
+                                            <tr>
+                                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                                    <i class="fas fa-exchange-alt text-3xl mb-3"></i>
+                                                    <p>No transfers yet</p>
+                                                    <p class="text-sm mt-2">Make your first inter-bank transfer above</p>
+                                                </td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -903,7 +944,7 @@
     </button>
 
     <!-- Calculator Modal -->
-    <div id="calculator-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+    <div id="calculator-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
         <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
@@ -911,7 +952,7 @@
                     <h2 class="text-2xl font-bold text-gray-800 flex items-center">
                         <i class="fas fa-calculator mr-3"></i>Financial Calculator
                     </h2>
-                    <button onclick="document.getElementById('calculator-modal').style.display='none'"
+                    <button onclick="closeCalculatorModal()"
                             class="text-gray-500 hover:text-gray-700 text-2xl">
                         <i class="fas fa-times"></i>
                     </button>
@@ -997,7 +1038,7 @@
     </div>
 
     <!-- Add Bank Modal -->
-   <div id="add-bank-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+    <div id="add-bank-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
         <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6">
@@ -1038,6 +1079,11 @@
                         <!-- Banks from Firebase will be loaded here -->
                         <div id="firebase-banks-list" class="space-y-3">
                             <!-- Bank options will be inserted here -->
+                            <div class="text-center py-8 text-gray-500">
+                                <i class="fas fa-university text-3xl mb-3"></i>
+                                <p>No banks found in Firebase</p>
+                                <p class="text-sm mt-2">Connect to Firebase and add banks first</p>
+                            </div>
                         </div>
                     </div>
                     
@@ -1124,7 +1170,7 @@
     </div>
 
     <!-- Transfer Confirmation Modal -->
-  <div id="transfer-confirm-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+    <div id="transfer-confirm-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
         <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
@@ -1188,10 +1234,6 @@
         </div>
     </div>
 
-    <!-- Firebase Initialization Script -->
-   
-<!-- Firebase Initialization Script -->
-<!-- Firebase Initialization Script -->
 <script>
     // Firebase Configuration
     const firebaseConfig = {
@@ -1238,65 +1280,59 @@
     }
 
     // Firebase Login Function
-async function firebaseLogin() {
-    const email = document.getElementById('login-email').value;
-    const password = document.getElementById('login-password').value;
-    const statusElement = document.getElementById('firebase-status');
-    
-    if (!email || !password) {
-        showToast('Please enter both email and password', 'error');
-        return;
-    }
-    
-    showLoading('Connecting to Firebase...');
-    
-    try {
-        await auth.signInWithEmailAndPassword(email, password);
-        showToast('Login successful!', 'success');
-        toggleFirebaseLogin(); // Close the modal
+    async function firebaseLogin() {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const statusElement = document.getElementById('firebase-status');
         
-        // Update UI
-        updateFirebaseUI();
-        
-    } catch (error) {
-        showLoading(false);
-        console.error("Firebase login error:", error);
-        
-        let errorMessage = 'Login failed. ';
-        switch (error.code) {
-            case 'auth/invalid-email':
-                errorMessage += 'Invalid email address.';
-                break;
-            case 'auth/user-disabled':
-                errorMessage += 'This account has been disabled.';
-                break;
-            case 'auth/user-not-found':
-                errorMessage += 'No account found with this email.';
-                break;
-            case 'auth/wrong-password':
-                errorMessage += 'Incorrect password.';
-                break;
-            default:
-                errorMessage += error.message;
+        if (!email || !password) {
+            showToast('Please enter both email and password', 'error');
+            return;
         }
         
-        showToast(errorMessage, 'error');
+        showLoading('Connecting to Firebase...');
         
-        // Show status in the modal
-        if (statusElement) {
-            statusElement.style.display = 'block';
-            document.getElementById('firebase-status-text').textContent = errorMessage;
+        try {
+            await auth.signInWithEmailAndPassword(email, password);
+            showToast('Login successful!', 'success');
+            toggleFirebaseLogin();
+            
+            // Update UI
+            updateFirebaseUI();
+            
+        } catch (error) {
+            showLoading(false);
+            console.error("Firebase login error:", error);
+            
+            let errorMessage = 'Login failed. ';
+            switch (error.code) {
+                case 'auth/invalid-email':
+                    errorMessage += 'Invalid email address.';
+                    break;
+                case 'auth/user-disabled':
+                    errorMessage += 'This account has been disabled.';
+                    break;
+                case 'auth/user-not-found':
+                    errorMessage += 'No account found with this email.';
+                    break;
+                case 'auth/wrong-password':
+                    errorMessage += 'Incorrect password.';
+                    break;
+                default:
+                    errorMessage += error.message;
+            }
+            
+            showToast(errorMessage, 'error');
+            
+            // Show status in the modal
+            if (statusElement) {
+                statusElement.style.display = 'block';
+                document.getElementById('firebase-status-text').textContent = errorMessage;
+            }
         }
     }
-}
 
-    // Call initialization
-    initializeFirebase();
-</script>
-
-<!-- Main Application Script -->
-<script>
-    // --- Core Application Data ---
+    // Main Application Data
     const { jsPDF } = window.jspdf;
     let pettyCashTransactions = [];
     let majorTransactions = [];
@@ -1318,6 +1354,9 @@ async function firebaseLogin() {
     let addBankStep = 1;
     let selectedFirebaseBank = null;
 
+    // Initialize Firebase
+    initializeFirebase();
+
     // --- Tab Switching Function ---
     function openTab(evt, tabName) {
         // Hide all tab contents
@@ -1328,7 +1367,7 @@ async function firebaseLogin() {
         });
 
         // Remove active class from all tab buttons
-        const tabButtons = document.querySelectorAll('.tab-button, .custom-tab');
+        const tabButtons = document.querySelectorAll('.custom-tab');
         tabButtons.forEach(button => {
             button.classList.remove('active');
         });
@@ -1344,29 +1383,36 @@ async function firebaseLogin() {
         if (evt && evt.currentTarget) {
             evt.currentTarget.classList.add('active');
         }
+        
+        // Update data when switching to bank management tab
+        if (tabName === 'bank-management') {
+            updateBankSelectors();
+            updateTransferBankSelectors();
+            updateBankCards();
+            updateTransferHistory();
+        }
     }
 
     // --- Firebase Functions ---
-
- function toggleFirebaseLogin() {
-    const modal = document.getElementById('login-modal');
-    if (!modal) return;
-    
-    // Toggle display
-    if (modal.style.display === 'none' || modal.style.display === '') {
-        modal.style.display = 'block';
-        // Clear any previous inputs
-        document.getElementById('login-email').value = '';
-        document.getElementById('login-password').value = '';
-        // Hide status message
-        const statusElement = document.getElementById('firebase-status');
-        if (statusElement) {
-            statusElement.style.display = 'none';
+    function toggleFirebaseLogin() {
+        const modal = document.getElementById('login-modal');
+        if (!modal) return;
+        
+        // Toggle display
+        if (modal.classList.contains('hidden')) {
+            modal.classList.remove('hidden');
+            // Clear any previous inputs
+            document.getElementById('login-email').value = '';
+            document.getElementById('login-password').value = '';
+            // Hide status message
+            const statusElement = document.getElementById('firebase-status');
+            if (statusElement) {
+                statusElement.classList.add('hidden');
+            }
+        } else {
+            modal.classList.add('hidden');
         }
-    } else {
-        modal.style.display = 'none';
     }
-}
 
     function updateFirebaseUI() {
         const loginBtn = document.getElementById('firebase-login-btn');
@@ -1513,10 +1559,12 @@ async function firebaseLogin() {
         // Highlight selection
         document.querySelectorAll('#firebase-banks-list > div').forEach(div => {
             div.classList.remove('bg-primary', 'text-white', 'border-primary');
+            div.classList.remove('bg-green-50', 'border-green-200');
             div.classList.add('bg-white', 'border-gray-200');
         });
         
         event.currentTarget.classList.remove('bg-white', 'border-gray-200');
+        event.currentTarget.classList.remove('bg-green-50', 'border-green-200');
         event.currentTarget.classList.add('bg-primary', 'text-white', 'border-primary');
         
         // Update selected bank name display
@@ -1525,29 +1573,27 @@ async function firebaseLogin() {
     }
 
     // --- Add Bank Modal Functions ---
-
-  function openAddBankModal() {
-    if (!user) {
-        showToast('Please connect to Firebase first', 'warning');
-        toggleFirebaseLogin();
-        return;
+    function openAddBankModal() {
+        if (!user) {
+            showToast('Please connect to Firebase first', 'warning');
+            toggleFirebaseLogin();
+            return;
+        }
+        
+        const modal = document.getElementById('add-bank-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+        loadFirebaseBanks();
+        resetAddBankModal();
     }
-    
-    const modal = document.getElementById('add-bank-modal');
-    if (modal) {
-        modal.style.display = 'block';
-    }
-    loadFirebaseBanks();
-    resetAddBankModal();
-}
 
- function closeAddBankModal() {
-    const modal = document.getElementById('add-bank-modal');
-    if (modal) {
-        modal.style.display = 'none';
+    function closeAddBankModal() {
+        const modal = document.getElementById('add-bank-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
     }
-}
-
 
     function resetAddBankModal() {
         addBankStep = 1;
@@ -1648,7 +1694,6 @@ async function firebaseLogin() {
     }
 
     // --- Inter-Bank Transfer Functions ---
-
     function updateTransferBankSelectors() {
         const fromSelect = document.getElementById('transfer-from-bank');
         const toSelect = document.getElementById('transfer-to-bank');
@@ -1694,84 +1739,13 @@ async function firebaseLogin() {
         return fee;
     }
 
-    // Initialize transfer amount listener
-    document.addEventListener('DOMContentLoaded', function() {
-        const transferAmount = document.getElementById('transfer-amount');
-        if (transferAmount) {
-            transferAmount.addEventListener('input', function() {
-                const amount = parseFloat(this.value) || 0;
-                const fee = calculateTransferFee(amount);
-                const feeElement = document.getElementById('transfer-fee');
-                if (feeElement) {
-                    feeElement.textContent = `Transfer Fee: ${formatKSH(fee)}`;
-                }
-            });
+    function closeTransferConfirm() {
+        const modal = document.getElementById('transfer-confirm-modal');
+        if (modal) {
+            modal.classList.add('hidden');
         }
-        
-        // Initialize bank transfer form
-        const bankTransferForm = document.getElementById('bank-transfer-form');
-        if (bankTransferForm) {
-            bankTransferForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const fromBankId = document.getElementById('transfer-from-bank').value;
-                const toBankId = document.getElementById('transfer-to-bank').value;
-                const amount = parseFloat(document.getElementById('transfer-amount').value);
-                const reason = document.getElementById('transfer-reason').value;
-                
-                if (!fromBankId || !toBankId) {
-                    showToast('Please select both source and destination banks', 'error');
-                    return;
-                }
-                
-                if (fromBankId === toBankId) {
-                    showToast('Cannot transfer to the same bank account', 'error');
-                    return;
-                }
-                
-                if (!amount || amount <= 0) {
-                    showToast('Please enter a valid transfer amount', 'error');
-                    return;
-                }
-                
-                const fromBank = getBankById(fromBankId);
-                const toBank = getBankById(toBankId);
-                const fee = calculateTransferFee(amount);
-                const totalDebit = amount + fee;
-                
-                if (fromBank.balance < totalDebit) {
-                    showToast(`Insufficient funds. Available: ${formatKSH(fromBank.balance)}, Required: ${formatKSH(totalDebit)}`, 'error');
-                    return;
-                }
-                
-                // Show preview
-                document.getElementById('preview-from').textContent = fromBank.name;
-                document.getElementById('preview-to').textContent = toBank.name;
-                document.getElementById('preview-amount').textContent = formatKSH(amount);
-                document.getElementById('preview-fee').textContent = formatKSH(fee);
-                document.getElementById('preview-reason').textContent = reason || 'No reason provided';
-                document.getElementById('transfer-preview').classList.remove('hidden');
-                
-                // Show confirmation modal
-                document.getElementById('confirm-transfer-from').textContent = fromBank.name;
-                document.getElementById('confirm-transfer-to').textContent = toBank.name;
-                document.getElementById('confirm-transfer-amount').textContent = formatKSH(amount);
-                document.getElementById('confirm-transfer-fee').textContent = formatKSH(fee);
-                document.getElementById('confirm-transfer-total').textContent = formatKSH(totalDebit);
-                document.getElementById('confirm-transfer-reason').textContent = reason || 'No reason provided';
-                
-                document.getElementById('transfer-confirm-modal').classList.remove('hidden');
-            });
-        }
-    });
-
-  function closeTransferConfirm() {
-    const modal = document.getElementById('transfer-confirm-modal');
-    if (modal) {
-        modal.style.display = 'none';
+        document.getElementById('transfer-pin').value = '';
     }
-    document.getElementById('transfer-pin').value = '';
-}
 
     function executeBankTransfer() {
         const pin = document.getElementById('transfer-pin').value;
@@ -1914,7 +1888,6 @@ async function firebaseLogin() {
     }
 
     // --- Bank Cards Display ---
-
     function updateBankCards() {
         const container = document.getElementById('bank-details-cards');
         const loading = document.getElementById('bank-cards-loading');
@@ -2087,7 +2060,6 @@ async function firebaseLogin() {
     }
 
     // --- Utility Functions ---
-
     function getBankById(id) {
         return banks.find(b => b.id === id);
     }
@@ -2235,8 +2207,7 @@ async function firebaseLogin() {
         localStorage.setItem('darkMode', isDark);
     }
 
-    // --- Original Petty Cash Functions ---
-
+    // --- Petty Cash Functions ---
     document.addEventListener('DOMContentLoaded', function() {
         // Petty Cash Form
         const pettyCashForm = document.getElementById('petty-cash-form');
@@ -2271,6 +2242,7 @@ async function firebaseLogin() {
                 document.getElementById('petty-cash-form').reset();
                 checkAnomalies(newTransaction);
                 updateQuickStats();
+                showToast('Transaction added successfully!', 'success');
             });
         }
         
@@ -2315,7 +2287,7 @@ async function firebaseLogin() {
                 updateMajorCategoryChart();
                 updateFinancialDashboard();
                 document.getElementById('major-transaction-form').reset();
-                alert(`Major Transaction Logged: ${description} - ${formatKSH(cost)} (Bank: ${selectedBank.name})`);
+                showToast(`Major Transaction Logged: ${description} - ${formatKSH(cost)}`, 'success');
             });
         }
         
@@ -2335,7 +2307,76 @@ async function firebaseLogin() {
                 loans.push(newLoan);
                 updateFinancialDashboard();
                 document.getElementById('loan-form').reset();
-                alert(`Loan from ${institution} added with outstanding balance ${formatKSH(balance)}.`);
+                showToast(`Loan from ${institution} added with outstanding balance ${formatKSH(balance)}.`, 'success');
+            });
+        }
+        
+        // Bank Transfer Form
+        const bankTransferForm = document.getElementById('bank-transfer-form');
+        if (bankTransferForm) {
+            bankTransferForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const fromBankId = document.getElementById('transfer-from-bank').value;
+                const toBankId = document.getElementById('transfer-to-bank').value;
+                const amount = parseFloat(document.getElementById('transfer-amount').value);
+                const reason = document.getElementById('transfer-reason').value;
+                
+                if (!fromBankId || !toBankId) {
+                    showToast('Please select both source and destination banks', 'error');
+                    return;
+                }
+                
+                if (fromBankId === toBankId) {
+                    showToast('Cannot transfer to the same bank account', 'error');
+                    return;
+                }
+                
+                if (!amount || amount <= 0) {
+                    showToast('Please enter a valid transfer amount', 'error');
+                    return;
+                }
+                
+                const fromBank = getBankById(fromBankId);
+                const toBank = getBankById(toBankId);
+                const fee = calculateTransferFee(amount);
+                const totalDebit = amount + fee;
+                
+                if (fromBank.balance < totalDebit) {
+                    showToast(`Insufficient funds. Available: ${formatKSH(fromBank.balance)}, Required: ${formatKSH(totalDebit)}`, 'error');
+                    return;
+                }
+                
+                // Show preview
+                document.getElementById('preview-from').textContent = fromBank.name;
+                document.getElementById('preview-to').textContent = toBank.name;
+                document.getElementById('preview-amount').textContent = formatKSH(amount);
+                document.getElementById('preview-fee').textContent = formatKSH(fee);
+                document.getElementById('preview-reason').textContent = reason || 'No reason provided';
+                document.getElementById('transfer-preview').classList.remove('hidden');
+                
+                // Show confirmation modal
+                document.getElementById('confirm-transfer-from').textContent = fromBank.name;
+                document.getElementById('confirm-transfer-to').textContent = toBank.name;
+                document.getElementById('confirm-transfer-amount').textContent = formatKSH(amount);
+                document.getElementById('confirm-transfer-fee').textContent = formatKSH(fee);
+                document.getElementById('confirm-transfer-total').textContent = formatKSH(totalDebit);
+                document.getElementById('confirm-transfer-reason').textContent = reason || 'No reason provided';
+                
+                document.getElementById('transfer-confirm-modal').classList.remove('hidden');
+            });
+        }
+        
+        // Transfer amount listener for fee calculation
+        const transferAmount = document.getElementById('transfer-amount');
+        if (transferAmount) {
+            transferAmount.addEventListener('input', function() {
+                const amount = parseFloat(this.value) || 0;
+                const fee = calculateTransferFee(amount);
+                const feeElement = document.getElementById('transfer-fee');
+                if (feeElement) {
+                    feeElement.textContent = `Transfer Fee: ${formatKSH(fee)}`;
+                }
             });
         }
         
@@ -2384,6 +2425,19 @@ async function firebaseLogin() {
         list.innerHTML = '';
         const sortedTransactions = [...pettyCashTransactions].sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
         const transactionsToShow = sortedTransactions.slice(0, 5);
+
+        if (transactionsToShow.length === 0) {
+            list.innerHTML = `
+                <tr>
+                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                        <i class="fas fa-exchange-alt text-3xl mb-3"></i>
+                        <p>No transactions yet</p>
+                        <p class="text-sm mt-2">Add your first transaction above</p>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
 
         transactionsToShow.forEach(tx => {
             const row = list.insertRow();
@@ -2449,12 +2503,12 @@ async function firebaseLogin() {
         
         if (isHidden) {
             updatePettyCashBalanceDisplay();
-            button.innerHTML = '🙈 Hide Balances';
+            button.innerHTML = '<i class="fas fa-eye-slash mr-2"></i>Hide Balances';
         } else {
             currentBalance.textContent = '********';
             dayExpense.textContent = 'KSH *****';
             dayIncome.textContent = 'KSH *****';
-            button.innerHTML = '👁️ Reveal Balances';
+            button.innerHTML = '<i class="fas fa-eye mr-2"></i>Reveal Balances';
         }
     }
 
@@ -2517,11 +2571,10 @@ async function firebaseLogin() {
         });
 
         pdf.save(`CarKenya_Petty_Cash_Daily_Report_${today.replace(/\//g, '-')}.pdf`);
-        alert(`Day closed. Report generated for ${today}.`);
+        showToast(`Day closed. Report generated for ${today}.`, 'success');
     }
 
     // --- Chart Functions ---
-
     function updatePettyCashChart() {
         let totalExpense = pettyCashTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.cost, 0);
         let totalIncome = pettyCashTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.cost, 0);
@@ -2558,11 +2611,12 @@ async function firebaseLogin() {
     }
     
     function updatePettyExpenditureChart() {
+        // Sample data for demonstration
         const data = { 
-            labels: ['Jan', 'Feb', 'Mar'], 
+            labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'], 
             datasets: [{ 
-                label: 'Daily/Monthly Trend', 
-                data: [10000, 15000, 12000], 
+                label: 'Monthly Expenditure Trend', 
+                data: [10000, 15000, 12000, 18000, 14000, 16000], 
                 borderColor: '#dc3545', 
                 fill: false, 
                 tension: 0.3 
@@ -2591,7 +2645,6 @@ async function firebaseLogin() {
     }
 
     // --- Major Financial Reports Logic ---
-
     function checkAccessCode() {
         const codeInput = document.getElementById('access-code').value;
         if (codeInput === ACCESS_CODE) {
@@ -2599,9 +2652,10 @@ async function firebaseLogin() {
             document.getElementById('report-input-area').style.display = 'block';
             updateMajorCategoryChart();
             updateFinancialDashboard();
-            alert('Access Granted! Welcome to the Major Financial Report Generator.');
+            updateBankSelectors();
+            showToast('Access Granted! Welcome to the Major Financial Report Generator.', 'success');
         } else {
-            alert('Access Denied. Invalid Code.');
+            showToast('Access Denied. Invalid Code.', 'error');
             document.getElementById('access-code').value = '';
         }
     }
@@ -2610,34 +2664,39 @@ async function firebaseLogin() {
         const majorSummaryElement = document.getElementById('major-summary');
         if (!majorSummaryElement) return;
         
-        let summaryHTML = '<h4>Major Transactions Summary</h4>';
+        if (majorTransactions.length === 0) {
+            majorSummaryElement.textContent = 'No major transactions logged yet.';
+            return;
+        }
+        
+        let summaryHTML = '<h4 class="font-semibold mb-2">Major Transactions Summary</h4>';
         const total = majorTransactions.reduce((sum, t) => sum + t.amount, 0);
-        summaryHTML += `<p><strong>Total Major Value Logged:</strong> ${formatKSH(total)}</p>`;
+        summaryHTML += `<p class="mb-4"><strong>Total Major Value Logged:</strong> ${formatKSH(total)}</p>`;
         
         const detailsHTML = `
-            <h5>Transaction Details:</h5>
-            <table class="transaction-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Description</th>
-                        <th>Category</th>
-                        <th>Bank</th>
-                        <th>Amount (KSH)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${majorTransactions.map(t => `
+            <h5 class="font-semibold mb-2">Recent Transactions:</h5>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
                         <tr>
-                            <td>${t.date}</td>
-                            <td>${t.description}</td>
-                            <td>${t.category}</td>
-                            <td>${getBankById(t.bankId)?.name || 'N/A'}</td>
-                            <td>${formatKSH(t.amount)}</td>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-700">Date</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-700">Description</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-700">Category</th>
+                            <th class="px-4 py-2 text-left text-xs font-semibold text-gray-700">Amount</th>
                         </tr>
-                    `).join('')}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        ${majorTransactions.slice(-5).reverse().map(t => `
+                            <tr>
+                                <td class="px-4 py-2 text-sm">${t.date}</td>
+                                <td class="px-4 py-2 text-sm">${t.description}</td>
+                                <td class="px-4 py-2 text-sm">${t.category}</td>
+                                <td class="px-4 py-2 text-sm font-semibold ${t.category === 'Sales' ? 'text-green-600' : 'text-red-600'}">${formatKSH(t.amount)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
         `;
         majorSummaryElement.innerHTML = summaryHTML + detailsHTML;
     }
@@ -2650,6 +2709,19 @@ async function firebaseLogin() {
 
         const labels = Object.keys(categories);
         const dataValues = Object.values(categories);
+        
+        if (labels.length === 0) {
+            const canvas = document.getElementById('majorCategoryChart');
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#f0f0f0';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('No data available', canvas.width/2, canvas.height/2);
+            }
+            return;
+        }
         
         const data = {
             labels: labels,
@@ -2692,15 +2764,15 @@ async function firebaseLogin() {
             if (reportOutput) {
                 reportOutput.innerHTML = '<p style="color: #d9534f;">⚠️ No major transactions logged. Cannot generate report.</p>';
             }
+            showToast('No major transactions to generate report', 'warning');
             return;
         }
         updateMajorSummary();
         updateMajorCategoryChart();
-        alert('Financial Report Generated! Ready to print/export.');
+        showToast('Financial Report Generated! Ready to print/export.', 'success');
     }
 
     // --- Financial Dashboard Functions ---
-
     function updateFinancialDashboard() {
         // 1. Total Bank Funds
         const totalBankFunds = banks.reduce((sum, bank) => sum + bank.balance, 0);
@@ -2734,7 +2806,6 @@ async function firebaseLogin() {
     }
 
     // --- Auditing Logic ---
-
     function simulateAudit() {
         let auditIssues = [];
         
@@ -2760,13 +2831,28 @@ async function firebaseLogin() {
         const statusElement = document.getElementById('audit-status');
         if (statusElement) {
             if (auditIssues.length > 0) {
-                statusElement.style.color = 'red';
-                statusElement.innerHTML = `⚠️ **AUDIT WARNING** - ${auditIssues.length} issues found:<br><ul><li>${auditIssues.join('</li><li>')}</li></ul>`;
-                alert('Audit Complete: WARNING! See Audit Status for details.');
+                statusElement.className = 'bg-red-50 border border-red-200 rounded-lg p-4 mb-6';
+                statusElement.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle text-red-500 mr-3"></i>
+                        <div>
+                            <span class="font-medium text-red-800">AUDIT WARNING - ${auditIssues.length} issues found:</span>
+                            <ul class="text-sm text-red-700 mt-1 list-disc pl-5">
+                                ${auditIssues.map(issue => `<li>${issue}</li>`).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                showToast('Audit Complete: WARNING! See Audit Status for details.', 'warning');
             } else {
-                statusElement.style.color = 'green';
-                statusElement.textContent = 'System Health: All Clear. Financial data integrity passed basic audit.';
-                alert('Audit Complete: System passed all checks.');
+                statusElement.className = 'bg-green-50 border border-green-200 rounded-lg p-4 mb-6';
+                statusElement.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                        <span class="font-medium text-green-800">System Health: All Clear. Financial data integrity passed basic audit.</span>
+                    </div>
+                `;
+                showToast('Audit Complete: System passed all checks.', 'success');
             }
         }
     }
@@ -2775,17 +2861,21 @@ async function firebaseLogin() {
         if (transaction.type === 'expense' && transaction.cost > 5000) {
             const statusElement = document.getElementById('audit-status');
             if (statusElement) {
-                statusElement.style.color = 'orange';
-                statusElement.innerHTML = `🟡 **PETTY CASH ALERT:** Expense of ${formatKSH(transaction.cost)} logged. Check receipt for ${transaction.description}.`;
+                statusElement.className = 'bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6';
+                statusElement.innerHTML = `
+                    <div class="flex items-center">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-3"></i>
+                        <span class="font-medium text-yellow-800">PETTY CASH ALERT: Expense of ${formatKSH(transaction.cost)} logged. Check receipt for "${transaction.description}".</span>
+                    </div>
+                `;
             }
         }
     }
 
     // --- PDF Generation ---
-
     async function exportReportToPdf() {
         if (majorTransactions.length === 0) {
-            alert("Cannot generate PDF. No major transactions logged.");
+            showToast("Cannot generate PDF. No major transactions logged.", 'warning');
             return;
         }
         
@@ -2836,23 +2926,29 @@ async function firebaseLogin() {
         });
 
         pdf.save("CarKenya_Financial_Report.pdf");
-        alert('PDF Report exported successfully!');
+        showToast('PDF Report exported successfully!', 'success');
     }
 
     // --- Calculator Logic ---
-
-   function openCalculatorModal(defaultTab) {
-    const modal = document.getElementById('calculator-modal');
-    if (modal) {
-        modal.style.display = 'block';
-    }
-    if (defaultTab) {
-        const tabButton = document.querySelector(`.calc-tab-button[onclick*='${defaultTab}-calc']`);
-        if (tabButton) { 
-            switchCalcTab({ currentTarget: tabButton }, `${defaultTab}-calc`); 
+    function openCalculatorModal(defaultTab) {
+        const modal = document.getElementById('calculator-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+        if (defaultTab) {
+            const tabButton = document.querySelector(`.calc-tab-button[onclick*='${defaultTab}-calc']`);
+            if (tabButton) { 
+                switchCalcTab({ currentTarget: tabButton }, `${defaultTab}-calc`); 
+            }
         }
     }
-}
+    
+    function closeCalculatorModal() {
+        const modal = document.getElementById('calculator-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
     
     function switchCalcTab(evt, tabName) {
         document.querySelectorAll(".calc-tab-content").forEach(el => {
@@ -2860,7 +2956,8 @@ async function firebaseLogin() {
             el.classList.remove('active');
         });
         document.querySelectorAll(".calc-tab-button").forEach(el => {
-            el.className = el.className.replace(" active", "");
+            el.classList.remove('active');
+            el.classList.remove('border-primary');
         });
         const tabElement = document.getElementById(tabName);
         if (tabElement) {
@@ -2868,7 +2965,8 @@ async function firebaseLogin() {
             tabElement.classList.add('active');
         }
         if (evt && evt.currentTarget) {
-            evt.currentTarget.className += " active";
+            evt.currentTarget.classList.add('active');
+            evt.currentTarget.classList.add('border-primary');
         }
     }
     
@@ -2927,7 +3025,6 @@ async function firebaseLogin() {
     }
 
     // --- Bank Selector Functions ---
-
     function updateBankSelectors() {
         const majorSelect = document.getElementById('transaction-bank-id');
         if (majorSelect) {
@@ -2946,7 +3043,6 @@ async function firebaseLogin() {
     }
 
     // --- Initialize the application ---
-
     window.onload = () => {
         // Check for dark mode preference
         if (localStorage.getItem('darkMode') === 'true') {
@@ -2954,7 +3050,7 @@ async function firebaseLogin() {
         }
         
         // Initialize the default tab (Petty Cash)
-        openTab({ currentTarget: document.querySelector('.tab-button.active, .custom-tab.active') }, 'petty-cash');
+        openTab({ currentTarget: document.querySelector('.custom-tab.active') }, 'petty-cash');
         
         // Initialize other components
         renderPettyCash();
@@ -2979,10 +3075,5 @@ async function firebaseLogin() {
         updateFirebaseUI();
     };
 </script>
-    <!-- Include your original JavaScript functions here -->
-    <!-- I've shown how to integrate them with the new system -->
-    <!-- You'll need to copy all your original functions from the previous code -->
-    <!-- and ensure they use the updated bank system and Firebase integration -->
-
 </body>
 </html>
