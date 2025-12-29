@@ -234,51 +234,56 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
-    <!-- Login Modal -->
-    <div id="login-modal" class="modal hidden fixed inset-0 z-50 overflow-y-auto">
-        <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
-        <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">🔐 Firebase Login</h2>
-                <p class="text-gray-600 mb-6 text-center">Connect to Firebase to sync bank data and receipts</p>
-                
-                <div class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                        <input type="email" id="login-email" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                               placeholder="your@email.com">
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                        <input type="password" id="login-password" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
-                               placeholder="••••••••">
-                    </div>
-                    
-                    <button onclick="firebaseLogin()" 
-                            class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]">
-                        <i class="fas fa-sign-in-alt mr-2"></i>Login to Firebase
-                    </button>
-                    
-                    <div class="text-center mt-4">
-                        <button onclick="toggleFirebaseLogin()" 
-                                class="text-sm text-gray-500 hover:text-gray-700">
-                            Skip for now (Use Local Data)
-                        </button>
-                    </div>
+   <!-- Login Modal -->
+<div id="login-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+    <div class="fixed inset-0 bg-black bg-opacity-50"></div>
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-10">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">🔐 Firebase Login</h2>
+            <p class="text-gray-600 mb-6 text-center">Connect to Firebase to sync bank data and receipts</p>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" id="login-email" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                           placeholder="your@email.com">
                 </div>
                 
-                <div id="firebase-status" class="mt-6 p-4 bg-blue-50 rounded-lg hidden">
-                    <p class="text-sm text-blue-800">
-                        <i class="fas fa-info-circle mr-2"></i>
-                        <span id="firebase-status-text"></span>
-                    </p>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                    <input type="password" id="login-password" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                           placeholder="••••••••">
+                </div>
+                
+                <button onclick="firebaseLogin()" 
+                        class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                    <i class="fas fa-sign-in-alt mr-2"></i>Login to Firebase
+                </button>
+                
+                <div class="text-center mt-4">
+                    <button onclick="toggleFirebaseLogin()" 
+                            class="text-sm text-gray-500 hover:text-gray-700">
+                        Skip for now (Use Local Data)
+                    </button>
                 </div>
             </div>
+            
+            <div id="firebase-status" class="mt-6 p-4 bg-blue-50 rounded-lg" style="display: none;">
+                <p class="text-sm text-blue-800">
+                    <i class="fas fa-info-circle mr-2"></i>
+                    <span id="firebase-status-text"></span>
+                </p>
+            </div>
+            
+            <button onclick="toggleFirebaseLogin()" 
+                    class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
     </div>
+</div>
 
     <!-- Main Header -->
     <header class="bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg">
@@ -896,7 +901,7 @@
     </button>
 
     <!-- Calculator Modal -->
-    <div id="calculator-modal" class="modal hidden fixed inset-0 z-50 overflow-y-auto">
+    <div id="calculator-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
         <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
@@ -990,7 +995,7 @@
     </div>
 
     <!-- Add Bank Modal -->
-    <div id="add-bank-modal" class="modal hidden fixed inset-0 z-50 overflow-y-auto">
+   <div id="add-bank-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
         <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6">
@@ -1117,7 +1122,7 @@
     </div>
 
     <!-- Transfer Confirmation Modal -->
-    <div id="transfer-confirm-modal" class="modal hidden fixed inset-0 z-50 overflow-y-auto">
+  <div id="transfer-confirm-modal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
         <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
@@ -1288,33 +1293,21 @@
 
     // --- Firebase Functions ---
 
-    function toggleFirebaseLogin() {
-        const modal = document.getElementById('login-modal');
-        modal.classList.toggle('hidden');
+  function toggleFirebaseLogin() {
+    const modal = document.getElementById('login-modal');
+    if (!modal) return;
+    
+    if (modal.style.display === 'none' || modal.style.display === '') {
+        modal.style.display = 'block';
+        // Clear any previous inputs
+        document.getElementById('login-email').value = '';
+        document.getElementById('login-password').value = '';
+        // Hide status message
+        document.getElementById('firebase-status').style.display = 'none';
+    } else {
+        modal.style.display = 'none';
     }
-
-    async function firebaseLogin() {
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        
-        if (!email || !password) {
-            showToast('Please enter email and password', 'error');
-            return;
-        }
-        
-        showLoading('Connecting to Firebase...');
-        
-        try {
-            await auth.signInWithEmailAndPassword(email, password);
-            showLoading(false);
-            document.getElementById('login-modal').classList.add('hidden');
-            showToast('Login successful! Syncing bank data...', 'success');
-        } catch (error) {
-            showLoading(false);
-            console.error("Login error:", error);
-            showToast(`Login failed: ${error.message}`, 'error');
-        }
-    }
+}
 
     function updateFirebaseUI() {
         const loginBtn = document.getElementById('firebase-login-btn');
@@ -1474,21 +1467,28 @@
 
     // --- Add Bank Modal Functions ---
 
-    function openAddBankModal() {
-        if (!user) {
-            showToast('Please connect to Firebase first', 'warning');
-            toggleFirebaseLogin();
-            return;
-        }
-        
-        document.getElementById('add-bank-modal').classList.remove('hidden');
-        loadFirebaseBanks();
-        resetAddBankModal();
+  function openAddBankModal() {
+    if (!user) {
+        showToast('Please connect to Firebase first', 'warning');
+        toggleFirebaseLogin();
+        return;
     }
+    
+    const modal = document.getElementById('add-bank-modal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+    loadFirebaseBanks();
+    resetAddBankModal();
+}
 
-    function closeAddBankModal() {
-        document.getElementById('add-bank-modal').classList.add('hidden');
+ function closeAddBankModal() {
+    const modal = document.getElementById('add-bank-modal');
+    if (modal) {
+        modal.style.display = 'none';
     }
+}
+
 
     function resetAddBankModal() {
         addBankStep = 1;
@@ -1706,10 +1706,13 @@
         }
     });
 
-    function closeTransferConfirm() {
-        document.getElementById('transfer-confirm-modal').classList.add('hidden');
-        document.getElementById('transfer-pin').value = '';
+  function closeTransferConfirm() {
+    const modal = document.getElementById('transfer-confirm-modal');
+    if (modal) {
+        modal.style.display = 'none';
     }
+    document.getElementById('transfer-pin').value = '';
+}
 
     function executeBankTransfer() {
         const pin = document.getElementById('transfer-pin').value;
@@ -2779,18 +2782,18 @@
 
     // --- Calculator Logic ---
 
-    function openCalculatorModal(defaultTab) {
-        const modal = document.getElementById('calculator-modal');
-        if (modal) {
-            modal.classList.remove('hidden');
-        }
-        if (defaultTab) {
-            const tabButton = document.querySelector(`.calc-tab-button[onclick*='${defaultTab}-calc']`);
-            if (tabButton) { 
-                switchCalcTab({ currentTarget: tabButton }, `${defaultTab}-calc`); 
-            }
+   function openCalculatorModal(defaultTab) {
+    const modal = document.getElementById('calculator-modal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+    if (defaultTab) {
+        const tabButton = document.querySelector(`.calc-tab-button[onclick*='${defaultTab}-calc']`);
+        if (tabButton) { 
+            switchCalcTab({ currentTarget: tabButton }, `${defaultTab}-calc`); 
         }
     }
+}
     
     function switchCalcTab(evt, tabName) {
         document.querySelectorAll(".calc-tab-content").forEach(el => {
