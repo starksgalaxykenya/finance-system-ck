@@ -1235,6 +1235,59 @@
         }
     }
 
+    // Firebase Login Function
+async function firebaseLogin() {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    const statusElement = document.getElementById('firebase-status');
+    
+    if (!email || !password) {
+        showToast('Please enter both email and password', 'error');
+        return;
+    }
+    
+    showLoading('Connecting to Firebase...');
+    
+    try {
+        await auth.signInWithEmailAndPassword(email, password);
+        showToast('Login successful!', 'success');
+        toggleFirebaseLogin(); // Close the modal
+        
+        // Update UI
+        updateFirebaseUI();
+        
+    } catch (error) {
+        showLoading(false);
+        console.error("Firebase login error:", error);
+        
+        let errorMessage = 'Login failed. ';
+        switch (error.code) {
+            case 'auth/invalid-email':
+                errorMessage += 'Invalid email address.';
+                break;
+            case 'auth/user-disabled':
+                errorMessage += 'This account has been disabled.';
+                break;
+            case 'auth/user-not-found':
+                errorMessage += 'No account found with this email.';
+                break;
+            case 'auth/wrong-password':
+                errorMessage += 'Incorrect password.';
+                break;
+            default:
+                errorMessage += error.message;
+        }
+        
+        showToast(errorMessage, 'error');
+        
+        // Show status in the modal
+        if (statusElement) {
+            statusElement.style.display = 'block';
+            document.getElementById('firebase-status-text').textContent = errorMessage;
+        }
+    }
+}
+
     // Call initialization
     initializeFirebase();
 </script>
@@ -1293,17 +1346,21 @@
 
     // --- Firebase Functions ---
 
-  function toggleFirebaseLogin() {
+ function toggleFirebaseLogin() {
     const modal = document.getElementById('login-modal');
     if (!modal) return;
     
+    // Toggle display
     if (modal.style.display === 'none' || modal.style.display === '') {
         modal.style.display = 'block';
         // Clear any previous inputs
         document.getElementById('login-email').value = '';
         document.getElementById('login-password').value = '';
         // Hide status message
-        document.getElementById('firebase-status').style.display = 'none';
+        const statusElement = document.getElementById('firebase-status');
+        if (statusElement) {
+            statusElement.style.display = 'none';
+        }
     } else {
         modal.style.display = 'none';
     }
