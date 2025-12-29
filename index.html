@@ -1194,6 +1194,810 @@
             measurementId: "G-7Z71W1NSX4"
         };
 
+        <!-- Add this script section after the Firebase initialization but before window.onload -->
+
+<script>
+    // ... (Firebase initialization code remains the same) ...
+
+    // --- Original Functions from Your Code ---
+
+    function openTab(evt, tabName) {
+        let i, tabcontent, tablinks;
+        const auditCard = document.getElementById('audit-card');
+
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+            tabcontent[i].classList.remove("active");
+        }
+
+        tablinks = document.getElementsByClassName("tab-button");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].className = tablinks[i].className.replace(" active", "");
+        }
+
+        document.getElementById(tabName).style.display = "block";
+        document.getElementById(tabName).classList.add("active");
+        evt.currentTarget.className += " active";
+    }
+
+    // --- Core Application Data ---
+    const { jsPDF } = window.jspdf;
+    let pettyCashTransactions = [];
+    let majorTransactions = [];
+    let banks = [];
+    let loans = [];
+    let bankTransfers = [];
+    const ACCESS_CODE = "2679";
+    let pettyChartInstance = null;
+    let majorChartInstance = null;
+    let pettyLineChartInstance = null;
+    let basicCalcCurrentExpression = '';
+    let currentMonthSpend = {
+        month: new Date().getMonth(),
+        year: new Date().getFullYear(),
+        totalExpense: 0
+    };
+
+    // --- Utility Functions ---
+
+    function getBankById(id) {
+        return banks.find(b => b.id === id);
+    }
+
+    function formatKSH(amount) {
+        return `KSH ${amount.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    }
+
+    // --- Petty Cash Manager Logic ---
+
+    document.getElementById('petty-cash-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const description = document.getElementById('description').value;
+        const recipient = document.getElementById('recipient').value;
+        const cost = parseFloat(document.getElementById('cost').value);
+        const type = document.getElementById('type').value;
+
+        if (cost <= 0) {
+            alert("Cost must be a positive value.");
+            return;
+        }
+
+        const now = new Date();
+        const newTransaction = {
+            date: now.toLocaleDateString('en-KE'),
+            time: now.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+            description: description,
+            recipient: recipient,
+            cost: cost,
+            type: type
+        };
+
+        pettyCashTransactions.push(newTransaction);
+        renderPettyCash();
+        updatePettyCashBalanceDisplay();
+        updatePettyCashChart();
+        updatePettyExpenditureChart();
+        document.getElementById('petty-cash-form').reset();
+        checkAnomalies(newTransaction);
+        updateQuickStats();
+    });
+
+    function renderPettyCash() {
+        const list = document.getElementById('transaction-list');
+        list.innerHTML = '';
+        const sortedTransactions = [...pettyCashTransactions].sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
+        const transactionsToShow = sortedTransactions.slice(0, 5);
+
+        transactionsToShow.forEach(tx => {
+            const row = list.insertRow();
+            row.style.color = tx.type === 'expense' ? '#d9534f' : 'var(--primary-color)';
+            
+            row.insertCell().textContent = tx.date;
+            row.insertCell().textContent = tx.description;
+            row.insertCell().textContent = tx.recipient;
+            row.insertCell().textContent = tx.type.charAt(0).toUpperCase() + tx.type.slice(1);
+            row.insertCell().textContent = formatKSH(tx.cost);
+        });
+        updatePettyCashBalanceDisplay();
+    }
+
+    function calculatePettyCashBalance() {
+        let totalExpense = 0;
+        let totalIncome = 0;
+        let currentBalance = 0;
+        
+        pettyCashTransactions.forEach(t => {
+            currentBalance += (t.type === 'income' ? t.cost : -t.cost);
+        });
+        
+        const today = new Date().toLocaleDateString('en-KE');
+        const todayTrans = pettyCashTransactions.filter(t => t.date === today);
+
+        todayTrans.forEach(t => {
+            if (t.type === 'expense') {
+                totalExpense += t.cost;
+            } else {
+                totalIncome += t.cost;
+            }
+        });
+        
+        return { currentBalance, totalExpense, totalIncome };
+    }
+
+    function updatePettyCashBalanceDisplay() {
+        const { currentBalance, totalExpense, totalIncome } = calculatePettyCashBalance();
+        
+        document.getElementById('current-balance').textContent = formatKSH(currentBalance);
+        document.getElementById('day-expense').textContent = formatKSH(totalExpense);
+        document.getElementById('day-income').textContent = formatKSH(totalIncome);
+        
+        const currentBalanceElement = document.getElementById('current-balance');
+        currentBalanceElement.style.color = currentBalance < 0 ? '#dc3545' : 'var(--primary-color)';
+    }
+
+    function togglePettyCashBalance() {
+        const currentBalance = document.getElementById('current-balance');
+        const dayExpense = document.getElementById('day-expense');
+        const dayIncome = document.getElementById('day-income');
+        const button = document.querySelector('.balance-bar button:first-child');
+        
+        const isHidden = dayIncome.textContent.includes('*****');
+        
+        if (isHidden) {
+            updatePettyCashBalanceDisplay();
+            button.innerHTML = '🙈 Hide Balances';
+        } else {
+            currentBalance.textContent = '********';
+            dayExpense.textContent = 'KSH *****';
+            dayIncome.textContent = 'KSH *****';
+            button.innerHTML = '👁️ Reveal Balances';
+        }
+    }
+
+    async function endDayAndGenerateReport() {
+        const today = new Date().toLocaleDateString('en-KE');
+        const todayTrans = pettyCashTransactions.filter(t => t.date === today);
+        const { currentBalance, totalExpense, totalIncome } = calculatePettyCashBalance();
+        
+        if (todayTrans.length === 0) {
+            alert("No transactions logged for today to generate a report.");
+            return;
+        }
+
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const title = `Petty Cash Daily Report - ${today}`;
+        const startingBalance = currentBalance + totalExpense - totalIncome;
+
+        pdf.setFontSize(22);
+        pdf.setTextColor(38, 121, 33);
+        pdf.text(title, 14, 20);
+        
+        pdf.setFontSize(12);
+        pdf.setTextColor(51, 51, 51);
+        pdf.text(`Starting Balance (EOD T-1): ${formatKSH(startingBalance)}`, 14, 38);
+        pdf.text(`(+) Total Income Today: ${formatKSH(totalIncome)}`, 14, 44);
+        pdf.text(`(-) Total Expense Today: ${formatKSH(totalExpense)}`, 14, 50);
+        pdf.text(`(=) End of Day Balance: ${formatKSH(currentBalance)}`, 14, 56);
+        
+        pdf.setFontSize(16);
+        pdf.setTextColor(38, 121, 33);
+        pdf.text('Detailed Daily Transactions', 14, 68);
+        
+        let y = 75;
+        pdf.setFontSize(9);
+        
+        pdf.setFillColor(38, 121, 33);
+        pdf.setTextColor(255, 255, 255);
+        pdf.rect(10, y, 190, 6, 'F');
+        pdf.text('Time', 12, y + 4);
+        pdf.text('Description', 40, y + 4);
+        pdf.text('Recipient', 100, y + 4);
+        pdf.text('Type', 135, y + 4);
+        pdf.text('Amount (KSH)', 165, y + 4);
+        y += 6;
+
+        pdf.setTextColor(51, 51, 51);
+        todayTrans.forEach(tx => {
+            if (y > 280) { pdf.addPage(); y = 20; pdf.setTextColor(51, 51, 51); }
+            const time = tx.time || new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' });
+            const color = tx.type === 'income' ? '#267921' : '#d9534f';
+            
+            pdf.setTextColor(51, 51, 51);
+            pdf.text(time, 12, y + 4);
+            pdf.text(tx.description.substring(0, 30) + (tx.description.length > 30 ? '...' : ''), 40, y + 4);
+            pdf.text(tx.recipient, 100, y + 4);
+            pdf.text(tx.type.toUpperCase(), 135, y + 4);
+            pdf.setTextColor(color);
+            pdf.text(tx.cost.toLocaleString('en-KE'), 165, y + 4);
+            y += 6;
+        });
+
+        pdf.save(`CarKenya_Petty_Cash_Daily_Report_${today.replace(/\//g, '-')}.pdf`);
+        alert(`Day closed. Report generated for ${today}.`);
+    }
+
+    // --- Chart Functions ---
+
+    function updatePettyCashChart() {
+        let totalExpense = pettyCashTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.cost, 0);
+        let totalIncome = pettyCashTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.cost, 0);
+
+        const data = {
+            labels: ['Total Expenses', 'Total Income'],
+            datasets: [{
+                label: 'Petty Cash Flow (KSH)',
+                data: [totalExpense, totalIncome],
+                backgroundColor: ['#d9534f', 'var(--primary-color)'],
+                borderWidth: 1
+            }]
+        };
+
+        if (pettyChartInstance) {
+            pettyChartInstance.data = data;
+            pettyChartInstance.update();
+        } else {
+            const ctx = document.getElementById('pettyCashChart').getContext('2d');
+            pettyChartInstance = new Chart(ctx, { 
+                type: 'bar', 
+                data: data, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { display: false } }, 
+                    scales: { y: { beginAtZero: true } } 
+                } 
+            });
+        }
+    }
+    
+    function updatePettyExpenditureChart() {
+        const data = { 
+            labels: ['Jan', 'Feb', 'Mar'], 
+            datasets: [{ 
+                label: 'Daily/Monthly Trend', 
+                data: [10000, 15000, 12000], 
+                borderColor: '#dc3545', 
+                fill: false, 
+                tension: 0.3 
+            }] 
+        };
+        
+        if (pettyLineChartInstance) {
+            pettyLineChartInstance.data = data;
+            pettyLineChartInstance.update();
+        } else {
+            const ctx = document.getElementById('pettyExpenditureLineChart').getContext('2d');
+            pettyLineChartInstance = new Chart(ctx, { 
+                type: 'line', 
+                data: data, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { legend: { position: 'top' } }, 
+                    scales: { y: { beginAtZero: true } } 
+                } 
+            });
+        }
+    }
+
+    // --- Major Financial Reports Logic ---
+
+    function checkAccessCode() {
+        const codeInput = document.getElementById('access-code').value;
+        if (codeInput === ACCESS_CODE) {
+            document.getElementById('access-gate').style.display = 'none';
+            document.getElementById('report-input-area').style.display = 'block';
+            updateMajorCategoryChart();
+            updateFinancialDashboard();
+            alert('Access Granted! Welcome to the Major Financial Report Generator.');
+        } else {
+            alert('Access Denied. Invalid Code.');
+            document.getElementById('access-code').value = '';
+        }
+    }
+
+    document.getElementById('major-transaction-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const description = document.getElementById('major-description').value;
+        const cost = parseFloat(document.getElementById('major-cost').value);
+        const category = document.getElementById('major-category').value;
+        const bankId = document.getElementById('transaction-bank-id').value;
+
+        if (cost <= 0) {
+            alert("Amount must be a positive value.");
+            return;
+        }
+        if (!bankId) {
+            alert("Please select a bank account for this transaction.");
+            return;
+        }
+
+        const selectedBank = getBankById(bankId);
+        const isIncome = category === 'Sales';
+        
+        if (isIncome) {
+            selectedBank.balance += cost;
+        } else {
+            selectedBank.balance -= cost;
+        }
+        
+        majorTransactions.push({
+            description,
+            amount: cost,
+            category,
+            date: new Date().toLocaleDateString('en-KE'),
+            bankId: bankId
+        });
+
+        updateBankSelectors();
+        updateMajorSummary();
+        updateMajorCategoryChart();
+        updateFinancialDashboard();
+        document.getElementById('major-transaction-form').reset();
+        alert(`Major Transaction Logged: ${description} - ${formatKSH(cost)} (Bank: ${selectedBank.name})`);
+    });
+    
+    function updateMajorSummary() {
+        let summaryHTML = '<h4>Major Transactions Summary</h4>';
+        const total = majorTransactions.reduce((sum, t) => sum + t.amount, 0);
+        summaryHTML += `<p><strong>Total Major Value Logged:</strong> ${formatKSH(total)}</p>`;
+        
+        const detailsHTML = `
+            <h5>Transaction Details:</h5>
+            <table class="transaction-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Bank</th>
+                        <th>Amount (KSH)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${majorTransactions.map(t => `
+                        <tr>
+                            <td>${t.date}</td>
+                            <td>${t.description}</td>
+                            <td>${t.category}</td>
+                            <td>${getBankById(t.bankId)?.name || 'N/A'}</td>
+                            <td>${formatKSH(t.amount)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+        document.getElementById('major-summary').innerHTML = summaryHTML + detailsHTML;
+    }
+
+    function updateMajorCategoryChart() {
+        const categories = majorTransactions.reduce((acc, t) => {
+            acc[t.category] = (acc[t.category] || 0) + t.amount;
+            return acc;
+        }, {});
+
+        const labels = Object.keys(categories);
+        const dataValues = Object.values(categories);
+        
+        const data = {
+            labels: labels,
+            datasets: [{
+                label: 'Value by Category (KSH)',
+                data: dataValues,
+                backgroundColor: ['#267921', '#ffc107', '#0dcaf0', '#dc3545', '#6c757d'],
+                hoverOffset: 4
+            }]
+        };
+
+        if (majorChartInstance) {
+            majorChartInstance.data = data;
+            majorChartInstance.update();
+        } else {
+            const ctx = document.getElementById('majorCategoryChart').getContext('2d');
+            majorChartInstance = new Chart(ctx, { 
+                type: 'doughnut', 
+                data: data, 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    plugins: { 
+                        title: { 
+                            display: true, 
+                            text: 'Major Transactions Breakdown' 
+                        } 
+                    } 
+                } 
+            });
+        }
+    }
+    
+    function generateReport() {
+        if (majorTransactions.length === 0) {
+            document.getElementById('report-output-area').innerHTML = '<p style="color: #d9534f;">⚠️ No major transactions logged. Cannot generate report.</p>';
+            return;
+        }
+        updateMajorSummary();
+        updateMajorCategoryChart();
+        alert('Financial Report Generated! Ready to print/export.');
+    }
+
+    // --- Financial Dashboard Functions ---
+
+    function updateFinancialDashboard() {
+        // 1. Total Bank Funds
+        const totalBankFunds = banks.reduce((sum, bank) => sum + bank.balance, 0);
+        document.getElementById('total-bank-funds').textContent = formatKSH(totalBankFunds);
+        
+        // 2. Total Outstanding Loans
+        const totalOutstandingLoans = loans.reduce((sum, loan) => sum + loan.balance, 0);
+        document.getElementById('total-outstanding-loans').textContent = formatKSH(totalOutstandingLoans);
+        
+        // 3. Monthly Spend
+        const now = new Date();
+        if (now.getMonth() !== currentMonthSpend.month || now.getFullYear() !== currentMonthSpend.year) {
+            currentMonthSpend.month = now.getMonth();
+            currentMonthSpend.year = now.getFullYear();
+            currentMonthSpend.totalExpense = 0;
+        } else {
+            currentMonthSpend.totalExpense = majorTransactions
+                .filter(t => {
+                    const tDate = new Date(t.date);
+                    const isExpense = ['Payroll', 'Overheads', 'Assets'].includes(t.category);
+                    const isThisMonth = tDate.getMonth() === currentMonthSpend.month && tDate.getFullYear() === currentMonthSpend.year;
+                    return isExpense && isThisMonth;
+                })
+                .reduce((sum, t) => sum + t.amount, 0);
+        }
+        
+        document.getElementById('monthly-spend').textContent = formatKSH(currentMonthSpend.totalExpense);
+    }
+
+    // --- Loan Management ---
+
+    document.getElementById('loan-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const institution = document.getElementById('loan-institution').value;
+        const balance = parseFloat(document.getElementById('loan-balance').value);
+        
+        const newLoan = {
+            id: 'l' + Date.now(),
+            institution: institution,
+            balance: balance
+        };
+        loans.push(newLoan);
+        updateFinancialDashboard();
+        document.getElementById('loan-form').reset();
+        alert(`Loan from ${institution} added with outstanding balance ${formatKSH(balance)}.`);
+    });
+
+    // --- Auditing Logic ---
+
+    function simulateAudit() {
+        let auditIssues = [];
+        
+        const pettyAnomalies = pettyCashTransactions.filter(t => t.type === 'expense' && t.cost > 5000);
+        if (pettyAnomalies.length > 0) { 
+            auditIssues.push(`[Petty Cash] ${pettyAnomalies.length} high-value expenses (>KSH 5,000) found.`); 
+        }
+
+        const pettyBalance = pettyCashTransactions.reduce((sum, t) => sum + (t.type === 'income' ? t.cost : -t.cost), 0);
+        if (pettyBalance < 0) { 
+            auditIssues.push(`[Petty Cash] Negative Balance: ${formatKSH(pettyBalance)}.`); 
+        }
+        
+        banks.filter(b => b.balance < 0).forEach(b => { 
+            auditIssues.push(`[Bank Integrity] ${b.name} has a negative balance of ${formatKSH(b.balance)}.`); 
+        });
+        
+        const smallMajorExpenses = majorTransactions.filter(t => ['Payroll', 'Overheads'].includes(t.category) && t.amount < 1000);
+        if (smallMajorExpenses.length > 0) { 
+            auditIssues.push(`[Major Integrity] ${smallMajorExpenses.length} small expenses logged as Major.`); 
+        }
+
+        const statusElement = document.getElementById('audit-status');
+        if (auditIssues.length > 0) {
+            statusElement.style.color = 'red';
+            statusElement.innerHTML = `⚠️ **AUDIT WARNING** - ${auditIssues.length} issues found:<br><ul><li>${auditIssues.join('</li><li>')}</li></ul>`;
+            alert('Audit Complete: WARNING! See Audit Status for details.');
+        } else {
+            statusElement.style.color = 'green';
+            statusElement.textContent = 'System Health: All Clear. Financial data integrity passed basic audit.';
+            alert('Audit Complete: System passed all checks.');
+        }
+    }
+
+    function checkAnomalies(transaction) {
+        if (transaction.type === 'expense' && transaction.cost > 5000) {
+            const statusElement = document.getElementById('audit-status');
+            statusElement.style.color = 'orange';
+            statusElement.innerHTML = `🟡 **PETTY CASH ALERT:** Expense of ${formatKSH(transaction.cost)} logged. Check receipt for ${transaction.description}.`;
+        }
+    }
+
+    // --- PDF Generation ---
+
+    async function exportReportToPdf() {
+        if (majorTransactions.length === 0) {
+            alert("Cannot generate PDF. No major transactions logged.");
+            return;
+        }
+        
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const title = 'CarKenya.Co.Ke Financial Report';
+
+        pdf.setFontSize(22);
+        pdf.setTextColor(38, 121, 33);
+        pdf.text(title, 14, 20);
+        
+        pdf.setFontSize(10);
+        pdf.setTextColor(51, 51, 51);
+        pdf.text(`Date Generated: ${new Date().toLocaleDateString('en-KE')}`, 14, 25);
+        pdf.text(`Total Bank Funds: ${formatKSH(banks.reduce((sum, b) => sum + b.balance, 0))}`, 14, 30);
+        
+        pdf.setFontSize(16);
+        pdf.text('Category Breakdown Graph', 14, 40);
+
+        const canvas = await html2canvas(document.getElementById('majorCategoryChart'), { scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 10, 45, 180, 100); 
+
+        pdf.setFontSize(16);
+        pdf.text('Transaction Details', 14, 155);
+
+        let y = 165;
+        pdf.setFontSize(10);
+        
+        pdf.setFillColor(38, 121, 33);
+        pdf.setTextColor(255, 255, 255);
+        pdf.rect(10, y, 190, 7, 'F');
+        pdf.text('Date', 12, y + 5);
+        pdf.text('Description', 40, y + 5);
+        pdf.text('Category', 95, y + 5);
+        pdf.text('Bank', 130, y + 5);
+        pdf.text('Amount (KSH)', 165, y + 5);
+        y += 7;
+
+        pdf.setTextColor(51, 51, 51);
+        majorTransactions.forEach(tx => {
+            if (y > 280) { pdf.addPage(); y = 20; pdf.setTextColor(51, 51, 51); }
+            pdf.text(tx.date, 12, y + 5);
+            pdf.text(tx.description.substring(0, 30) + (tx.description.length > 30 ? '...' : ''), 40, y + 5);
+            pdf.text(tx.category, 95, y + 5);
+            pdf.text(getBankById(tx.bankId)?.name || 'N/A', 130, y + 5);
+            pdf.text(tx.amount.toLocaleString('en-KE'), 165, y + 5);
+            y += 7;
+        });
+
+        pdf.save("CarKenya_Financial_Report.pdf");
+        alert('PDF Report exported successfully!');
+    }
+
+    // --- Calculator Logic ---
+
+    function openCalculatorModal(defaultTab) {
+        document.getElementById('calculator-modal').classList.remove('hidden');
+        if (defaultTab) {
+            const tabButton = document.querySelector(`.calc-tab-button[onclick*='${defaultTab}-calc']`);
+            if (tabButton) { 
+                switchCalcTab({ currentTarget: tabButton }, `${defaultTab}-calc`); 
+            }
+        }
+    }
+    
+    function switchCalcTab(evt, tabName) {
+        document.querySelectorAll(".calc-tab-content").forEach(el => el.style.display = "none");
+        document.querySelectorAll(".calc-tab-button").forEach(el => el.className = el.className.replace(" active", ""));
+        document.getElementById(tabName).style.display = "block";
+        evt.currentTarget.className += " active";
+    }
+    
+    function appendToBasicCalc(value) {
+        const display = document.getElementById('calculator-display');
+        if (display.textContent === '0' && value !== '.') { 
+            display.textContent = ''; 
+        }
+        if (basicCalcCurrentExpression === 'Error') { 
+            basicCalcCurrentExpression = ''; 
+        }
+        
+        const lastChar = basicCalcCurrentExpression.slice(-1);
+        const isOperator = (char) => ['+', '-', '*', '/'].includes(char);
+
+        if (isOperator(lastChar) && isOperator(value)) {
+            basicCalcCurrentExpression = basicCalcCurrentExpression.slice(0, -1) + value;
+        } else if (value === '.' && basicCalcCurrentExpression.split(/[\+\-\*\/]/).pop().includes('.')) {
+            return;
+        } else if (value === '.' && basicCalcCurrentExpression.length === 0) {
+            basicCalcCurrentExpression = '0.';
+        } else {
+            basicCalcCurrentExpression += value;
+        }
+
+        let displayValue = basicCalcCurrentExpression.replace(/\*/g, '×').replace(/\//g, '÷').replace(/\-/g, '−');
+        display.textContent = displayValue.length > 20 ? '... ' + displayValue.slice(-20) : displayValue;
+    }
+
+    function clearBasicCalc() {
+        document.getElementById('calculator-display').textContent = '0';
+        basicCalcCurrentExpression = '';
+    }
+
+    function calculateBasicCalc() {
+        const display = document.getElementById('calculator-display');
+        try {
+            let result = new Function('return ' + basicCalcCurrentExpression)();
+            if (result === Infinity || isNaN(result)) { 
+                throw new Error('Invalid calculation'); 
+            }
+            result = parseFloat(result.toFixed(4)); 
+            display.textContent = result.toLocaleString('en-KE');
+            basicCalcCurrentExpression = result.toString();
+        } catch (error) {
+            display.textContent = 'Error';
+            basicCalcCurrentExpression = 'Error';
+        }
+    }
+
+    document.getElementById('emi-calculator-form').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const principal = parseFloat(document.getElementById('principal').value);
+        const rateAnnual = parseFloat(document.getElementById('rate').value);
+        const months = parseInt(document.getElementById('months').value);
+        const resultElement = document.getElementById('emi-result');
+        
+        if (principal <= 0 || rateAnnual < 0 || months <= 0) {
+            resultElement.textContent = "Please enter positive values.";
+            return;
+        }
+
+        const rateMonthly = (rateAnnual / 100) / 12;
+        const n = months;
+        
+        let emi;
+        if (rateMonthly === 0) {
+            emi = principal / n;
+        } else {
+            const power = Math.pow((1 + rateMonthly), n);
+            emi = principal * (rateMonthly * power) / (power - 1);
+        }
+
+        const totalInterest = (emi * n) - principal;
+
+        resultElement.style.color = 'var(--primary-color)';
+        resultElement.innerHTML = `
+            <p>Monthly Payment (EMI): <strong>${formatKSH(emi.toFixed(2))}</strong></p>
+            <p>Total Repayment: ${formatKSH((emi * n).toFixed(2))}</p>
+            <p>Total Interest: ${formatKSH(totalInterest.toFixed(2))}</p>
+        `;
+    });
+
+    // --- UI Helper Functions ---
+
+    function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        const toastId = 'toast-' + Date.now();
+        
+        const icons = {
+            success: 'fa-check-circle',
+            error: 'fa-exclamation-circle',
+            warning: 'fa-exclamation-triangle',
+            info: 'fa-info-circle'
+        };
+        
+        const colors = {
+            success: 'bg-green-500',
+            error: 'bg-red-500',
+            warning: 'bg-yellow-500',
+            info: 'bg-blue-500'
+        };
+        
+        const toast = document.createElement('div');
+        toast.id = toastId;
+        toast.className = `toast ${colors[type]} text-white rounded-lg shadow-lg p-4`;
+        toast.innerHTML = `
+            <div class="flex items-center">
+                <i class="fas ${icons[type]} text-xl mr-3"></i>
+                <div class="flex-1">${message}</div>
+                <button onclick="document.getElementById('${toastId}').remove()" class="ml-4 text-white opacity-70 hover:opacity-100">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        
+        container.appendChild(toast);
+        
+        setTimeout(() => {
+            toast.classList.add('show');
+        }, 10);
+        
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 300);
+        }, 5000);
+    }
+
+    function showLoading(message = 'Loading...') {
+        const overlay = document.getElementById('loading-overlay');
+        const text = document.getElementById('loading-text');
+        
+        if (message) {
+            overlay.classList.remove('hidden');
+            text.textContent = message;
+        } else {
+            overlay.classList.add('hidden');
+        }
+    }
+
+    function updateQuickStats() {
+        const today = new Date().toLocaleDateString('en-KE');
+        const todayTrans = pettyCashTransactions.filter(t => t.date === today);
+        document.getElementById('stats-today-transactions').textContent = todayTrans.length;
+        
+        const todayProgress = Math.min(100, (todayTrans.length / 20) * 100);
+        document.getElementById('stats-today-progress').style.width = `${todayProgress}%`;
+        
+        document.getElementById('stats-active-banks').textContent = banks.length;
+        
+        const monthlyBudget = 1000000;
+        const budgetUsed = Math.min(100, (currentMonthSpend.totalExpense / monthlyBudget) * 100);
+        document.getElementById('stats-budget-used').textContent = `${budgetUsed.toFixed(1)}%`;
+        document.getElementById('stats-budget-progress').style.width = `${budgetUsed}%`;
+    }
+
+    function toggleDarkMode() {
+        document.body.classList.toggle('bg-gray-900');
+        document.body.classList.toggle('text-gray-100');
+        
+        const isDark = document.body.classList.contains('bg-gray-900');
+        const icon = document.querySelector('#firebase-login-btn + button i');
+        
+        if (isDark) {
+            icon.className = 'fas fa-sun';
+            document.body.style.backgroundColor = '#1a202c';
+        } else {
+            icon.className = 'fas fa-moon';
+            document.body.style.backgroundColor = '';
+        }
+        
+        localStorage.setItem('darkMode', isDark);
+    }
+
+    // --- Initialize the application ---
+
+    window.onload = () => {
+        // Check for dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            toggleDarkMode();
+        }
+        
+        // Initialize original functions
+        openTab({ currentTarget: document.querySelector('.tab-button.active') }, 'petty-cash');
+        renderPettyCash();
+        updatePettyCashBalanceDisplay();
+        updatePettyCashChart();
+        updatePettyExpenditureChart();
+        updateBankSelectors();
+        updateTransferBankSelectors();
+        updateMajorSummary();
+        updateFinancialDashboard();
+        updateBankCards();
+        updateTransferHistory();
+        updateQuickStats();
+        switchCalcTab({ currentTarget: document.querySelector('#calculator-tabs .calc-tab-button.active') }, 'basic-calc');
+        
+        // Update Firebase UI
+        updateFirebaseUI();
+    };
+
+    // Make sure all the new Firebase functions are also included here
+    // (They should be in the same script section but I've separated them for clarity)
+</script>
+
         // Initialize Firebase
         let firebaseApp;
         let firestore;
