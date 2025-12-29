@@ -3,77 +3,112 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CarKenya | Reports Dashboard</title>
+    <title>CarKenya | Financial Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #0f172a; color: white; }
+        .card-dark { background: #1e293b; border: 1px solid #334155; }
+    </style>
 </head>
-<body class="bg-slate-900 text-white min-h-screen">
+<body>
 
-    <div id="gate" class="fixed inset-0 z-[100] bg-slate-900 flex items-center justify-center p-6">
-        <div class="w-full max-w-sm text-center">
-            <h1 class="text-3xl font-black mb-6">Admin Access</h1>
-            <input type="password" id="pin" placeholder="Enter PIN" class="w-full p-4 bg-slate-800 rounded-2xl text-center text-2xl tracking-widest outline-none mb-4 focus:ring-2 focus:ring-green-500">
-            <button onclick="unlock()" class="w-full bg-green-600 font-bold py-4 rounded-2xl hover:bg-green-500 transition">Unlock System</button>
-            <p class="text-slate-500 mt-4 text-xs font-bold uppercase tracking-widest">Pin is 2679</p>
+    <div id="gate" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center">
+        <div class="text-center w-80">
+            <h1 class="text-3xl font-black mb-8 italic text-emerald-500">ADMIN SECURE</h1>
+            <input type="password" id="pin" placeholder="ENTER PIN" class="w-full bg-slate-900 border-2 border-slate-800 p-4 rounded-2xl text-center text-2xl tracking-[0.5em] outline-none mb-4 focus:border-emerald-500">
+            <button onclick="unlock()" class="w-full bg-emerald-500 text-slate-950 font-black py-4 rounded-2xl shadow-lg shadow-emerald-500/20 active:scale-95 transition-all">UNLOCK</button>
         </div>
     </div>
 
-    <div id="admin-panel" class="hidden">
-        <nav class="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50 backdrop-blur-md sticky top-0">
-            <h2 class="text-xl font-black italic">CarKenya Dashboard</h2>
-            <div class="flex gap-4">
-                <button onclick="exportPDF()" class="bg-white text-slate-900 px-4 py-2 rounded-lg text-xs font-black">🖨️ Export PDF</button>
-                <button onclick="location.reload()" class="bg-rose-500 px-4 py-2 rounded-lg text-xs font-black">Logout</button>
-            </div>
+    <div id="dashboard" class="hidden min-h-screen pb-10">
+        <nav class="p-6 border-b border-slate-800 flex justify-between items-center sticky top-0 bg-slate-950/80 backdrop-blur-md z-40">
+            <h2 class="text-xl font-black tracking-tighter uppercase">Corporate Financials</h2>
+            <button onclick="location.reload()" class="bg-rose-500/10 text-rose-500 border border-rose-500/20 px-4 py-2 rounded-xl text-xs font-black">LOGOUT</button>
         </nav>
 
-        <main class="p-8 grid grid-cols-1 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-            <div class="lg:col-span-3 grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div class="bg-slate-800 p-8 rounded-3xl border border-slate-700">
-                    <p class="text-slate-500 text-[10px] font-black uppercase mb-2">Total Bank Funds</p>
-                    <h3 id="bank-funds" class="text-4xl font-black text-green-400">KSH 0</h3>
+        <main class="max-w-7xl mx-auto p-8">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+                <div class="card-dark p-8 rounded-[2rem]">
+                    <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Bank Liquidity</p>
+                    <h3 id="total-bank" class="text-4xl font-black text-emerald-400">KSH 0</h3>
                 </div>
-                <div class="bg-slate-800 p-8 rounded-3xl border border-slate-700">
-                    <p class="text-slate-500 text-[10px] font-black uppercase mb-2">Outstanding Loans</p>
-                    <h3 id="total-loans" class="text-4xl font-black text-rose-400">KSH 0</h3>
+                <div class="card-dark p-8 rounded-[2rem]">
+                    <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Total Debt Liability</p>
+                    <h3 id="total-debt" class="text-4xl font-black text-rose-400">KSH 0</h3>
                 </div>
-                <div class="bg-slate-800 p-8 rounded-3xl border border-slate-700">
-                    <p class="text-slate-500 text-[10px] font-black uppercase mb-2">Monthly Spend</p>
-                    <h3 id="month-spend" class="text-4xl font-black text-blue-400">KSH 0</h3>
+                <div class="card-dark p-8 rounded-[2rem] border-emerald-500/30">
+                    <p class="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-2">Operational Spend (MTD)</p>
+                    <h3 id="mtd-spend" class="text-4xl font-black text-blue-400">KSH 0</h3>
                 </div>
             </div>
 
-            <div class="bg-slate-800 p-6 rounded-3xl border border-slate-700">
-                <h4 class="font-bold mb-6 flex items-center gap-2">💾 Log Major Entry</h4>
-                <form id="major-form" class="space-y-4">
-                    <input type="text" id="m-desc" placeholder="Major Description" class="w-full p-3 bg-slate-900 rounded-xl outline-none focus:ring-1 focus:ring-green-500">
-                    <input type="number" id="m-amt" placeholder="Amount (KSH)" class="w-full p-3 bg-slate-900 rounded-xl outline-none focus:ring-1 focus:ring-green-500">
-                    <select id="m-cat" class="w-full p-3 bg-slate-900 rounded-xl outline-none">
-                        <option value="Sales">Sales (Income)</option>
-                        <option value="Payroll">Payroll (Expense)</option>
-                        <option value="Assets">Assets (Investment)</option>
-                        <option value="Overheads">Overheads (Expense)</option>
-                    </select>
-                    <select id="m-bank" class="w-full p-3 bg-slate-900 rounded-xl outline-none">
-                        <option value="KCB Account">KCB Main</option>
-                        <option value="Equity Bank">Equity Business</option>
-                    </select>
-                    <button type="submit" class="w-full bg-green-600 font-bold py-3 rounded-xl hover:bg-green-500">Post Transaction</button>
-                </form>
-            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div class="space-y-10">
+                    <section>
+                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                            <span class="w-6 h-[2px] bg-emerald-500"></span> Bank Portfolio
+                        </h4>
+                        <div id="bank-cards" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            </div>
+                        <div class="card-dark p-6 rounded-3xl mt-6">
+                            <h5 class="text-sm font-bold mb-4">Add Account</h5>
+                            <div class="flex gap-2">
+                                <input type="text" id="b-name" placeholder="Bank Name" class="bg-slate-900 border-none rounded-xl p-3 flex-1 text-sm outline-none">
+                                <input type="number" id="b-bal" placeholder="Balance" class="bg-slate-900 border-none rounded-xl p-3 w-32 text-sm outline-none">
+                                <button onclick="addBank()" class="bg-emerald-500 text-slate-950 px-4 rounded-xl font-black">ADD</button>
+                            </div>
+                        </div>
+                    </section>
 
-            <div class="lg:col-span-2 bg-slate-800 rounded-3xl border border-slate-700 overflow-hidden">
-                <div class="p-6 border-b border-slate-700 bg-slate-800/50">
-                    <h4 class="font-bold">Master Financial Feed</h4>
+                    <section>
+                        <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                            <span class="w-6 h-[2px] bg-rose-500"></span> Loan Summary
+                        </h4>
+                        <div id="loan-list" class="space-y-3"></div>
+                        <div class="card-dark p-6 rounded-3xl mt-4">
+                            <div class="flex gap-2">
+                                <input type="text" id="l-inst" placeholder="Institution" class="bg-slate-900 border-none rounded-xl p-3 flex-1 text-sm outline-none">
+                                <input type="number" id="l-bal" placeholder="Liability" class="bg-slate-900 border-none rounded-xl p-3 w-32 text-sm outline-none">
+                                <button onclick="addLoan()" class="bg-rose-500 text-white px-4 rounded-xl font-black">ADD</button>
+                            </div>
+                        </div>
+                    </section>
                 </div>
-                <div id="master-feed" class="divide-y divide-slate-700 h-[500px] overflow-y-auto"></div>
+
+                <section>
+                    <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-3">
+                        <span class="w-6 h-[2px] bg-blue-500"></span> Major Entry Logger
+                    </h4>
+                    <div class="card-dark p-8 rounded-[2.5rem]">
+                        <form id="major-form" class="space-y-4">
+                            <input type="text" id="m-desc" placeholder="Transaction Description" class="w-full p-4 bg-slate-900 rounded-2xl outline-none focus:ring-1 focus:ring-emerald-500" required>
+                            <div class="grid grid-cols-2 gap-4">
+                                <input type="number" id="m-amt" placeholder="Amount (KSH)" class="w-full p-4 bg-slate-900 rounded-2xl outline-none" required>
+                                <select id="m-cat" class="w-full p-4 bg-slate-900 rounded-2xl outline-none">
+                                    <option value="Sales">Sales (Income)</option>
+                                    <option value="Payroll">Payroll (Expense)</option>
+                                    <option value="Assets">Assets (Investment)</option>
+                                    <option value="Overheads">Overheads (Expense)</option>
+                                </select>
+                            </div>
+                            <select id="m-bank" class="w-full p-4 bg-slate-900 rounded-2xl outline-none"></select>
+                            <button type="submit" class="w-full bg-blue-600 font-black py-4 rounded-2xl shadow-lg shadow-blue-500/10 hover:bg-blue-500 transition-all">POST MAJOR TRANSACTION</button>
+                        </form>
+                    </div>
+
+                    <div class="mt-10 card-dark rounded-3xl overflow-hidden">
+                        <div class="p-4 bg-slate-800/50 border-b border-slate-700 font-bold text-xs uppercase tracking-widest">Master Audit Feed</div>
+                        <div id="master-feed" class="divide-y divide-slate-700 max-h-80 overflow-y-auto"></div>
+                    </div>
+                </section>
             </div>
         </main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCuUKCxYx0jYKqWOQaN82K5zFGlQsKQsK0",
@@ -86,57 +121,89 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const txRef = collection(db, "transactions");
 
         window.unlock = () => {
             if(document.getElementById('pin').value === '2679') {
                 document.getElementById('gate').classList.add('hidden');
-                document.getElementById('admin-panel').classList.remove('hidden');
-            } else { alert("Wrong PIN"); }
+                document.getElementById('dashboard').classList.remove('hidden');
+                initData();
+            } else { alert("ACCESS DENIED"); }
         };
 
+        function initData() {
+            // Banks & Selector
+            onSnapshot(collection(db, "accounts"), (snap) => {
+                const container = document.getElementById('bank-cards');
+                const select = document.getElementById('m-bank');
+                container.innerHTML = '';
+                select.innerHTML = '';
+                let total = 0;
+                snap.docs.forEach(d => {
+                    const b = d.data();
+                    total += b.balance;
+                    container.innerHTML += `<div class="p-5 rounded-2xl bg-slate-800/50 border-l-4 border-emerald-500">
+                        <p class="text-[10px] font-black uppercase text-slate-500">${b.name}</p>
+                        <h4 class="text-lg font-bold">KSH ${b.balance.toLocaleString()}</h4>
+                    </div>`;
+                    select.innerHTML += `<option value="${b.name}">${b.name}</option>`;
+                });
+                document.getElementById('total-bank').textContent = `KSH ${total.toLocaleString()}`;
+            });
+
+            // Loans
+            onSnapshot(collection(db, "loans"), (snap) => {
+                const list = document.getElementById('loan-list');
+                list.innerHTML = '';
+                let total = 0;
+                snap.docs.forEach(d => {
+                    const l = d.data();
+                    total += l.amount;
+                    list.innerHTML += `<div class="flex justify-between p-4 card-dark rounded-xl">
+                        <span class="text-sm font-bold">${l.institution}</span>
+                        <span class="font-black text-rose-400">KSH ${l.amount.toLocaleString()}</span>
+                    </div>`;
+                });
+                document.getElementById('total-debt').textContent = `KSH ${total.toLocaleString()}`;
+            });
+
+            // Transactions & Audit
+            onSnapshot(query(collection(db, "transactions"), orderBy("timestamp", "desc")), (snap) => {
+                const feed = document.getElementById('master-feed');
+                feed.innerHTML = '';
+                let monthSpend = 0;
+                const m = new Date().getMonth();
+
+                snap.docs.forEach(doc => {
+                    const tx = doc.data();
+                    if(tx.type === 'expense' && tx.timestamp?.toDate().getMonth() === m) monthSpend += tx.amount;
+
+                    feed.innerHTML += `<div class="p-4 flex justify-between items-center text-xs">
+                        <div>
+                            <p class="font-bold text-slate-300">${tx.desc}</p>
+                            <p class="text-[9px] text-slate-500 uppercase">${tx.isPetty ? 'Petty' : 'Major'} | ${tx.type}</p>
+                        </div>
+                        <p class="font-black ${tx.type === 'expense' ? 'text-rose-400' : 'text-emerald-400'}">KSH ${tx.amount.toLocaleString()}</p>
+                    </div>`;
+                });
+                document.getElementById('mtd-spend').textContent = `KSH ${monthSpend.toLocaleString()}`;
+            });
+        }
+
+        window.addBank = () => addDoc(collection(db, "accounts"), { name: document.getElementById('b-name').value, balance: parseFloat(document.getElementById('b-bal').value) });
+        window.addLoan = () => addDoc(collection(db, "loans"), { institution: document.getElementById('l-inst').value, amount: parseFloat(document.getElementById('l-bal').value) });
+        
         document.getElementById('major-form').addEventListener('submit', async (e) => {
             e.preventDefault();
-            const cat = document.getElementById('m-cat').value;
-            await addDoc(txRef, {
+            await addDoc(collection(db, "transactions"), {
                 desc: document.getElementById('m-desc').value,
                 amount: parseFloat(document.getElementById('m-amt').value),
-                category: cat,
-                type: (cat === 'Sales' ? 'income' : 'expense'),
+                category: document.getElementById('m-cat').value,
                 bank: document.getElementById('m-bank').value,
+                type: (document.getElementById('m-cat').value === 'Sales' ? 'income' : 'expense'),
                 isPetty: false,
                 timestamp: serverTimestamp()
             });
             e.target.reset();
-        });
-
-        onSnapshot(query(txRef, orderBy("timestamp", "desc")), (snap) => {
-            const feed = document.getElementById('master-feed');
-            feed.innerHTML = '';
-            let totalBank = 0, mSpend = 0;
-            const thisMonth = new Date().getMonth();
-
-            snap.docs.forEach(doc => {
-                const tx = doc.data();
-                if(!tx.isPetty) {
-                    if(tx.type === 'income') totalBank += tx.amount; else totalBank -= tx.amount;
-                    if(tx.timestamp?.toDate().getMonth() === thisMonth && tx.type === 'expense') mSpend += tx.amount;
-                }
-
-                const item = `<div class="p-6 flex justify-between items-center hover:bg-slate-700/50 transition">
-                    <div>
-                        <span class="text-[10px] font-black text-slate-500 uppercase">${tx.isPetty ? 'Petty' : 'Major'}</span>
-                        <h5 class="font-bold">${tx.desc}</h5>
-                        <p class="text-xs text-slate-500">${tx.bank || 'Cash Account'}</p>
-                    </div>
-                    <div class="text-right">
-                        <p class="font-black ${tx.type === 'expense' ? 'text-rose-400' : 'text-green-400'}">${tx.type === 'expense' ? '-' : '+'} ${tx.amount.toLocaleString()}</p>
-                    </div>
-                </div>`;
-                feed.insertAdjacentHTML('beforeend', item);
-            });
-            document.getElementById('bank_funds').textContent = `KSH ${totalBank.toLocaleString()}`;
-            document.getElementById('month-spend').textContent = `KSH ${mSpend.toLocaleString()}`;
         });
     </script>
 </body>
