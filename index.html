@@ -1184,6 +1184,7 @@
     <!-- Firebase Initialization Script -->
    
 <!-- Firebase Initialization Script -->
+<!-- Firebase Initialization Script -->
 <script>
     // Firebase Configuration
     const firebaseConfig = {
@@ -1235,28 +1236,6 @@
 
 <!-- Main Application Script -->
 <script>
-    // --- Original Functions from Your Code ---
-
-    function openTab(evt, tabName) {
-        let i, tabcontent, tablinks;
-        const auditCard = document.getElementById('audit-card');
-
-        tabcontent = document.getElementsByClassName("tab-content");
-        for (i = 0; i < tabcontent.length; i++) {
-            tabcontent[i].style.display = "none";
-            tabcontent[i].classList.remove("active");
-        }
-
-        tablinks = document.getElementsByClassName("tab-button");
-        for (i = 0; i < tablinks.length; i++) {
-            tablinks[i].className = tablinks[i].className.replace(" active", "");
-        }
-
-        document.getElementById(tabName).style.display = "block";
-        document.getElementById(tabName).classList.add("active");
-        evt.currentTarget.className += " active";
-    }
-
     // --- Core Application Data ---
     const { jsPDF } = window.jspdf;
     let pettyCashTransactions = [];
@@ -1278,6 +1257,34 @@
     // Add Bank Modal State
     let addBankStep = 1;
     let selectedFirebaseBank = null;
+
+    // --- Tab Switching Function ---
+    function openTab(evt, tabName) {
+        // Hide all tab contents
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(tab => {
+            tab.style.display = 'none';
+            tab.classList.remove('active');
+        });
+
+        // Remove active class from all tab buttons
+        const tabButtons = document.querySelectorAll('.tab-button, .custom-tab');
+        tabButtons.forEach(button => {
+            button.classList.remove('active');
+        });
+
+        // Show the selected tab
+        const selectedTab = document.getElementById(tabName);
+        if (selectedTab) {
+            selectedTab.style.display = 'block';
+            selectedTab.classList.add('active');
+        }
+
+        // Add active class to clicked button
+        if (evt && evt.currentTarget) {
+            evt.currentTarget.classList.add('active');
+        }
+    }
 
     // --- Firebase Functions ---
 
@@ -1587,6 +1594,8 @@
         const fromSelect = document.getElementById('transfer-from-bank');
         const toSelect = document.getElementById('transfer-to-bank');
         
+        if (!fromSelect || !toSelect) return;
+        
         fromSelect.innerHTML = '<option value="" disabled selected>Select Source Bank</option>';
         toSelect.innerHTML = '<option value="" disabled selected>Select Destination Bank</option>';
         
@@ -1603,16 +1612,18 @@
         // Add event listeners for balance display
         fromSelect.addEventListener('change', function() {
             const bank = getBankById(this.value);
-            if (bank) {
-                document.getElementById('from-bank-balance').innerHTML = 
+            const balanceElement = document.getElementById('from-bank-balance');
+            if (bank && balanceElement) {
+                balanceElement.innerHTML = 
                     `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
             }
         });
         
         toSelect.addEventListener('change', function() {
             const bank = getBankById(this.value);
-            if (bank) {
-                document.getElementById('to-bank-balance').innerHTML = 
+            const balanceElement = document.getElementById('to-bank-balance');
+            if (bank && balanceElement) {
+                balanceElement.innerHTML = 
                     `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
             }
         });
@@ -1624,62 +1635,75 @@
         return fee;
     }
 
-    document.getElementById('transfer-amount').addEventListener('input', function() {
-        const amount = parseFloat(this.value) || 0;
-        const fee = calculateTransferFee(amount);
-        document.getElementById('transfer-fee').textContent = `Transfer Fee: ${formatKSH(fee)}`;
-    });
-
-    document.getElementById('bank-transfer-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const fromBankId = document.getElementById('transfer-from-bank').value;
-        const toBankId = document.getElementById('transfer-to-bank').value;
-        const amount = parseFloat(document.getElementById('transfer-amount').value);
-        const reason = document.getElementById('transfer-reason').value;
-        
-        if (!fromBankId || !toBankId) {
-            showToast('Please select both source and destination banks', 'error');
-            return;
+    // Initialize transfer amount listener
+    document.addEventListener('DOMContentLoaded', function() {
+        const transferAmount = document.getElementById('transfer-amount');
+        if (transferAmount) {
+            transferAmount.addEventListener('input', function() {
+                const amount = parseFloat(this.value) || 0;
+                const fee = calculateTransferFee(amount);
+                const feeElement = document.getElementById('transfer-fee');
+                if (feeElement) {
+                    feeElement.textContent = `Transfer Fee: ${formatKSH(fee)}`;
+                }
+            });
         }
         
-        if (fromBankId === toBankId) {
-            showToast('Cannot transfer to the same bank account', 'error');
-            return;
+        // Initialize bank transfer form
+        const bankTransferForm = document.getElementById('bank-transfer-form');
+        if (bankTransferForm) {
+            bankTransferForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const fromBankId = document.getElementById('transfer-from-bank').value;
+                const toBankId = document.getElementById('transfer-to-bank').value;
+                const amount = parseFloat(document.getElementById('transfer-amount').value);
+                const reason = document.getElementById('transfer-reason').value;
+                
+                if (!fromBankId || !toBankId) {
+                    showToast('Please select both source and destination banks', 'error');
+                    return;
+                }
+                
+                if (fromBankId === toBankId) {
+                    showToast('Cannot transfer to the same bank account', 'error');
+                    return;
+                }
+                
+                if (!amount || amount <= 0) {
+                    showToast('Please enter a valid transfer amount', 'error');
+                    return;
+                }
+                
+                const fromBank = getBankById(fromBankId);
+                const toBank = getBankById(toBankId);
+                const fee = calculateTransferFee(amount);
+                const totalDebit = amount + fee;
+                
+                if (fromBank.balance < totalDebit) {
+                    showToast(`Insufficient funds. Available: ${formatKSH(fromBank.balance)}, Required: ${formatKSH(totalDebit)}`, 'error');
+                    return;
+                }
+                
+                // Show preview
+                document.getElementById('preview-from').textContent = fromBank.name;
+                document.getElementById('preview-to').textContent = toBank.name;
+                document.getElementById('preview-amount').textContent = formatKSH(amount);
+                document.getElementById('preview-fee').textContent = formatKSH(fee);
+                document.getElementById('preview-reason').textContent = reason || 'No reason provided';
+                document.getElementById('transfer-preview').classList.remove('hidden');
+                
+                // Show confirmation modal
+                document.getElementById('confirm-transfer-from').textContent = fromBank.name;
+                document.getElementById('confirm-transfer-to').textContent = toBank.name;
+                document.getElementById('confirm-transfer-amount').textContent = formatKSH(amount);
+                document.getElementById('confirm-transfer-fee').textContent = formatKSH(fee);
+                document.getElementById('confirm-transfer-total').textContent = formatKSH(totalDebit);
+                document.getElementById('confirm-transfer-reason').textContent = reason || 'No reason provided';
+                
+                document.getElementById('transfer-confirm-modal').classList.remove('hidden');
+            });
         }
-        
-        if (!amount || amount <= 0) {
-            showToast('Please enter a valid transfer amount', 'error');
-            return;
-        }
-        
-        const fromBank = getBankById(fromBankId);
-        const toBank = getBankById(toBankId);
-        const fee = calculateTransferFee(amount);
-        const totalDebit = amount + fee;
-        
-        if (fromBank.balance < totalDebit) {
-            showToast(`Insufficient funds. Available: ${formatKSH(fromBank.balance)}, Required: ${formatKSH(totalDebit)}`, 'error');
-            return;
-        }
-        
-        // Show preview
-        document.getElementById('preview-from').textContent = fromBank.name;
-        document.getElementById('preview-to').textContent = toBank.name;
-        document.getElementById('preview-amount').textContent = formatKSH(amount);
-        document.getElementById('preview-fee').textContent = formatKSH(fee);
-        document.getElementById('preview-reason').textContent = reason || 'No reason provided';
-        document.getElementById('transfer-preview').classList.remove('hidden');
-        
-        // Show confirmation modal
-        document.getElementById('confirm-transfer-from').textContent = fromBank.name;
-        document.getElementById('confirm-transfer-to').textContent = toBank.name;
-        document.getElementById('confirm-transfer-amount').textContent = formatKSH(amount);
-        document.getElementById('confirm-transfer-fee').textContent = formatKSH(fee);
-        document.getElementById('confirm-transfer-total').textContent = formatKSH(totalDebit);
-        document.getElementById('confirm-transfer-reason').textContent = reason || 'No reason provided';
-        
-        document.getElementById('transfer-confirm-modal').classList.remove('hidden');
     });
 
     function closeTransferConfirm() {
@@ -1782,6 +1806,8 @@
 
     function updateTransferHistory() {
         const tbody = document.getElementById('transfer-history');
+        if (!tbody) return;
+        
         tbody.innerHTML = '';
         
         // Show last 5 transfers
@@ -1831,6 +1857,8 @@
         const container = document.getElementById('bank-details-cards');
         const loading = document.getElementById('bank-cards-loading');
         const noBanks = document.getElementById('no-banks-message');
+        
+        if (!container || !loading || !noBanks) return;
         
         if (banks.length === 0) {
             container.innerHTML = '';
@@ -1905,7 +1933,7 @@
         });
         
         // Update quick stats
-        document.getElementById('stats-active-banks').textContent = banks.length;
+        updateQuickStats();
     }
 
     function updateBankBalance(bankId) {
@@ -1996,7 +2024,7 @@
         }
     }
 
-    // --- Utility Functions (from original code, enhanced) ---
+    // --- Utility Functions ---
 
     function getBankById(id) {
         return banks.find(b => b.id === id);
@@ -2071,20 +2099,25 @@
         // Today's transactions
         const today = new Date().toLocaleDateString('en-KE');
         const todayTrans = pettyCashTransactions.filter(t => t.date === today);
-        document.getElementById('stats-today-transactions').textContent = todayTrans.length;
+        const todayElement = document.getElementById('stats-today-transactions');
+        if (todayElement) todayElement.textContent = todayTrans.length;
         
         // Progress bar (capped at 20 transactions)
         const todayProgress = Math.min(100, (todayTrans.length / 20) * 100);
-        document.getElementById('stats-today-progress').style.width = `${todayProgress}%`;
+        const progressElement = document.getElementById('stats-today-progress');
+        if (progressElement) progressElement.style.width = `${todayProgress}%`;
         
         // Active banks
-        document.getElementById('stats-active-banks').textContent = banks.length;
+        const banksElement = document.getElementById('stats-active-banks');
+        if (banksElement) banksElement.textContent = banks.length;
         
         // Monthly budget used (simplified)
         const monthlyBudget = 1000000; // Example budget
         const budgetUsed = Math.min(100, (currentMonthSpend.totalExpense / monthlyBudget) * 100);
-        document.getElementById('stats-budget-used').textContent = `${budgetUsed.toFixed(1)}%`;
-        document.getElementById('stats-budget-progress').style.width = `${budgetUsed}%`;
+        const budgetUsedElement = document.getElementById('stats-budget-used');
+        if (budgetUsedElement) budgetUsedElement.textContent = `${budgetUsed.toFixed(1)}%`;
+        const budgetProgressElement = document.getElementById('stats-budget-progress');
+        if (budgetProgressElement) budgetProgressElement.style.width = `${budgetUsed}%`;
     }
 
     function refreshAllData() {
@@ -2142,40 +2175,150 @@
 
     // --- Original Petty Cash Functions ---
 
-    document.getElementById('petty-cash-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const description = document.getElementById('description').value;
-        const recipient = document.getElementById('recipient').value;
-        const cost = parseFloat(document.getElementById('cost').value);
-        const type = document.getElementById('type').value;
+    document.addEventListener('DOMContentLoaded', function() {
+        // Petty Cash Form
+        const pettyCashForm = document.getElementById('petty-cash-form');
+        if (pettyCashForm) {
+            pettyCashForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const description = document.getElementById('description').value;
+                const recipient = document.getElementById('recipient').value;
+                const cost = parseFloat(document.getElementById('cost').value);
+                const type = document.getElementById('type').value;
 
-        if (cost <= 0) {
-            alert("Cost must be a positive value.");
-            return;
+                if (cost <= 0) {
+                    alert("Cost must be a positive value.");
+                    return;
+                }
+
+                const now = new Date();
+                const newTransaction = {
+                    date: now.toLocaleDateString('en-KE'),
+                    time: now.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+                    description: description,
+                    recipient: recipient,
+                    cost: cost,
+                    type: type
+                };
+
+                pettyCashTransactions.push(newTransaction);
+                renderPettyCash();
+                updatePettyCashBalanceDisplay();
+                updatePettyCashChart();
+                updatePettyExpenditureChart();
+                document.getElementById('petty-cash-form').reset();
+                checkAnomalies(newTransaction);
+                updateQuickStats();
+            });
         }
+        
+        // Major Transaction Form
+        const majorTransactionForm = document.getElementById('major-transaction-form');
+        if (majorTransactionForm) {
+            majorTransactionForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const description = document.getElementById('major-description').value;
+                const cost = parseFloat(document.getElementById('major-cost').value);
+                const category = document.getElementById('major-category').value;
+                const bankId = document.getElementById('transaction-bank-id').value;
 
-        const now = new Date();
-        const newTransaction = {
-            date: now.toLocaleDateString('en-KE'),
-            time: now.toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
-            description: description,
-            recipient: recipient,
-            cost: cost,
-            type: type
-        };
+                if (cost <= 0) {
+                    alert("Amount must be a positive value.");
+                    return;
+                }
+                if (!bankId) {
+                    alert("Please select a bank account for this transaction.");
+                    return;
+                }
 
-        pettyCashTransactions.push(newTransaction);
-        renderPettyCash();
-        updatePettyCashBalanceDisplay();
-        updatePettyCashChart();
-        updatePettyExpenditureChart();
-        document.getElementById('petty-cash-form').reset();
-        checkAnomalies(newTransaction);
-        updateQuickStats();
+                const selectedBank = getBankById(bankId);
+                const isIncome = category === 'Sales';
+                
+                if (isIncome) {
+                    selectedBank.balance += cost;
+                } else {
+                    selectedBank.balance -= cost;
+                }
+                
+                majorTransactions.push({
+                    description,
+                    amount: cost,
+                    category,
+                    date: new Date().toLocaleDateString('en-KE'),
+                    bankId: bankId
+                });
+
+                updateBankSelectors();
+                updateMajorSummary();
+                updateMajorCategoryChart();
+                updateFinancialDashboard();
+                document.getElementById('major-transaction-form').reset();
+                alert(`Major Transaction Logged: ${description} - ${formatKSH(cost)} (Bank: ${selectedBank.name})`);
+            });
+        }
+        
+        // Loan Form
+        const loanForm = document.getElementById('loan-form');
+        if (loanForm) {
+            loanForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const institution = document.getElementById('loan-institution').value;
+                const balance = parseFloat(document.getElementById('loan-balance').value);
+                
+                const newLoan = {
+                    id: 'l' + Date.now(),
+                    institution: institution,
+                    balance: balance
+                };
+                loans.push(newLoan);
+                updateFinancialDashboard();
+                document.getElementById('loan-form').reset();
+                alert(`Loan from ${institution} added with outstanding balance ${formatKSH(balance)}.`);
+            });
+        }
+        
+        // EMI Calculator Form
+        const emiForm = document.getElementById('emi-calculator-form');
+        if (emiForm) {
+            emiForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const principal = parseFloat(document.getElementById('principal').value);
+                const rateAnnual = parseFloat(document.getElementById('rate').value);
+                const months = parseInt(document.getElementById('months').value);
+                const resultElement = document.getElementById('emi-result');
+                
+                if (principal <= 0 || rateAnnual < 0 || months <= 0) {
+                    resultElement.textContent = "Please enter positive values.";
+                    return;
+                }
+
+                const rateMonthly = (rateAnnual / 100) / 12;
+                const n = months;
+                
+                let emi;
+                if (rateMonthly === 0) {
+                    emi = principal / n;
+                } else {
+                    const power = Math.pow((1 + rateMonthly), n);
+                    emi = principal * (rateMonthly * power) / (power - 1);
+                }
+
+                const totalInterest = (emi * n) - principal;
+
+                resultElement.style.color = 'var(--primary-color)';
+                resultElement.innerHTML = `
+                    <p>Monthly Payment (EMI): <strong>${formatKSH(emi.toFixed(2))}</strong></p>
+                    <p>Total Repayment: ${formatKSH((emi * n).toFixed(2))}</p>
+                    <p>Total Interest: ${formatKSH(totalInterest.toFixed(2))}</p>
+                `;
+            });
+        }
     });
 
     function renderPettyCash() {
         const list = document.getElementById('transaction-list');
+        if (!list) return;
+        
         list.innerHTML = '';
         const sortedTransactions = [...pettyCashTransactions].sort((a, b) => new Date(b.date + ' ' + b.time) - new Date(a.date + ' ' + a.time));
         const transactionsToShow = sortedTransactions.slice(0, 5);
@@ -2219,12 +2362,17 @@
     function updatePettyCashBalanceDisplay() {
         const { currentBalance, totalExpense, totalIncome } = calculatePettyCashBalance();
         
-        document.getElementById('current-balance').textContent = formatKSH(currentBalance);
-        document.getElementById('day-expense').textContent = formatKSH(totalExpense);
-        document.getElementById('day-income').textContent = formatKSH(totalIncome);
-        
         const currentBalanceElement = document.getElementById('current-balance');
-        currentBalanceElement.style.color = currentBalance < 0 ? '#dc3545' : 'var(--primary-color)';
+        const dayExpenseElement = document.getElementById('day-expense');
+        const dayIncomeElement = document.getElementById('day-income');
+        
+        if (currentBalanceElement) currentBalanceElement.textContent = formatKSH(currentBalance);
+        if (dayExpenseElement) dayExpenseElement.textContent = formatKSH(totalExpense);
+        if (dayIncomeElement) dayIncomeElement.textContent = formatKSH(totalIncome);
+        
+        if (currentBalanceElement) {
+            currentBalanceElement.style.color = currentBalance < 0 ? '#dc3545' : 'var(--primary-color)';
+        }
     }
 
     function togglePettyCashBalance() {
@@ -2232,6 +2380,8 @@
         const dayExpense = document.getElementById('day-expense');
         const dayIncome = document.getElementById('day-income');
         const button = document.querySelector('.balance-bar button:first-child');
+        
+        if (!currentBalance || !dayExpense || !dayIncome || !button) return;
         
         const isHidden = dayIncome.textContent.includes('*****');
         
@@ -2324,11 +2474,14 @@
             }]
         };
 
+        const canvas = document.getElementById('pettyCashChart');
+        if (!canvas) return;
+        
         if (pettyChartInstance) {
             pettyChartInstance.data = data;
             pettyChartInstance.update();
         } else {
-            const ctx = document.getElementById('pettyCashChart').getContext('2d');
+            const ctx = canvas.getContext('2d');
             pettyChartInstance = new Chart(ctx, { 
                 type: 'bar', 
                 data: data, 
@@ -2354,11 +2507,14 @@
             }] 
         };
         
+        const canvas = document.getElementById('pettyExpenditureLineChart');
+        if (!canvas) return;
+        
         if (pettyLineChartInstance) {
             pettyLineChartInstance.data = data;
             pettyLineChartInstance.update();
         } else {
-            const ctx = document.getElementById('pettyExpenditureLineChart').getContext('2d');
+            const ctx = canvas.getContext('2d');
             pettyLineChartInstance = new Chart(ctx, { 
                 type: 'line', 
                 data: data, 
@@ -2387,49 +2543,11 @@
             document.getElementById('access-code').value = '';
         }
     }
-
-    document.getElementById('major-transaction-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const description = document.getElementById('major-description').value;
-        const cost = parseFloat(document.getElementById('major-cost').value);
-        const category = document.getElementById('major-category').value;
-        const bankId = document.getElementById('transaction-bank-id').value;
-
-        if (cost <= 0) {
-            alert("Amount must be a positive value.");
-            return;
-        }
-        if (!bankId) {
-            alert("Please select a bank account for this transaction.");
-            return;
-        }
-
-        const selectedBank = getBankById(bankId);
-        const isIncome = category === 'Sales';
-        
-        if (isIncome) {
-            selectedBank.balance += cost;
-        } else {
-            selectedBank.balance -= cost;
-        }
-        
-        majorTransactions.push({
-            description,
-            amount: cost,
-            category,
-            date: new Date().toLocaleDateString('en-KE'),
-            bankId: bankId
-        });
-
-        updateBankSelectors();
-        updateMajorSummary();
-        updateMajorCategoryChart();
-        updateFinancialDashboard();
-        document.getElementById('major-transaction-form').reset();
-        alert(`Major Transaction Logged: ${description} - ${formatKSH(cost)} (Bank: ${selectedBank.name})`);
-    });
     
     function updateMajorSummary() {
+        const majorSummaryElement = document.getElementById('major-summary');
+        if (!majorSummaryElement) return;
+        
         let summaryHTML = '<h4>Major Transactions Summary</h4>';
         const total = majorTransactions.reduce((sum, t) => sum + t.amount, 0);
         summaryHTML += `<p><strong>Total Major Value Logged:</strong> ${formatKSH(total)}</p>`;
@@ -2459,7 +2577,7 @@
                 </tbody>
             </table>
         `;
-        document.getElementById('major-summary').innerHTML = summaryHTML + detailsHTML;
+        majorSummaryElement.innerHTML = summaryHTML + detailsHTML;
     }
 
     function updateMajorCategoryChart() {
@@ -2481,11 +2599,14 @@
             }]
         };
 
+        const canvas = document.getElementById('majorCategoryChart');
+        if (!canvas) return;
+        
         if (majorChartInstance) {
             majorChartInstance.data = data;
             majorChartInstance.update();
         } else {
-            const ctx = document.getElementById('majorCategoryChart').getContext('2d');
+            const ctx = canvas.getContext('2d');
             majorChartInstance = new Chart(ctx, { 
                 type: 'doughnut', 
                 data: data, 
@@ -2505,7 +2626,10 @@
     
     function generateReport() {
         if (majorTransactions.length === 0) {
-            document.getElementById('report-output-area').innerHTML = '<p style="color: #d9534f;">⚠️ No major transactions logged. Cannot generate report.</p>';
+            const reportOutput = document.getElementById('report-output-area');
+            if (reportOutput) {
+                reportOutput.innerHTML = '<p style="color: #d9534f;">⚠️ No major transactions logged. Cannot generate report.</p>';
+            }
             return;
         }
         updateMajorSummary();
@@ -2518,11 +2642,13 @@
     function updateFinancialDashboard() {
         // 1. Total Bank Funds
         const totalBankFunds = banks.reduce((sum, bank) => sum + bank.balance, 0);
-        document.getElementById('total-bank-funds').textContent = formatKSH(totalBankFunds);
+        const totalBankElement = document.getElementById('total-bank-funds');
+        if (totalBankElement) totalBankElement.textContent = formatKSH(totalBankFunds);
         
         // 2. Total Outstanding Loans
         const totalOutstandingLoans = loans.reduce((sum, loan) => sum + loan.balance, 0);
-        document.getElementById('total-outstanding-loans').textContent = formatKSH(totalOutstandingLoans);
+        const totalLoansElement = document.getElementById('total-outstanding-loans');
+        if (totalLoansElement) totalLoansElement.textContent = formatKSH(totalOutstandingLoans);
         
         // 3. Monthly Spend
         const now = new Date();
@@ -2541,26 +2667,9 @@
                 .reduce((sum, t) => sum + t.amount, 0);
         }
         
-        document.getElementById('monthly-spend').textContent = formatKSH(currentMonthSpend.totalExpense);
+        const monthlySpendElement = document.getElementById('monthly-spend');
+        if (monthlySpendElement) monthlySpendElement.textContent = formatKSH(currentMonthSpend.totalExpense);
     }
-
-    // --- Loan Management ---
-
-    document.getElementById('loan-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const institution = document.getElementById('loan-institution').value;
-        const balance = parseFloat(document.getElementById('loan-balance').value);
-        
-        const newLoan = {
-            id: 'l' + Date.now(),
-            institution: institution,
-            balance: balance
-        };
-        loans.push(newLoan);
-        updateFinancialDashboard();
-        document.getElementById('loan-form').reset();
-        alert(`Loan from ${institution} added with outstanding balance ${formatKSH(balance)}.`);
-    });
 
     // --- Auditing Logic ---
 
@@ -2587,22 +2696,26 @@
         }
 
         const statusElement = document.getElementById('audit-status');
-        if (auditIssues.length > 0) {
-            statusElement.style.color = 'red';
-            statusElement.innerHTML = `⚠️ **AUDIT WARNING** - ${auditIssues.length} issues found:<br><ul><li>${auditIssues.join('</li><li>')}</li></ul>`;
-            alert('Audit Complete: WARNING! See Audit Status for details.');
-        } else {
-            statusElement.style.color = 'green';
-            statusElement.textContent = 'System Health: All Clear. Financial data integrity passed basic audit.';
-            alert('Audit Complete: System passed all checks.');
+        if (statusElement) {
+            if (auditIssues.length > 0) {
+                statusElement.style.color = 'red';
+                statusElement.innerHTML = `⚠️ **AUDIT WARNING** - ${auditIssues.length} issues found:<br><ul><li>${auditIssues.join('</li><li>')}</li></ul>`;
+                alert('Audit Complete: WARNING! See Audit Status for details.');
+            } else {
+                statusElement.style.color = 'green';
+                statusElement.textContent = 'System Health: All Clear. Financial data integrity passed basic audit.';
+                alert('Audit Complete: System passed all checks.');
+            }
         }
     }
 
     function checkAnomalies(transaction) {
         if (transaction.type === 'expense' && transaction.cost > 5000) {
             const statusElement = document.getElementById('audit-status');
-            statusElement.style.color = 'orange';
-            statusElement.innerHTML = `🟡 **PETTY CASH ALERT:** Expense of ${formatKSH(transaction.cost)} logged. Check receipt for ${transaction.description}.`;
+            if (statusElement) {
+                statusElement.style.color = 'orange';
+                statusElement.innerHTML = `🟡 **PETTY CASH ALERT:** Expense of ${formatKSH(transaction.cost)} logged. Check receipt for ${transaction.description}.`;
+            }
         }
     }
 
@@ -2687,13 +2800,20 @@
         document.querySelectorAll(".calc-tab-button").forEach(el => {
             el.className = el.className.replace(" active", "");
         });
-        document.getElementById(tabName).style.display = "block";
-        document.getElementById(tabName).classList.add('active');
-        evt.currentTarget.className += " active";
+        const tabElement = document.getElementById(tabName);
+        if (tabElement) {
+            tabElement.style.display = "block";
+            tabElement.classList.add('active');
+        }
+        if (evt && evt.currentTarget) {
+            evt.currentTarget.className += " active";
+        }
     }
     
     function appendToBasicCalc(value) {
         const display = document.getElementById('calculator-display');
+        if (!display) return;
+        
         if (display.textContent === '0' && value !== '.') { 
             display.textContent = ''; 
         }
@@ -2719,12 +2839,17 @@
     }
 
     function clearBasicCalc() {
-        document.getElementById('calculator-display').textContent = '0';
+        const display = document.getElementById('calculator-display');
+        if (display) {
+            display.textContent = '0';
+        }
         basicCalcCurrentExpression = '';
     }
 
     function calculateBasicCalc() {
         const display = document.getElementById('calculator-display');
+        if (!display) return;
+        
         try {
             let result = new Function('return ' + basicCalcCurrentExpression)();
             if (result === Infinity || isNaN(result)) { 
@@ -2738,39 +2863,6 @@
             basicCalcCurrentExpression = 'Error';
         }
     }
-
-    document.getElementById('emi-calculator-form').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const principal = parseFloat(document.getElementById('principal').value);
-        const rateAnnual = parseFloat(document.getElementById('rate').value);
-        const months = parseInt(document.getElementById('months').value);
-        const resultElement = document.getElementById('emi-result');
-        
-        if (principal <= 0 || rateAnnual < 0 || months <= 0) {
-            resultElement.textContent = "Please enter positive values.";
-            return;
-        }
-
-        const rateMonthly = (rateAnnual / 100) / 12;
-        const n = months;
-        
-        let emi;
-        if (rateMonthly === 0) {
-            emi = principal / n;
-        } else {
-            const power = Math.pow((1 + rateMonthly), n);
-            emi = principal * (rateMonthly * power) / (power - 1);
-        }
-
-        const totalInterest = (emi * n) - principal;
-
-        resultElement.style.color = 'var(--primary-color)';
-        resultElement.innerHTML = `
-            <p>Monthly Payment (EMI): <strong>${formatKSH(emi.toFixed(2))}</strong></p>
-            <p>Total Repayment: ${formatKSH((emi * n).toFixed(2))}</p>
-            <p>Total Interest: ${formatKSH(totalInterest.toFixed(2))}</p>
-        `;
-    });
 
     // --- Bank Selector Functions ---
 
@@ -2799,8 +2891,10 @@
             toggleDarkMode();
         }
         
-        // Initialize original functions
-        openTab({ currentTarget: document.querySelector('.tab-button.active') }, 'petty-cash');
+        // Initialize the default tab (Petty Cash)
+        openTab({ currentTarget: document.querySelector('.tab-button.active, .custom-tab.active') }, 'petty-cash');
+        
+        // Initialize other components
         renderPettyCash();
         updatePettyCashBalanceDisplay();
         updatePettyCashChart();
