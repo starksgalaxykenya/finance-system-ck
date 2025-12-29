@@ -90,9 +90,9 @@
             background: #a1a1a1;
         }
 
-        /* Modal backdrop blur */
+        /* Modal backdrop */
         .modal-backdrop {
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(4px);
             -webkit-backdrop-filter: blur(4px);
         }
@@ -198,7 +198,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -248,6 +248,18 @@
         .bank-step.active {
             display: block;
         }
+
+        /* Modal z-index fixes */
+        .modal-container {
+            z-index: 99999;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow-y: auto;
+            padding: 20px;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -264,10 +276,10 @@
     <div id="toast-container"></div>
 
     <!-- Login Modal -->
-    <div id="login-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
-        <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
-        <div class="flex items-center justify-center min-h-screen px-4">
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-10">
+    <div id="login-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-[99999]">
                 <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">🔐 Firebase Login</h2>
                 <p class="text-gray-600 mb-6 text-center">Connect to Firebase to sync bank data and receipts</p>
                 
@@ -670,7 +682,9 @@
                                         <div class="chart-container mb-6">
                                             <canvas id="majorCategoryChart"></canvas>
                                         </div>
-                                        <p id="major-summary" class="text-gray-600">No major transactions logged yet.</p>
+                                        <div id="major-summary" class="text-gray-600">
+                                            <p>No major transactions logged yet.</p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -785,7 +799,7 @@
                                 </div>
                                 
                                 <!-- Loading Skeleton -->
-                                <div id="bank-cards-loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div id="bank-cards-loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
                                     <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
                                     <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
                                     <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
@@ -796,7 +810,7 @@
                                     <!-- Bank cards will be dynamically inserted here -->
                                 </div>
                                 
-                                <div id="no-banks-message" class="text-center py-12">
+                                <div id="no-banks-message" class="text-center py-12 hidden">
                                     <i class="fas fa-university text-4xl text-gray-300 mb-4"></i>
                                     <h4 class="text-xl font-semibold text-gray-600 mb-2">No Bank Accounts</h4>
                                     <p class="text-gray-500 mb-6">Add bank accounts to start managing your finances</p>
@@ -944,9 +958,9 @@
     </button>
 
     <!-- Calculator Modal -->
-    <div id="calculator-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
-        <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
-        <div class="flex items-center justify-center min-h-screen px-4">
+    <div id="calculator-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-800 flex items-center">
@@ -959,7 +973,7 @@
                 </div>
                 
                 <div id="calculator-tabs" class="flex mb-6 border-b border-gray-200">
-                    <button class="calc-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all active"
+                    <button class="calc-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all active border-primary"
                             onclick="switchCalcTab(event, 'basic-calc')">
                         <i class="fas fa-calculator mr-2"></i>Basic Calculator
                     </button>
@@ -1038,9 +1052,9 @@
     </div>
 
     <!-- Add Bank Modal -->
-    <div id="add-bank-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
-        <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
-        <div class="flex items-center justify-center min-h-screen px-4">
+    <div id="add-bank-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6">
                 <div class="flex justify-between items-center mb-6">
                     <h2 class="text-2xl font-bold text-gray-800 flex items-center">
@@ -1170,9 +1184,9 @@
     </div>
 
     <!-- Transfer Confirmation Modal -->
-    <div id="transfer-confirm-modal" class="fixed inset-0 z-50 overflow-y-auto hidden">
-        <div class="modal-backdrop fixed inset-0 bg-black bg-opacity-50"></div>
-        <div class="flex items-center justify-center min-h-screen px-4">
+    <div id="transfer-confirm-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
             <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
                 <div class="text-center mb-6">
                     <i class="fas fa-paper-plane text-5xl text-primary mb-4"></i>
@@ -1269,6 +1283,7 @@
                     showToast('Connected to Firebase successfully!', 'success');
                     loadFirebaseBanks();
                     loadReceiptPayments();
+                    updateBankSelectors(); // Load banks into transfer selectors
                 }
             });
             
@@ -1326,7 +1341,7 @@
             
             // Show status in the modal
             if (statusElement) {
-                statusElement.style.display = 'block';
+                statusElement.classList.remove('hidden');
                 document.getElementById('firebase-status-text').textContent = errorMessage;
             }
         }
@@ -1362,8 +1377,8 @@
         // Hide all tab contents
         const tabContents = document.querySelectorAll('.tab-content');
         tabContents.forEach(tab => {
-            tab.style.display = 'none';
             tab.classList.remove('active');
+            tab.style.display = 'none';
         });
 
         // Remove active class from all tab buttons
@@ -1462,6 +1477,7 @@
                 return;
             }
             
+            let hasAvailableBanks = false;
             banksSnapshot.forEach(doc => {
                 const bankData = doc.data();
                 const bankId = doc.id;
@@ -1469,22 +1485,36 @@
                 // Check if bank already exists locally
                 const existingBank = banks.find(b => b.firebaseId === bankId);
                 
-                const bankOption = document.createElement('div');
-                bankOption.className = `p-4 border rounded-lg cursor-pointer transition-all hover:bg-gray-50 ${existingBank ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}`;
-                bankOption.onclick = () => selectFirebaseBank(bankId, bankData);
-                bankOption.innerHTML = `
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <h4 class="font-semibold text-gray-800">${bankData.bankName || 'Unnamed Bank'}</h4>
-                            <p class="text-sm text-gray-600">${bankData.accountNumber || 'No account number'}</p>
-                            <p class="text-xs text-gray-500 mt-1">${existingBank ? '✓ Already added' : 'Click to add'}</p>
+                // Only show banks not already added locally
+                if (!existingBank) {
+                    hasAvailableBanks = true;
+                    const bankOption = document.createElement('div');
+                    bankOption.className = `p-4 border rounded-lg cursor-pointer transition-all hover:bg-gray-50 bg-white border-gray-200`;
+                    bankOption.onclick = () => selectFirebaseBank(bankId, bankData);
+                    bankOption.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <h4 class="font-semibold text-gray-800">${bankData.bankName || 'Unnamed Bank'}</h4>
+                                <p class="text-sm text-gray-600">${bankData.accountNumber || 'No account number'}</p>
+                                <p class="text-xs text-gray-500 mt-1">Click to add</p>
+                            </div>
+                            <i class="fas fa-chevron-right text-gray-400"></i>
                         </div>
-                        <i class="fas fa-chevron-right text-gray-400"></i>
+                    `;
+                    
+                    banksListDiv.appendChild(bankOption);
+                }
+            });
+            
+            if (!hasAvailableBanks) {
+                banksListDiv.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-check-circle text-3xl mb-3 text-green-500"></i>
+                        <p>All Firebase banks have been added</p>
+                        <p class="text-sm mt-2">Add more banks in your other system</p>
                     </div>
                 `;
-                
-                banksListDiv.appendChild(bankOption);
-            });
+            }
             
             showLoading(false);
         } catch (error) {
@@ -1539,12 +1569,16 @@
                     });
                     
                     console.log(`Updated ${localBank.name} balance by +${amount} from receipt`);
+                    
+                    // Update UI
+                    updateBankCards();
+                    updateBankSelectors();
+                    updateTransferBankSelectors();
                 }
             }
         });
         
         updateFinancialDashboard();
-        updateBankCards();
     }
 
     function selectFirebaseBank(bankId, bankData) {
@@ -1559,12 +1593,10 @@
         // Highlight selection
         document.querySelectorAll('#firebase-banks-list > div').forEach(div => {
             div.classList.remove('bg-primary', 'text-white', 'border-primary');
-            div.classList.remove('bg-green-50', 'border-green-200');
             div.classList.add('bg-white', 'border-gray-200');
         });
         
         event.currentTarget.classList.remove('bg-white', 'border-gray-200');
-        event.currentTarget.classList.remove('bg-green-50', 'border-green-200');
         event.currentTarget.classList.add('bg-primary', 'text-white', 'border-primary');
         
         // Update selected bank name display
@@ -1605,8 +1637,12 @@
         document.getElementById('step-3-indicator').className = 'step-indicator';
         
         // Show step 1
-        document.querySelectorAll('.bank-step').forEach(step => step.classList.add('hidden'));
-        document.getElementById('step-1').classList.remove('hidden');
+        document.querySelectorAll('.bank-step').forEach(step => {
+            step.classList.remove('active');
+            step.style.display = 'none';
+        });
+        document.getElementById('step-1').classList.add('active');
+        document.getElementById('step-1').style.display = 'block';
         
         // Reset inputs
         document.getElementById('bank-initial-balance').value = '';
@@ -1648,17 +1684,17 @@
         document.getElementById('step-2-indicator').className = `step-indicator ${addBankStep >= 2 ? 'active' : ''}`;
         document.getElementById('step-3-indicator').className = `step-indicator ${addBankStep >= 3 ? 'active' : ''}`;
         
-        if (addBankStep === 1) {
-            document.getElementById('step-1-indicator').classList.add('active');
-        } else if (addBankStep === 2) {
-            document.getElementById('step-2-indicator').classList.add('active');
-        } else if (addBankStep === 3) {
-            document.getElementById('step-3-indicator').classList.add('active');
-        }
-        
         // Show current step
-        document.querySelectorAll('.bank-step').forEach(step => step.classList.add('hidden'));
-        document.getElementById(`step-${addBankStep}`).classList.remove('hidden');
+        document.querySelectorAll('.bank-step').forEach(step => {
+            step.classList.remove('active');
+            step.style.display = 'none';
+        });
+        
+        const currentStep = document.getElementById(`step-${addBankStep}`);
+        if (currentStep) {
+            currentStep.classList.add('active');
+            currentStep.style.display = 'block';
+        }
     }
 
     function submitNewBank() {
@@ -1683,6 +1719,7 @@
         
         banks.push(newBank);
         updateBankSelectors();
+        updateTransferBankSelectors();
         updateFinancialDashboard();
         updateBankCards();
         
@@ -1702,6 +1739,16 @@
         
         fromSelect.innerHTML = '<option value="" disabled selected>Select Source Bank</option>';
         toSelect.innerHTML = '<option value="" disabled selected>Select Destination Bank</option>';
+        
+        if (banks.length === 0) {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "No banks available - Add banks first";
+            option.disabled = true;
+            fromSelect.appendChild(option.cloneNode(true));
+            toSelect.appendChild(option.cloneNode(true));
+            return;
+        }
         
         banks.forEach(bank => {
             const fromOption = document.createElement('option');
@@ -1731,6 +1778,19 @@
                     `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
             }
         });
+        
+        // Initialize fee calculation
+        const transferAmount = document.getElementById('transfer-amount');
+        if (transferAmount) {
+            transferAmount.addEventListener('input', function() {
+                const amount = parseFloat(this.value) || 0;
+                const fee = calculateTransferFee(amount);
+                const feeElement = document.getElementById('transfer-fee');
+                if (feeElement) {
+                    feeElement.textContent = `Transfer Fee: ${formatKSH(fee)}`;
+                }
+            });
+        }
     }
 
     function calculateTransferFee(amount) {
@@ -2257,11 +2317,11 @@
                 const bankId = document.getElementById('transaction-bank-id').value;
 
                 if (cost <= 0) {
-                    alert("Amount must be a positive value.");
+                    showToast("Amount must be a positive value.", 'error');
                     return;
                 }
                 if (!bankId) {
-                    alert("Please select a bank account for this transaction.");
+                    showToast("Please select a bank account for this transaction.", 'error');
                     return;
                 }
 
@@ -2364,19 +2424,6 @@
                 document.getElementById('confirm-transfer-reason').textContent = reason || 'No reason provided';
                 
                 document.getElementById('transfer-confirm-modal').classList.remove('hidden');
-            });
-        }
-        
-        // Transfer amount listener for fee calculation
-        const transferAmount = document.getElementById('transfer-amount');
-        if (transferAmount) {
-            transferAmount.addEventListener('input', function() {
-                const amount = parseFloat(this.value) || 0;
-                const fee = calculateTransferFee(amount);
-                const feeElement = document.getElementById('transfer-fee');
-                if (feeElement) {
-                    feeElement.textContent = `Transfer Fee: ${formatKSH(fee)}`;
-                }
             });
         }
         
@@ -2665,7 +2712,7 @@
         if (!majorSummaryElement) return;
         
         if (majorTransactions.length === 0) {
-            majorSummaryElement.textContent = 'No major transactions logged yet.';
+            majorSummaryElement.innerHTML = '<p>No major transactions logged yet.</p>';
             return;
         }
         
@@ -2952,8 +2999,8 @@
     
     function switchCalcTab(evt, tabName) {
         document.querySelectorAll(".calc-tab-content").forEach(el => {
-            el.style.display = "none";
             el.classList.remove('active');
+            el.style.display = 'none';
         });
         document.querySelectorAll(".calc-tab-button").forEach(el => {
             el.classList.remove('active');
@@ -2961,8 +3008,8 @@
         });
         const tabElement = document.getElementById(tabName);
         if (tabElement) {
-            tabElement.style.display = "block";
             tabElement.classList.add('active');
+            tabElement.style.display = 'block';
         }
         if (evt && evt.currentTarget) {
             evt.currentTarget.classList.add('active');
@@ -3030,12 +3077,20 @@
         if (majorSelect) {
             majorSelect.innerHTML = '<option value="" disabled selected>Select Bank</option>';
 
-            banks.forEach(bank => {
+            if (banks.length === 0) {
                 const option = document.createElement('option');
-                option.value = bank.id;
-                option.textContent = `${bank.name} (${formatKSH(bank.balance)})`;
+                option.value = "";
+                option.textContent = "No banks available - Add banks in Bank Management tab";
+                option.disabled = true;
                 majorSelect.appendChild(option);
-            });
+            } else {
+                banks.forEach(bank => {
+                    const option = document.createElement('option');
+                    option.value = bank.id;
+                    option.textContent = `${bank.name} (${formatKSH(bank.balance)})`;
+                    majorSelect.appendChild(option);
+                });
+            }
         }
         
         // Also update transfer selectors
