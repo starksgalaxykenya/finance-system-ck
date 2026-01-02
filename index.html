@@ -1571,31 +1571,35 @@
         }
     }
 
-    function updateFirebaseUI() {
-        const loginBtn = document.getElementById('firebase-login-btn');
-        const userInfo = document.getElementById('firebase-user-info');
-        const userEmail = document.getElementById('user-email');
-        const syncStatus = document.getElementById('firebase-sync-status');
+   function updateFirebaseUI() {
+    const loginBtn = document.getElementById('firebase-login-btn');
+    const userInfo = document.getElementById('firebase-user-info');
+    const userEmail = document.getElementById('user-email');
+    const syncStatus = document.getElementById('firebase-sync-status');
+    
+    if (user) {
+        loginBtn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Connected';
+        loginBtn.classList.remove('bg-white', 'text-primary');
+        loginBtn.classList.add('bg-green-500', 'text-white', 'hover:bg-green-600');
         
-        if (user) {
-            loginBtn.innerHTML = '<i class="fas fa-check-circle mr-2"></i>Connected';
-            loginBtn.classList.remove('bg-white', 'text-primary');
-            loginBtn.classList.add('bg-green-500', 'text-white', 'hover:bg-green-600');
-            
-            userInfo.classList.remove('hidden');
-            userEmail.textContent = user.email;
-            
-            syncStatus.classList.remove('hidden');
-            document.getElementById('sync-status-text').textContent = `Connected as ${user.email}`;
-        } else {
-            loginBtn.innerHTML = '<i class="fas fa-cloud mr-2"></i>Connect Firebase';
-            loginBtn.classList.remove('bg-green-500', 'text-white', 'hover:bg-green-600');
-            loginBtn.classList.add('bg-white', 'text-primary');
-            
-            userInfo.classList.add('hidden');
-            syncStatus.classList.add('hidden');
-        }
+        userInfo.classList.remove('hidden');
+        userEmail.textContent = user.email;
+        
+        syncStatus.classList.remove('hidden');
+        document.getElementById('sync-status-text').textContent = `Connected as ${user.email}`;
+        
+        // Start the payment scanner when user is connected
+        setTimeout(() => startPaymentScanner(), 1000);
+        
+    } else {
+        loginBtn.innerHTML = '<i class="fas fa-cloud mr-2"></i>Connect Firebase';
+        loginBtn.classList.remove('bg-green-500', 'text-white', 'hover:bg-green-600');
+        loginBtn.classList.add('bg-white', 'text-primary');
+        
+        userInfo.classList.add('hidden');
+        syncStatus.classList.add('hidden');
     }
+}
 
     function initializeFirebase() {
         try {
@@ -1815,6 +1819,188 @@ async function initializeLoanBankSelector() {
             }
         }
     });
+}
+
+    // --- Payment Scanner Functions ---
+async function startPaymentScanner() {
+    if (!user) return;
+    
+    // Set up a real-time listener for receipt_payments collection
+    const paymentsCollection = firestore.collection('receipt_payments');
+    
+    // Listen for new documents added to receipt_payments
+    paymentsCollection.onSnapshot((snapshot) => {
+        snapshot.docChanges().forEach(async (change) => {
+            if (change.type === 'added') {
+                const payment = { id: change.doc.id, ...change.doc.data() };
+                await processNewPayment(payment);
+            }
+        });
+    }, (error) => {
+        console.error("Payment scanner error:", error);
+        showToast('Payment scanner error', 'error');
+    });
+}
+
+// Process a new payment from Firestore
+async function processNewPayment(payment) {
+    try {
+        const paymentMethod = payment.paymentMethod || payment.paymentMethod || 'Unknown';
+        let amount = 0;
+        let currency = 'KSH';
+        
+        // Check for amount in USD or KSH
+        if (payment.amountUSD && payment.amountUSD > 0) {
+            amount = parseFloat(payment.amountUSD);
+            currency = 'USD';
+        } else if (payment.amountKSH && payment.amountKSH > 0) {
+            amount = parseFloat(payment.amountKSH);
+            currency = 'KSH';
+        } else if (payment.amount && payment.amount > 0) {
+            amount = parseFloat(payment.amount);
+            currency = payment.currency || 'KSH';
+        }
+        
+        if (amount <= 0) {
+            console.log('Skipping payment with zero or negative amount:', payment);
+            return;
+        }
+        
+        // Find the appropriate bank based on payment method
+        const targetBank = findBankByPaymentMethod(paymentMethod, currency);
+        
+        if (targetBank) {
+            // Convert USD to KSH if needed (assuming 1 USD = 150 KSH)
+            let amountInBankCurrency = amount;
+            if (currency === 'USD' && !targetBank.currency || targetBank.currency === 'KSH') {
+                amountInBankCurrency = amount * 150; // Simple conversion
+            }
+            
+            // Update bank balance
+            targetBank.balance += amountInBankCurrency;
+            targetBank.lastUpdated = new Date().toISOString();
+            
+            // Add to major transactions
+            majorTransactions.push({
+                description: `Payment received: ${payment.receiptNumber || 'Receipt'} - ${paymentMethod}`,
+                amount: amountInBankCurrency,
+                category: 'Sales',
+                date: new Date().toLocaleDateString('en-KE'),
+                bankId: targetBank.id,
+                isFromReceipt: true,
+                receiptId: payment.id,
+                originalCurrency: currency,
+                originalAmount: amount,
+                convertedAmount: amountInBankCurrency
+            });
+            
+            // Update UI
+            updateFinancialDashboard();
+            updateBankCards();
+            updateBankSelectors();
+            updateTransferBankSelectors();
+            
+            // Save to Firestore
+            if (user) await saveUserData();
+            
+            showToast(`New ${currency} ${amount} payment added to ${targetBank.name}`, 'success');
+            console.log(`Payment processed: ${amount} ${currency} added to ${targetBank.name}`);
+        } else {
+            console.log('No matching bank found for payment method:', paymentMethod);
+            // Create a notification for unmatched payment methods
+            showToast(`Payment received but no bank found for ${paymentMethod}`, 'warning');
+        }
+        
+    } catch (error) {
+        console.error("Error processing payment:", error);
+        showToast('Error processing payment', 'error');
+    }
+}
+
+// Find bank by payment method and currency
+function findBankByPaymentMethod(paymentMethod, currency) {
+    const method = paymentMethod.toLowerCase();
+    
+    // Check for M-Pesa/Mobile Money
+    if (method.includes('mpesa') || method.includes('mobile') || method.includes('pesa')) {
+        return banks.find(b => b.id === 'mpesa');
+    }
+    
+    // Check for specific banks by name
+    const bankKeywords = [
+        { keywords: ['equity', 'equity bank'], currency: 'KSH' },
+        { keywords: ['kcb', 'kenya commercial'], currency: 'KSH' },
+        { keywords: ['cooperative', 'co-op'], currency: 'KSH' },
+        { keywords: ['standard chartered', 'standard'], currency: 'KSH' },
+        { keywords: ['barclays', 'absa'], currency: 'KSH' },
+        { keywords: ['diamond trust', 'dtb'], currency: 'KSH' },
+        { keywords: ['ncba'], currency: 'KSH' },
+        { keywords: ['bank of africa', 'boa'], currency: 'KSH' },
+        { keywords: ['citibank', 'citi'], currency: 'USD' },
+        { keywords: ['stanbic'], currency: 'KSH' },
+        { keywords: ['family bank'], currency: 'KSH' },
+        { keywords: ['gt bank', 'guaranty trust'], currency: 'KSH' },
+        { keywords: ['i&m'], currency: 'KSH' }
+    ];
+    
+    for (const bankInfo of bankKeywords) {
+        for (const keyword of bankInfo.keywords) {
+            if (method.includes(keyword)) {
+                // First try to find a bank with matching name and currency
+                let bank = banks.find(b => 
+                    b.name.toLowerCase().includes(keyword) && 
+                    (!b.currency || b.currency === bankInfo.currency)
+                );
+                
+                // If not found, try any bank with matching name
+                if (!bank) {
+                    bank = banks.find(b => b.name.toLowerCase().includes(keyword));
+                }
+                
+                // If still not found and we have currency match, create a new bank entry
+                if (!bank && bankInfo.currency === currency) {
+                    bank = createBankFromPaymentMethod(paymentMethod, currency);
+                }
+                
+                return bank;
+            }
+        }
+    }
+    
+    // Check if any bank name contains the payment method
+    for (const bank of banks) {
+        if (method.includes(bank.name.toLowerCase()) || 
+            bank.name.toLowerCase().includes(method)) {
+            return bank;
+        }
+    }
+    
+    // If no bank found, check if we should create a new one
+    return createBankFromPaymentMethod(paymentMethod, currency);
+}
+
+// Create a new bank entry from payment method
+function createBankFromPaymentMethod(paymentMethod, currency) {
+    // Only create new banks for significant payment methods
+    if (paymentMethod.toLowerCase().includes('cash') || 
+        paymentMethod.toLowerCase().includes('unknown')) {
+        return null;
+    }
+    
+    const newBank = {
+        id: 'b' + Date.now(),
+        name: paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1),
+        accountNumber: 'Auto-generated',
+        balance: 0,
+        currency: currency,
+        isAutoGenerated: true,
+        lastUpdated: new Date().toISOString()
+    };
+    
+    banks.push(newBank);
+    showToast(`New bank "${newBank.name}" created for ${currency} payments`, 'info');
+    
+    return newBank;
 }
 
     // --- Tab Switching Function ---
@@ -2044,24 +2230,34 @@ async function initializeLoanBankSelector() {
         }
     }
 
-    async function loadReceiptPayments() {
-        if (!user) return;
+   // Modify the existing loadReceiptPayments function to use the new processing
+async function loadReceiptPayments() {
+    if (!user) return;
+    
+    try {
+        const paymentsSnapshot = await firestore.collection('receipt_payments').get();
+        const receipts = [];
         
-        try {
-            const paymentsSnapshot = await firestore.collection('receipt_payments').get();
-            const receipts = [];
-            
-            paymentsSnapshot.forEach(doc => {
-                receipts.push({ id: doc.id, ...doc.data() });
-            });
-            
-            // Update bank balances from receipts
-            updateBankBalancesFromReceipts(receipts);
-        } catch (error) {
-            console.error("Error loading receipts:", error);
+        paymentsSnapshot.forEach(doc => {
+            receipts.push({ id: doc.id, ...doc.data() });
+        });
+        
+        // Process all receipts
+        for (const receipt of receipts) {
+            await processNewPayment(receipt);
         }
+        
+        // Update all UI components
+        updateFinancialDashboard();
+        updateBankCards();
+        updateBankSelectors();
+        updateTransferBankSelectors();
+        
+    } catch (error) {
+        console.error("Error loading receipts:", error);
+        showToast('Error loading payments from Firebase', 'error');
     }
-
+}
     function updateBankBalancesFromReceipts(receipts) {
         receipts.forEach(receipt => {
             const bankName = receipt.bankName || receipt.bank;
@@ -2572,100 +2768,106 @@ function executeBankTransfer() {
     }
 
     // --- Bank Cards Display ---
-    function updateBankCards() {
-        const container = document.getElementById('bank-details-cards');
-        const loading = document.getElementById('bank-cards-loading');
-        const noBanks = document.getElementById('no-banks-message');
+// Add currency display to bank cards
+function updateBankCards() {
+    const container = document.getElementById('bank-details-cards');
+    const loading = document.getElementById('bank-cards-loading');
+    const noBanks = document.getElementById('no-banks-message');
+    
+    if (!container || !loading || !noBanks) return;
+    
+    if (banks.length === 0) {
+        container.innerHTML = '';
+        loading.classList.add('hidden');
+        noBanks.classList.remove('hidden');
+        return;
+    }
+    
+    loading.classList.add('hidden');
+    noBanks.classList.add('hidden');
+    container.innerHTML = '';
+    
+    banks.forEach(bank => {
+        const card = document.createElement('div');
         
-        if (!container || !loading || !noBanks) return;
-        
-        if (banks.length === 0) {
-            container.innerHTML = '';
-            loading.classList.add('hidden');
-            noBanks.classList.remove('hidden');
-            return;
+        // Special styling for M-Pesa
+        if (bank.id === 'mpesa') {
+            card.className = 'mpesa-card rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-all duration-300';
+        } else {
+            card.className = 'bg-white rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-all duration-300';
         }
         
-        loading.classList.add('hidden');
-        noBanks.classList.add('hidden');
-        container.innerHTML = '';
+        card.setAttribute('data-bank-id', bank.id);
         
-        banks.forEach(bank => {
-            const card = document.createElement('div');
-            
-            // Special styling for M-Pesa
-            if (bank.id === 'mpesa') {
-                card.className = 'mpesa-card rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-all duration-300';
-            } else {
-                card.className = 'bg-white rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-all duration-300';
-            }
-            
-            card.setAttribute('data-bank-id', bank.id);
-            
-            const balanceColor = bank.balance < 0 ? 'text-red-500' : (bank.id === 'mpesa' ? 'text-white' : 'text-primary');
-            const balanceIcon = bank.balance < 0 ? 'fa-arrow-down' : 'fa-arrow-up';
-            const displayBalance = balancesHidden ? '*****' : formatKSH(bank.balance);
-            
-            card.innerHTML = `
-                <div class="p-6">
-                    <div class="flex justify-between items-start mb-4">
-                        <div>
-                            <h4 class="text-xl font-bold ${bank.id === 'mpesa' ? 'text-white' : 'text-gray-800'}">
-                                ${bank.name}
-                                ${bank.id === 'mpesa' ? '<span class="mpesa-badge text-xs px-2 py-1 rounded-full ml-2">Petty Cash</span>' : ''}
-                            </h4>
-                            <p class="${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'} mt-1">${bank.accountNumber || 'No account number'}</p>
-                            ${bank.branch ? `<p class="${bank.id === 'mpesa' ? 'text-white opacity-60' : 'text-gray-500'} text-xs mt-1">${bank.branch}</p>` : ''}
-                        </div>
-                        <div class="${bank.id === 'mpesa' ? 'bg-white bg-opacity-20 text-white' : 'bg-primary bg-opacity-10 text-primary'} p-3 rounded-lg">
-                            <i class="fas ${bank.id === 'mpesa' ? 'fa-mobile-alt' : 'fa-university'} text-xl"></i>
-                        </div>
+        const balanceColor = bank.balance < 0 ? 'text-red-500' : (bank.id === 'mpesa' ? 'text-white' : 'text-primary');
+        const balanceIcon = bank.balance < 0 ? 'fa-arrow-down' : 'fa-arrow-up';
+        const displayBalance = balancesHidden ? '*****' : formatKSH(bank.balance);
+        const currency = bank.currency || 'KSH';
+        
+        card.innerHTML = `
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <h4 class="text-xl font-bold ${bank.id === 'mpesa' ? 'text-white' : 'text-gray-800'}">
+                            ${bank.name}
+                            ${bank.id === 'mpesa' ? '<span class="mpesa-badge text-xs px-2 py-1 rounded-full ml-2">Petty Cash</span>' : ''}
+                            ${bank.isAutoGenerated ? '<span class="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-800 ml-2">Auto</span>' : ''}
+                        </h4>
+                        <p class="${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'} mt-1">${bank.accountNumber || 'No account number'}</p>
+                        ${bank.branch ? `<p class="${bank.id === 'mpesa' ? 'text-white opacity-60' : 'text-gray-500'} text-xs mt-1">${bank.branch}</p>` : ''}
+                        <p class="${bank.id === 'mpesa' ? 'text-white opacity-70' : 'text-gray-500'} text-xs mt-1">
+                            ${currency} ${bank.currency === 'USD' ? '($USD)' : '(KSH)'}
+                        </p>
                     </div>
-                    
-                    <div class="mb-4">
-                        <div class="flex justify-between items-center mb-2">
-                            <span class="${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'}">Current Balance</span>
-                            <span class="text-xs ${bank.id === 'mpesa' ? 'text-white opacity-60' : 'text-gray-500'}">Updated: ${new Date(bank.lastUpdated || Date.now()).toLocaleTimeString('en-KE', {hour: '2-digit', minute:'2-digit'})}</span>
-                        </div>
-                        <div class="text-2xl font-bold ${balanceColor} flex items-center ${balancesHidden ? 'hidden-balance' : ''}">
-                            <i class="fas ${balanceIcon} mr-2"></i>
-                            ${displayBalance}
-                        </div>
-                    </div>
-                    
-                    <div class="flex space-x-2">
-                        <button onclick="updateBankBalance('${bank.id}')"
-                                class="flex-1 ${bank.id === 'mpesa' ? 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white' : 'bg-blue-50 hover:bg-blue-100 text-blue-600'} font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
-                            <i class="fas fa-edit mr-2"></i>Update
-                        </button>
-                        <button onclick="showBankTransactions('${bank.id}')"
-                                class="flex-1 ${bank.id === 'mpesa' ? 'bg-white bg-opacity-10 hover:bg-opacity-20 text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'} font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
-                            <i class="fas fa-history mr-2"></i>History
-                        </button>
+                    <div class="${bank.id === 'mpesa' ? 'bg-white bg-opacity-20 text-white' : 'bg-primary bg-opacity-10 text-primary'} p-3 rounded-lg">
+                        <i class="fas ${bank.id === 'mpesa' ? 'fa-mobile-alt' : 'fa-university'} text-xl"></i>
                     </div>
                 </div>
                 
-                ${bank.firebaseId ? `
-                <div class="${bank.id === 'mpesa' ? 'bg-white bg-opacity-10' : 'bg-gray-50'} px-6 py-3 border-t ${bank.id === 'mpesa' ? 'border-white border-opacity-20' : 'border-gray-100'}">
-                    <div class="flex items-center text-sm ${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'}">
-                        <i class="fas fa-fire ${bank.id === 'mpesa' ? 'text-yellow-300' : 'text-orange-500'} mr-2"></i>
-                        <span>Synced with Firebase</span>
-                        <button onclick="syncBankWithFirebase('${bank.id}')"
-                                class="ml-auto ${bank.id === 'mpesa' ? 'text-yellow-300 hover:text-yellow-200' : 'text-primary hover:text-primary-dark'} text-xs font-medium">
-                            <i class="fas fa-sync-alt mr-1"></i>Sync Now
-                        </button>
+                <div class="mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'}">Current Balance</span>
+                        <span class="text-xs ${bank.id === 'mpesa' ? 'text-white opacity-60' : 'text-gray-500'}">Updated: ${new Date(bank.lastUpdated || Date.now()).toLocaleTimeString('en-KE', {hour: '2-digit', minute:'2-digit'})}</span>
+                    </div>
+                    <div class="text-2xl font-bold ${balanceColor} flex items-center ${balancesHidden ? 'hidden-balance' : ''}">
+                        <i class="fas ${balanceIcon} mr-2"></i>
+                        ${displayBalance}
+                        ${currency === 'USD' ? '<span class="text-sm ml-2">($USD)</span>' : ''}
                     </div>
                 </div>
-                ` : ''}
-            `;
+                
+                <div class="flex space-x-2">
+                    <button onclick="updateBankBalance('${bank.id}')"
+                            class="flex-1 ${bank.id === 'mpesa' ? 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white' : 'bg-blue-50 hover:bg-blue-100 text-blue-600'} font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
+                        <i class="fas fa-edit mr-2"></i>Update
+                    </button>
+                    <button onclick="showBankTransactions('${bank.id}')"
+                            class="flex-1 ${bank.id === 'mpesa' ? 'bg-white bg-opacity-10 hover:bg-opacity-20 text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'} font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
+                        <i class="fas fa-history mr-2"></i>History
+                    </button>
+                </div>
+            </div>
             
-            container.appendChild(card);
-        });
+            ${bank.firebaseId ? `
+            <div class="${bank.id === 'mpesa' ? 'bg-white bg-opacity-10' : 'bg-gray-50'} px-6 py-3 border-t ${bank.id === 'mpesa' ? 'border-white border-opacity-20' : 'border-gray-100'}">
+                <div class="flex items-center text-sm ${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'}">
+                    <i class="fas fa-fire ${bank.id === 'mpesa' ? 'text-yellow-300' : 'text-orange-500'} mr-2"></i>
+                    <span>Synced with Firebase</span>
+                    <button onclick="syncBankWithFirebase('${bank.id}')"
+                            class="ml-auto ${bank.id === 'mpesa' ? 'text-yellow-300 hover:text-yellow-200' : 'text-primary hover:text-primary-dark'} text-xs font-medium">
+                        <i class="fas fa-sync-alt mr-1"></i>Sync Now
+                    </button>
+                </div>
+            </div>
+            ` : ''}
+        `;
         
-        // Update quick stats
-        updateQuickStats();
-    }
-
+        container.appendChild(card);
+    });
+    
+    // Update quick stats
+    updateQuickStats();
+}
     // --- Loan Card Functions ---
     function updateLoanCards() {
         const container = document.getElementById('loan-cards-container');
