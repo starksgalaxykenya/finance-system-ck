@@ -778,82 +778,110 @@
                                 </div>
                             </div>
 
-                            <!-- Bank Transfer Form -->
-                            <div class="bg-white rounded-xl shadow-card p-6 mb-8">
-                                <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                                    <i class="fas fa-money-check-alt mr-3"></i>💸 Inter-Bank Transfer
-                                </h3>
-                                
-                                <form id="bank-transfer-form">
-                                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">From Bank</label>
-                                            <select id="transfer-from-bank" 
-                                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                                                <option value="" disabled selected>Select Source Bank</option>
-                                            </select>
-                                            <div id="from-bank-balance" class="text-sm text-gray-500 mt-2"></div>
-                                        </div>
-                                        
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">To Bank</label>
-                                            <select id="transfer-to-bank" 
-                                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                                                <option value="" disabled selected>Select Destination Bank</option>
-                                            </select>
-                                            <div id="to-bank-balance" class="text-sm text-gray-500 mt-2"></div>
-                                        </div>
-                                        
-                                        <div>
-                                            <label class="block text-sm font-medium text-gray-700 mb-2">Transfer Amount (KSH)</label>
-                                            <input type="number" id="transfer-amount" 
-                                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                   placeholder="100000" min="0.01" step="0.01" required>
-                                            <div class="text-sm text-gray-500 mt-2" id="transfer-fee">Transfer Fee: KSH 0</div>
-                                        </div>
-                                    </div>
-                                    
-                                    <div class="mb-6">
-                                        <label class="block text-sm font-medium text-gray-700 mb-2">Transfer Reason</label>
-                                        <textarea id="transfer-reason" 
-                                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                                  rows="2" placeholder="e.g., Working capital transfer between accounts"></textarea>
-                                    </div>
-                                    
-                                    <button type="submit"
-                                            class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
-                                        <i class="fas fa-paper-plane mr-2"></i>Initiate Transfer
-                                    </button>
-                                </form>
-                                
-                                <div id="transfer-preview" class="mt-6 hidden">
-                                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                                        <h4 class="font-semibold text-gray-800 mb-2">Transfer Preview</h4>
-                                        <div class="grid grid-cols-2 gap-4 text-sm">
-                                            <div>
-                                                <span class="text-gray-600">From:</span>
-                                                <span id="preview-from" class="font-medium"></span>
-                                            </div>
-                                            <div>
-                                                <span class="text-gray-600">To:</span>
-                                                <span id="preview-to" class="font-medium"></span>
-                                            </div>
-                                            <div>
-                                                <span class="text-gray-600">Amount:</span>
-                                                <span id="preview-amount" class="font-medium text-green-600"></span>
-                                            </div>
-                                            <div>
-                                                <span class="text-gray-600">Fee:</span>
-                                                <span id="preview-fee" class="font-medium text-red-600"></span>
-                                            </div>
-                                            <div class="col-span-2">
-                                                <span class="text-gray-600">Reason:</span>
-                                                <span id="preview-reason" class="font-medium"></span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                         <!-- Bank Transfer Form -->
+<div class="bg-white rounded-xl shadow-card p-6 mb-8">
+    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+        <i class="fas fa-money-check-alt mr-3"></i>💸 Inter-Bank Transfer
+    </h3>
+    
+    <form id="bank-transfer-form">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">From Bank</label>
+                <select id="transfer-from-bank" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                    <option value="" disabled selected>Select Source Bank</option>
+                </select>
+                <div id="from-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">To Bank</label>
+                <select id="transfer-to-bank" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                    <option value="" disabled selected>Select Destination Bank</option>
+                </select>
+                <div id="to-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Transfer Amount (KSH)</label>
+                <input type="number" id="transfer-amount" 
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                       placeholder="100000" min="0.01" step="0.01" required>
+            </div>
+        </div>
+        
+        <!-- New Fee Section -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Fee (KSH)</label>
+                <input type="number" id="transfer-fee-input" 
+                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                       placeholder="0.00" min="0" step="0.01" value="0" required>
+                <p class="text-sm text-gray-500 mt-2">Enter the transaction fee amount</p>
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Fee Bearer</label>
+                <select id="fee-bearer" 
+                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                    <option value="sending">Sending Bank Pays Fee</option>
+                    <option value="receiving">Receiving Bank Pays Fee</option>
+                </select>
+                <p class="text-sm text-gray-500 mt-2">Who bears the transaction fee?</p>
+            </div>
+        </div>
+        
+        <div class="mb-6">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Transfer Reason</label>
+            <textarea id="transfer-reason" 
+                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                      rows="2" placeholder="e.g., Working capital transfer between accounts"></textarea>
+        </div>
+        
+        <button type="submit"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+            <i class="fas fa-paper-plane mr-2"></i>Initiate Transfer
+        </button>
+    </form>
+    
+    <div id="transfer-preview" class="mt-6 hidden">
+        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <h4 class="font-semibold text-gray-800 mb-2">Transfer Preview</h4>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-gray-600">From:</span>
+                    <span id="preview-from" class="font-medium"></span>
+                </div>
+                <div>
+                    <span class="text-gray-600">To:</span>
+                    <span id="preview-to" class="font-medium"></span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Amount:</span>
+                    <span id="preview-amount" class="font-medium text-green-600"></span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Fee:</span>
+                    <span id="preview-fee" class="font-medium text-red-600"></span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Fee Bearer:</span>
+                    <span id="preview-fee-bearer" class="font-medium"></span>
+                </div>
+                <div>
+                    <span class="text-gray-600">Total Debit:</span>
+                    <span id="preview-total-debit" class="font-bold"></span>
+                </div>
+                <div class="col-span-2">
+                    <span class="text-gray-600">Reason:</span>
+                    <span id="preview-reason" class="font-medium"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
                             <!-- Bank Cards Grid -->
                             <div class="mb-8">
@@ -1671,43 +1699,123 @@
         }
     }
 
-    // --- Initialize Loan Bank Selector ---
-    function initializeLoanBankSelector() {
-        const bankSelect = document.getElementById('loan-bank-account');
-        if (!bankSelect) return;
+  // --- Initialize Loan Bank Selector ---
+async function initializeLoanBankSelector() {
+    const bankSelect = document.getElementById('loan-bank-account');
+    if (!bankSelect) return;
+    
+    bankSelect.innerHTML = '<option value="" disabled selected>Select Bank Account</option>';
+    
+    // Clear previous options
+    bankSelect.innerHTML = '<option value="" disabled selected>Loading banks from Firebase...</option>';
+    
+    try {
+        // Load banks from Firestore
+        const banksSnapshot = await firestore.collection('bankDetails').get();
         
-        bankSelect.innerHTML = '<option value="" disabled selected>Select Bank Account</option>';
-        
-        if (banks.length === 0) {
+        if (banksSnapshot.empty) {
             const option = document.createElement('option');
             option.value = "";
-            option.textContent = "No banks available - Add banks first";
+            option.textContent = "No banks found in Firebase - Add banks first";
             option.disabled = true;
             bankSelect.appendChild(option);
-        } else {
-            banks.forEach(bank => {
-                const option = document.createElement('option');
-                option.value = bank.id;
-                // Check if M-Pesa exists
-                if (bank.id === 'mpesa') {
-                    option.textContent = `${bank.name} (Petty Cash) - ${formatKSH(bank.balance)}`;
-                } else {
-                    option.textContent = `${bank.name} - ${formatKSH(bank.balance)}`;
-                }
-                bankSelect.appendChild(option);
-            });
+            showToast('No banks found in Firebase', 'warning');
+            return;
         }
         
-        // Add event listener to show balance
-        bankSelect.addEventListener('change', function() {
-            const bank = getBankById(this.value);
-            const balanceElement = document.getElementById('loan-bank-balance');
-            if (bank && balanceElement) {
-                balanceElement.innerHTML = 
-                    `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
-            }
+        // Clear loading message
+        bankSelect.innerHTML = '<option value="" disabled selected>Select Bank Account</option>';
+        
+        // Add banks from Firestore
+        banksSnapshot.forEach(doc => {
+            const bankData = doc.data();
+            const bankId = doc.id;
+            
+            // Extract bank name from Firebase data
+            const bankName = bankData.bankName || 
+                           bankData.name || 
+                           bankData.bank || 
+                           bankData.bank_name || 
+                           bankData.bankName || 
+                           'Bank Account';
+            
+            // Extract account number
+            const accountNumber = bankData.accountNumber || 
+                                bankData.account || 
+                                bankData.account_number || 
+                                bankData.accountNumber || 
+                                'N/A';
+            
+            // Extract branch
+            const branch = bankData.branch || 
+                         bankData.branchName || 
+                         bankData.branch_name || 
+                         bankData.branchName || 
+                         '';
+            
+            const option = document.createElement('option');
+            option.value = bankId;
+            option.setAttribute('data-firebase-id', bankId);
+            option.textContent = `${bankName} - ${accountNumber} ${branch ? `(${branch})` : ''}`;
+            bankSelect.appendChild(option);
         });
+        
+        // Add local M-Pesa bank if it exists
+        const mpesaBank = banks.find(b => b.id === 'mpesa');
+        if (mpesaBank) {
+            const option = document.createElement('option');
+            option.value = 'mpesa';
+            option.textContent = `${mpesaBank.name} (Petty Cash) - ${formatKSH(mpesaBank.balance)}`;
+            bankSelect.appendChild(option);
+        }
+        
+    } catch (error) {
+        console.error("Error loading banks from Firestore:", error);
+        bankSelect.innerHTML = '<option value="" disabled selected>Error loading banks</option>';
+        showToast('Error loading banks from Firebase', 'error');
     }
+    
+    // Add event listener to show balance
+    bankSelect.addEventListener('change', async function() {
+        const bankId = this.value;
+        const firebaseId = this.options[this.selectedIndex].getAttribute('data-firebase-id');
+        const balanceElement = document.getElementById('loan-bank-balance');
+        
+        if (bankId === 'mpesa') {
+            // For M-Pesa, use local balance
+            const mpesaBank = banks.find(b => b.id === 'mpesa');
+            if (mpesaBank && balanceElement) {
+                balanceElement.innerHTML = 
+                    `<span class="font-semibold">Current Balance:</span> ${formatKSH(mpesaBank.balance)}`;
+            }
+        } else if (firebaseId) {
+            // For Firebase banks, fetch the latest balance
+            try {
+                const bankDoc = await firestore.collection('bankDetails').doc(firebaseId).get();
+                if (bankDoc.exists) {
+                    const bankData = bankDoc.data();
+                    // Try to get balance from various possible field names
+                    const balance = bankData.balance || 
+                                   bankData.currentBalance || 
+                                   bankData.accountBalance || 
+                                   bankData.balanceAmount || 
+                                   0;
+                    
+                    if (balanceElement) {
+                        balanceElement.innerHTML = 
+                            `<span class="font-semibold">Current Balance (from Firebase):</span> ${formatKSH(parseFloat(balance))}`;
+                    }
+                }
+            } catch (error) {
+                console.error("Error fetching bank balance:", error);
+                if (balanceElement) {
+                    balanceElement.innerHTML = 
+                        `<span class="font-semibold text-red-600">Unable to fetch balance from Firebase</span>`;
+                }
+            }
+        }
+    });
+}
 
     // --- Tab Switching Function ---
     function openTab(evt, tabName) {
@@ -2268,130 +2376,153 @@
         document.getElementById('transfer-pin').value = '';
     }
 
-    function executeBankTransfer() {
-        const pin = document.getElementById('transfer-pin').value;
-        
-        if (pin !== '2679') { // Using the same access code as security pin
-            showToast('Invalid security PIN', 'error');
-            return;
-        }
-        
-        const fromBankId = document.getElementById('transfer-from-bank').value;
-        const toBankId = document.getElementById('transfer-to-bank').value;
-        const amount = parseFloat(document.getElementById('transfer-amount').value);
-        const reason = document.getElementById('transfer-reason').value;
-        
-        const fromBank = getBankById(fromBankId);
-        const toBank = getBankById(toBankId);
-        const fee = calculateTransferFee(amount);
-        const totalDebit = amount + fee;
-        
-        // Execute transfer
-        fromBank.balance -= totalDebit;
-        toBank.balance += amount;
-        
-        // If transferring to/from M-Pesa, update petty cash
-        if (toBank.id === 'mpesa') {
-            // Add as petty cash income
-            pettyCashTransactions.push({
-                date: new Date().toLocaleDateString('en-KE'),
-                time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
-                description: `Bank transfer to M-Pesa: ${reason || 'Transfer'}`,
-                recipient: 'M-Pesa',
-                cost: amount,
-                type: 'income'
-            });
-            renderPettyCash();
-            updatePettyCashBalanceDisplay();
-            updatePettyCashChart();
-        } else if (fromBank.id === 'mpesa') {
-            // Add as petty cash expense
-            pettyCashTransactions.push({
-                date: new Date().toLocaleDateString('en-KE'),
-                time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
-                description: `M-Pesa transfer to ${toBank.name}: ${reason || 'Transfer'}`,
-                recipient: toBank.name,
-                cost: amount + fee,
-                type: 'expense'
-            });
-            renderPettyCash();
-            updatePettyCashBalanceDisplay();
-            updatePettyCashChart();
-        }
-        
-        // Record transfer
-        const transferId = 't' + Date.now();
-        const transferRecord = {
-            id: transferId,
-            date: new Date().toISOString(),
-            fromBankId: fromBankId,
-            fromBankName: fromBank.name,
-            toBankId: toBankId,
-            toBankName: toBank.name,
-            amount: amount,
-            fee: fee,
-            totalDebit: totalDebit,
-            reason: reason,
-            status: 'completed'
-        };
-        
-        bankTransfers.push(transferRecord);
-        
-        // Add to major transactions
-        majorTransactions.push({
-            description: `Bank Transfer: ${reason || 'Inter-bank transfer'}`,
-            amount: amount,
-            category: 'Assets',
+function executeBankTransfer() {
+    const pin = document.getElementById('transfer-pin').value;
+    
+    if (pin !== '2679') { // Using the same access code as security pin
+        showToast('Invalid security PIN', 'error');
+        return;
+    }
+    
+    const fromBankId = document.getElementById('transfer-from-bank').value;
+    const toBankId = document.getElementById('transfer-to-bank').value;
+    const amount = parseFloat(document.getElementById('transfer-amount').value);
+    const fee = parseFloat(document.getElementById('transfer-fee-input').value) || 0;
+    const feeBearer = document.getElementById('fee-bearer').value;
+    const reason = document.getElementById('transfer-reason').value;
+    
+    const fromBank = getBankById(fromBankId);
+    const toBank = getBankById(toBankId);
+    
+    // Calculate total debit based on fee bearer
+    let fromBankDebit = amount;
+    let toBankCredit = amount;
+    
+    if (feeBearer === 'sending') {
+        fromBankDebit += fee;
+    } else if (feeBearer === 'receiving') {
+        toBankCredit -= fee;
+    }
+    
+    // Check if sending bank has sufficient funds
+    if (fromBank.balance < fromBankDebit) {
+        showToast(`Insufficient funds. Available: ${formatKSH(fromBank.balance)}, Required: ${formatKSH(fromBankDebit)}`, 'error');
+        return;
+    }
+    
+    // Execute transfer
+    fromBank.balance -= fromBankDebit;
+    toBank.balance += toBankCredit;
+    
+    // If transferring to/from M-Pesa, update petty cash
+    if (toBank.id === 'mpesa') {
+        // Add as petty cash income
+        pettyCashTransactions.push({
             date: new Date().toLocaleDateString('en-KE'),
-            bankId: toBankId,
-            isTransfer: true,
-            transferId: transferId
+            time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+            description: `Bank transfer to M-Pesa: ${reason || 'Transfer'}`,
+            recipient: 'M-Pesa',
+            cost: amount,
+            type: 'income'
         });
-        
-        // Add fee as expense
+        renderPettyCash();
+        updatePettyCashBalanceDisplay();
+        updatePettyCashChart();
+    } else if (fromBank.id === 'mpesa') {
+        // Add as petty cash expense
+        pettyCashTransactions.push({
+            date: new Date().toLocaleDateString('en-KE'),
+            time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+            description: `M-Pesa transfer to ${toBank.name}: ${reason || 'Transfer'}`,
+            recipient: toBank.name,
+            cost: amount + (feeBearer === 'sending' ? fee : 0),
+            type: 'expense'
+        });
+        renderPettyCash();
+        updatePettyCashBalanceDisplay();
+        updatePettyCashChart();
+    }
+    
+    // Record transfer
+    const transferId = 't' + Date.now();
+    const transferRecord = {
+        id: transferId,
+        date: new Date().toISOString(),
+        fromBankId: fromBankId,
+        fromBankName: fromBank.name,
+        toBankId: toBankId,
+        toBankName: toBank.name,
+        amount: amount,
+        fee: fee,
+        feeBearer: feeBearer,
+        fromBankDebit: fromBankDebit,
+        toBankCredit: toBankCredit,
+        reason: reason,
+        status: 'completed'
+    };
+    
+    bankTransfers.push(transferRecord);
+    
+    // Add to major transactions
+    majorTransactions.push({
+        description: `Bank Transfer: ${reason || 'Inter-bank transfer'}`,
+        amount: amount,
+        category: 'Assets',
+        date: new Date().toLocaleDateString('en-KE'),
+        bankId: toBankId,
+        isTransfer: true,
+        transferId: transferId
+    });
+    
+    // Add fee as expense to the appropriate bank
+    if (fee > 0) {
+        const feeBankId = feeBearer === 'sending' ? fromBankId : toBankId;
+        const feeBank = getBankById(feeBankId);
         majorTransactions.push({
             description: `Bank Transfer Fee`,
             amount: fee,
             category: 'Overheads',
             date: new Date().toLocaleDateString('en-KE'),
-            bankId: fromBankId,
+            bankId: feeBankId,
             isTransferFee: true,
-            transferId: transferId
+            transferId: transferId,
+            feeBearer: feeBearer
         });
-        
-        // Update UI
-        updateFinancialDashboard();
-        updateBankCards();
-        updateTransferHistory();
-        updateBankSelectors();
-        updateTransferBankSelectors();
-        
-        // Clear form
-        document.getElementById('bank-transfer-form').reset();
-        document.getElementById('transfer-preview').classList.add('hidden');
-        document.getElementById('transfer-pin').value = '';
-        document.getElementById('transfer-confirm-modal').classList.add('hidden');
-        
-        // Animate bank cards
-        const fromCard = document.querySelector(`[data-bank-id="${fromBankId}"]`);
-        const toCard = document.querySelector(`[data-bank-id="${toBankId}"]`);
-        
-        if (fromCard) fromCard.classList.add('transfer-animation');
-        if (toCard) toCard.classList.add('transfer-animation');
-        
-        setTimeout(() => {
-            if (fromCard) fromCard.classList.remove('transfer-animation');
-            if (toCard) toCard.classList.remove('transfer-animation');
-        }, 500);
-        
-        showToast(`Transfer of ${formatKSH(amount)} completed successfully!`, 'success');
-        
-        // Update quick stats
-        updateQuickStats();
-        
-        // Save to Firestore
-        if (user) saveUserData();
     }
+    
+    // Update UI
+    updateFinancialDashboard();
+    updateBankCards();
+    updateTransferHistory();
+    updateBankSelectors();
+    updateTransferBankSelectors();
+    
+    // Clear form
+    document.getElementById('bank-transfer-form').reset();
+    document.getElementById('transfer-preview').classList.add('hidden');
+    document.getElementById('transfer-pin').value = '';
+    document.getElementById('transfer-confirm-modal').classList.add('hidden');
+    
+    // Animate bank cards
+    const fromCard = document.querySelector(`[data-bank-id="${fromBankId}"]`);
+    const toCard = document.querySelector(`[data-bank-id="${toBankId}"]`);
+    
+    if (fromCard) fromCard.classList.add('transfer-animation');
+    if (toCard) toCard.classList.add('transfer-animation');
+    
+    setTimeout(() => {
+        if (fromCard) fromCard.classList.remove('transfer-animation');
+        if (toCard) toCard.classList.remove('transfer-animation');
+    }, 500);
+    
+    showToast(`Transfer of ${formatKSH(amount)} completed successfully!`, 'success');
+    
+    // Update quick stats
+    updateQuickStats();
+    
+    // Save to Firestore
+    if (user) saveUserData();
+}
 
     function updateTransferHistory() {
         const tbody = document.getElementById('transfer-history');
@@ -3136,122 +3267,210 @@
         
         // Loan Form
         const loanForm = document.getElementById('loan-form');
-        if (loanForm) {
-            loanForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                const institution = document.getElementById('loan-institution').value;
-                const balance = parseFloat(document.getElementById('loan-balance').value);
-                const bankId = document.getElementById('loan-bank-account').value;
-                const loanType = document.getElementById('loan-type').value;
-                const interestRate = parseFloat(document.getElementById('loan-interest-rate').value) || 0;
-                const dueDate = document.getElementById('loan-due-date').value;
-                
-                if (!bankId) {
-                    showToast('Please select a bank account for loan disbursement', 'error');
-                    return;
-                }
-                
-                const selectedBank = getBankById(bankId);
-                
-                // Add loan amount to selected bank
-                selectedBank.balance += balance;
-                
-                const newLoan = {
-                    id: 'l' + Date.now(),
-                    institution: institution,
-                    balance: balance,
-                    originalBalance: balance,
-                    bankId: bankId,
-                    bankName: selectedBank.name,
-                    type: loanType,
-                    interestRate: interestRate,
-                    dueDate: dueDate,
-                    createdAt: new Date().toISOString(),
-                    repayments: []
-                };
-                
-                loans.push(newLoan);
-                
-                // Add loan disbursement as major transaction
-                majorTransactions.push({
-                    description: `Loan disbursement from ${institution}`,
-                    amount: balance,
-                    category: 'Sales',
-                    date: new Date().toLocaleDateString('en-KE'),
-                    bankId: bankId,
-                    isLoanDisbursement: true,
-                    loanId: newLoan.id
-                });
-                
-                updateFinancialDashboard();
-                updateBankCards();
-                updateBankSelectors();
-                initializeLoanBankSelector();
-                updateLoanCards();
-                document.getElementById('loan-form').reset();
-                
-                showToast(`Loan from ${institution} added. ${formatKSH(balance)} deposited to ${selectedBank.name}`, 'success');
-                
-                // Save to Firestore
-                if (user) saveUserData();
-            });
+    // Update the loan form submission to handle Firebase bank IDs
+if (loanForm) {
+    loanForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const institution = document.getElementById('loan-institution').value;
+        const balance = parseFloat(document.getElementById('loan-balance').value);
+        const bankSelect = document.getElementById('loan-bank-account');
+        const selectedOption = bankSelect.options[bankSelect.selectedIndex];
+        const bankFirebaseId = selectedOption.getAttribute('data-firebase-id');
+        const bankId = bankSelect.value;
+        const loanType = document.getElementById('loan-type').value;
+        const interestRate = parseFloat(document.getElementById('loan-interest-rate').value) || 0;
+        const dueDate = document.getElementById('loan-due-date').value;
+        
+        if (!bankId) {
+            showToast('Please select a bank account for loan disbursement', 'error');
+            return;
         }
         
-        // Bank Transfer Form
-        const bankTransferForm = document.getElementById('bank-transfer-form');
-        if (bankTransferForm) {
-            bankTransferForm.addEventListener('submit', function(e) {
-                e.preventDefault();
-                
-                const fromBankId = document.getElementById('transfer-from-bank').value;
-                const toBankId = document.getElementById('transfer-to-bank').value;
-                const amount = parseFloat(document.getElementById('transfer-amount').value);
-                const reason = document.getElementById('transfer-reason').value;
-                
-                if (!fromBankId || !toBankId) {
-                    showToast('Please select both source and destination banks', 'error');
+        // Find or create local bank representation
+        let selectedBank;
+        
+        if (bankId === 'mpesa') {
+            selectedBank = banks.find(b => b.id === 'mpesa');
+        } else {
+            // Check if we already have this bank locally
+            selectedBank = banks.find(b => b.firebaseId === bankFirebaseId);
+            
+            // If not, create a local entry for it
+            if (!selectedBank) {
+                try {
+                    // Fetch bank details from Firebase
+                    const bankDoc = await firestore.collection('bankDetails').doc(bankFirebaseId).get();
+                    if (bankDoc.exists) {
+                        const bankData = bankDoc.data();
+                        const bankName = bankData.bankName || 
+                                       bankData.name || 
+                                       bankData.bank || 
+                                       bankData.bank_name || 
+                                       bankData.bankName || 
+                                       'Bank Account';
+                        
+                        const accountNumber = bankData.accountNumber || 
+                                            bankData.account || 
+                                            bankData.account_number || 
+                                            bankData.accountNumber || 
+                                            'N/A';
+                        
+                        const branch = bankData.branch || 
+                                     bankData.branchName || 
+                                     bankData.branch_name || 
+                                     bankData.branchName || 
+                                     '';
+                        
+                        const initialBalance = bankData.balance || 
+                                             bankData.currentBalance || 
+                                             bankData.accountBalance || 
+                                             bankData.balanceAmount || 
+                                             0;
+                        
+                        selectedBank = {
+                            id: 'fb_' + bankFirebaseId,
+                            name: bankName,
+                            accountNumber: accountNumber,
+                            branch: branch,
+                            balance: parseFloat(initialBalance) + balance, // Add loan amount
+                            firebaseId: bankFirebaseId,
+                            firebaseData: bankData,
+                            lastUpdated: new Date().toISOString()
+                        };
+                        
+                        banks.push(selectedBank);
+                    }
+                } catch (error) {
+                    console.error("Error fetching bank details:", error);
+                    showToast('Error loading bank details from Firebase', 'error');
                     return;
                 }
-                
-                if (fromBankId === toBankId) {
-                    showToast('Cannot transfer to the same bank account', 'error');
-                    return;
-                }
-                
-                if (!amount || amount <= 0) {
-                    showToast('Please enter a valid transfer amount', 'error');
-                    return;
-                }
-                
-                const fromBank = getBankById(fromBankId);
-                const toBank = getBankById(toBankId);
-                const fee = calculateTransferFee(amount);
-                const totalDebit = amount + fee;
-                
-                if (fromBank.balance < totalDebit) {
-                    showToast(`Insufficient funds. Available: ${formatKSH(fromBank.balance)}, Required: ${formatKSH(totalDebit)}`, 'error');
-                    return;
-                }
-                
-                // Show preview
-                document.getElementById('preview-from').textContent = fromBank.name;
-                document.getElementById('preview-to').textContent = toBank.name;
-                document.getElementById('preview-amount').textContent = formatKSH(amount);
-                document.getElementById('preview-fee').textContent = formatKSH(fee);
-                document.getElementById('preview-reason').textContent = reason || 'No reason provided';
-                document.getElementById('transfer-preview').classList.remove('hidden');
-                
-                // Show confirmation modal
-                document.getElementById('confirm-transfer-from').textContent = fromBank.name;
-                document.getElementById('confirm-transfer-to').textContent = toBank.name;
-                document.getElementById('confirm-transfer-amount').textContent = formatKSH(amount);
-                document.getElementById('confirm-transfer-fee').textContent = formatKSH(fee);
-                document.getElementById('confirm-transfer-total').textContent = formatKSH(totalDebit);
-                document.getElementById('confirm-transfer-reason').textContent = reason || 'No reason provided';
-                
-                document.getElementById('transfer-confirm-modal').classList.remove('hidden');
-            });
+            } else {
+                // Update existing bank balance
+                selectedBank.balance += balance;
+            }
         }
+        
+        if (!selectedBank) {
+            showToast('Selected bank not found', 'error');
+            return;
+        }
+        
+        // Add loan amount to selected bank
+        if (bankId !== 'mpesa') {
+            selectedBank.balance += balance;
+        }
+        
+        const newLoan = {
+            id: 'l' + Date.now(),
+            institution: institution,
+            balance: balance,
+            originalBalance: balance,
+            bankId: selectedBank.id,
+            bankName: selectedBank.name,
+            bankFirebaseId: bankFirebaseId,
+            type: loanType,
+            interestRate: interestRate,
+            dueDate: dueDate,
+            createdAt: new Date().toISOString(),
+            repayments: []
+        };
+        
+        loans.push(newLoan);
+        
+        // Add loan disbursement as major transaction
+        majorTransactions.push({
+            description: `Loan disbursement from ${institution}`,
+            amount: balance,
+            category: 'Sales',
+            date: new Date().toLocaleDateString('en-KE'),
+            bankId: selectedBank.id,
+            isLoanDisbursement: true,
+            loanId: newLoan.id
+        });
+        
+        updateFinancialDashboard();
+        updateBankCards();
+        updateBankSelectors();
+        initializeLoanBankSelector();
+        updateLoanCards();
+        document.getElementById('loan-form').reset();
+        
+        showToast(`Loan from ${institution} added. ${formatKSH(balance)} deposited to ${selectedBank.name}`, 'success');
+        
+        // Save to Firestore
+        if (user) saveUserData();
+    });
+}
+        
+        // Bank Transfer Form
+        // Update the bank transfer form submit handler preview section
+if (bankTransferForm) {
+    bankTransferForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const fromBankId = document.getElementById('transfer-from-bank').value;
+        const toBankId = document.getElementById('transfer-to-bank').value;
+        const amount = parseFloat(document.getElementById('transfer-amount').value);
+        const fee = parseFloat(document.getElementById('transfer-fee-input').value) || 0;
+        const feeBearer = document.getElementById('fee-bearer').value;
+        const reason = document.getElementById('transfer-reason').value;
+        
+        if (!fromBankId || !toBankId) {
+            showToast('Please select both source and destination banks', 'error');
+            return;
+        }
+        
+        if (fromBankId === toBankId) {
+            showToast('Cannot transfer to the same bank account', 'error');
+            return;
+        }
+        
+        if (!amount || amount <= 0) {
+            showToast('Please enter a valid transfer amount', 'error');
+            return;
+        }
+        
+        const fromBank = getBankById(fromBankId);
+        const toBank = getBankById(toBankId);
+        
+        // Calculate total debit based on fee bearer
+        let fromBankDebit = amount;
+        let toBankCredit = amount;
+        
+        if (feeBearer === 'sending') {
+            fromBankDebit += fee;
+        } else if (feeBearer === 'receiving') {
+            toBankCredit -= fee;
+        }
+        
+        if (fromBank.balance < fromBankDebit) {
+            showToast(`Insufficient funds. Available: ${formatKSH(fromBank.balance)}, Required: ${formatKSH(fromBankDebit)}`, 'error');
+            return;
+        }
+        
+        // Show preview
+        document.getElementById('preview-from').textContent = fromBank.name;
+        document.getElementById('preview-to').textContent = toBank.name;
+        document.getElementById('preview-amount').textContent = formatKSH(amount);
+        document.getElementById('preview-fee').textContent = formatKSH(fee);
+        document.getElementById('preview-fee-bearer').textContent = feeBearer === 'sending' ? 'Sending Bank' : 'Receiving Bank';
+        document.getElementById('preview-total-debit').textContent = formatKSH(fromBankDebit);
+        document.getElementById('preview-reason').textContent = reason || 'No reason provided';
+        document.getElementById('transfer-preview').classList.remove('hidden');
+        
+        // Show confirmation modal
+        document.getElementById('confirm-transfer-from').textContent = fromBank.name;
+        document.getElementById('confirm-transfer-to').textContent = toBank.name;
+        document.getElementById('confirm-transfer-amount').textContent = formatKSH(amount);
+        document.getElementById('confirm-transfer-fee').textContent = formatKSH(fee);
+        document.getElementById('confirm-transfer-fee-bearer').textContent = feeBearer === 'sending' ? 'Sending Bank' : 'Receiving Bank';
+        document.getElementById('confirm-transfer-total').textContent = formatKSH(fromBankDebit);
+        document.getElementById('confirm-transfer-reason').textContent = reason || 'No reason provided';
+        
+        document.getElementById('transfer-confirm-modal').classList.remove('hidden');
+    });
+}
 
         // Loan Repayment Form
         const repaymentForm = document.getElementById('loan-repayment-form');
