@@ -260,6 +260,23 @@
             overflow-y: auto;
             padding: 20px;
         }
+
+        /* Hide balance text */
+        .hidden-balance {
+            filter: blur(5px);
+            user-select: none;
+        }
+
+        /* M-Pesa specific styling */
+        .mpesa-card {
+            background: linear-gradient(135deg, #00b300 0%, #008000 100%);
+            color: white;
+        }
+
+        .mpesa-badge {
+            background: linear-gradient(135deg, #ffcc00 0%, #ff9900 100%);
+            color: #000;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -403,9 +420,9 @@
                                     </div>
                                     
                                     <div class="flex flex-col sm:flex-row gap-3">
-                                        <button onclick="togglePettyCashBalance()"
+                                        <button onclick="toggleAllBalances()"
                                                 class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition-all flex items-center justify-center">
-                                            <i class="fas fa-eye-slash mr-2"></i>Hide Balances
+                                            <i class="fas fa-eye-slash mr-2"></i>Hide All Balances
                                         </button>
                                         <button onclick="endDayAndGenerateReport()"
                                                 class="bg-accent hover:bg-blue-500 text-white font-medium py-2 px-4 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
@@ -625,73 +642,86 @@
                                 </div>
 
                                 <!-- Loan Management -->
-                              <!-- Replace the existing Loan Management form with this updated version -->
-<div class="bg-white rounded-xl shadow-card p-6 mb-8">
-    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-        <i class="fas fa-hand-holding-usd mr-3"></i>📈 Loan Management
-    </h3>
-    
-    <form id="loan-form">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Institution</label>
-                <input type="text" id="loan-institution" 
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                       placeholder="e.g., Equity Bank" required>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Outstanding Balance (KSH)</label>
-                <input type="number" id="loan-balance" 
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                       placeholder="500000" required min="1">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Deposit to Bank Account</label>
-                <select id="loan-bank-account" 
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                    <option value="" disabled selected>Select Bank Account</option>
-                </select>
-                <div id="loan-bank-balance" class="text-sm text-gray-500 mt-2"></div>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Loan Type</label>
-                <select id="loan-type" 
-                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                    <option value="business">Business Loan</option>
-                    <option value="asset">Asset Financing</option>
-                    <option value="overdraft">Overdraft Facility</option>
-                    <option value="mortgage">Mortgage</option>
-                    <option value="other">Other</option>
-                </select>
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Interest Rate (%)</label>
-                <input type="number" id="loan-interest-rate" 
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                       placeholder="12.5" step="0.1" min="0">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
-                <input type="date" id="loan-due-date" 
-                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                       value="${new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]}">
-            </div>
-        </div>
-        
-        <button type="submit"
-                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
-            <i class="fas fa-plus-circle mr-2"></i>➕ Add New Loan
-        </button>
-    </form>
-</div>
-
-
+                                <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-hand-holding-usd mr-3"></i>📈 Loan Management
+                                    </h3>
+                                    
+                                    <form id="loan-form">
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Institution</label>
+                                                <input type="text" id="loan-institution" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="e.g., Equity Bank" required>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Outstanding Balance (KSH)</label>
+                                                <input type="number" id="loan-balance" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="500000" required min="1">
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Deposit to Bank Account</label>
+                                                <select id="loan-bank-account" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="" disabled selected>Select Bank Account</option>
+                                                </select>
+                                                <div id="loan-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Loan Type</label>
+                                                <select id="loan-type" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="business">Business Loan</option>
+                                                    <option value="asset">Asset Financing</option>
+                                                    <option value="overdraft">Overdraft Facility</option>
+                                                    <option value="mortgage">Mortgage</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Interest Rate (%)</label>
+                                                <input type="number" id="loan-interest-rate" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="12.5" step="0.1" min="0">
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                                                <input type="date" id="loan-due-date" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       value="${new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]}">
+                                            </div>
+                                        </div>
+                                        
+                                        <button type="submit"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                                            <i class="fas fa-plus-circle mr-2"></i>➕ Add New Loan
+                                        </button>
+                                    </form>
+                                </div>
                                 
+
+                                <!-- Loan Institution Cards -->
+                                <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-landmark mr-3"></i>📋 Active Loan Institutions
+                                    </h3>
+                                    
+                                    <div id="loan-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <!-- Loan cards will be dynamically inserted here -->
+                                        <div class="col-span-full text-center py-8 text-gray-500">
+                                            <i class="fas fa-hand-holding-usd text-3xl mb-3"></i>
+                                            <p>No active loans</p>
+                                            <p class="text-sm mt-2">Add loans to see them listed here</p>
+                                        </div>
+                                    </div>
+                                </div>
 
                                 <!-- Report Generation -->
                                 <div class="bg-white rounded-xl shadow-card p-6">
@@ -728,130 +758,6 @@
                                 </div>
                             </div>
                         </div>
-
-
-                        <!-- Add this code to the "Financial Reports Tab" after the Loan Management form -->
-
-<!-- Loan Institution Cards -->
-<div class="bg-white rounded-xl shadow-card p-6 mb-8">
-    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-        <i class="fas fa-landmark mr-3"></i>📋 Active Loan Institutions
-    </h3>
-    
-    <div id="loan-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <!-- Loan cards will be dynamically inserted here -->
-        <div class="col-span-full text-center py-8 text-gray-500">
-            <i class="fas fa-hand-holding-usd text-3xl mb-3"></i>
-            <p>No active loans</p>
-            <p class="text-sm mt-2">Add loans to see them listed here</p>
-        </div>
-    </div>
-</div>
-
-<!-- Loan Repayment Modal -->
-<div id="loan-repayment-modal" class="fixed inset-0 z-[99999] hidden">
-    <div class="modal-backdrop fixed inset-0"></div>
-    <div class="modal-container flex items-center justify-center">
-        <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-money-check-alt mr-3"></i>Loan Repayment
-                </h2>
-                <button onclick="closeLoanRepaymentModal()"
-                        class="text-gray-500 hover:text-gray-700 text-2xl">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div id="repayment-loan-details" class="bg-gray-50 rounded-lg p-4 mb-6">
-                <!-- Loan details will be inserted here -->
-            </div>
-            
-            <form id="loan-repayment-form">
-                <div class="space-y-4 mb-6">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Source Bank Account</label>
-                        <select id="repayment-bank-select" 
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
-                            <option value="" disabled selected>Select Bank for Repayment</option>
-                        </select>
-                        <div id="repayment-bank-balance" class="text-sm text-gray-500 mt-2"></div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Repayment Amount (KSH)</label>
-                        <input type="number" id="repayment-amount" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                               placeholder="10000" min="0.01" step="0.01" required>
-                        <div class="text-sm text-gray-500 mt-2">
-                            <span id="remaining-balance-text">Remaining balance: KSH 0</span>
-                            <button type="button" onclick="fillFullBalance()" class="text-primary hover:text-primary-dark text-xs ml-4">
-                                <i class="fas fa-money-bill-wave mr-1"></i>Repay Full Amount
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Repayment Date</label>
-                        <input type="date" id="repayment-date" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                               value="${new Date().toISOString().split('T')[0]}" required>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Reference/Receipt No.</label>
-                        <input type="text" id="repayment-reference" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                               placeholder="e.g., TRX-0012345" required>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
-                        <textarea id="repayment-notes" 
-                                  class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-                                  rows="2" placeholder="Additional notes about this repayment"></textarea>
-                    </div>
-                </div>
-                
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                    <h4 class="font-semibold text-gray-800 mb-2 flex items-center">
-                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
-                        Repayment Preview
-                    </h4>
-                    <div class="grid grid-cols-2 gap-2 text-sm">
-                        <div>
-                            <span class="text-gray-600">Loan:</span>
-                            <span id="preview-loan" class="font-medium"></span>
-                        </div>
-                        <div>
-                            <span class="text-gray-600">Amount:</span>
-                            <span id="preview-amount" class="font-medium text-green-600"></span>
-                        </div>
-                        <div class="col-span-2">
-                            <span class="text-gray-600">Source Bank:</span>
-                            <span id="preview-source-bank" class="font-medium"></span>
-                        </div>
-                        <div class="col-span-2">
-                            <span class="text-gray-600">New Loan Balance:</span>
-                            <span id="preview-new-balance" class="font-medium text-blue-600"></span>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="flex space-x-4">
-                    <button type="button" onclick="closeLoanRepaymentModal()"
-                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                            class="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center">
-                        <i class="fas fa-check-circle mr-2"></i>Confirm Repayment
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
                         <!-- Bank Management Tab -->
                         <div id="bank-management" class="tab-content hidden">
@@ -1411,6 +1317,111 @@
         </div>
     </div>
 
+    <!-- Loan Repayment Modal -->
+    <div id="loan-repayment-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-money-check-alt mr-3"></i>Loan Repayment
+                    </h2>
+                    <button onclick="closeLoanRepaymentModal()"
+                            class="text-gray-500 hover:text-gray-700 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div id="repayment-loan-details" class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <!-- Loan details will be inserted here -->
+                </div>
+                
+                <form id="loan-repayment-form">
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Source Bank Account</label>
+                            <select id="repayment-bank-select" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="" disabled selected>Select Bank for Repayment</option>
+                            </select>
+                            <div id="repayment-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Repayment Amount (KSH)</label>
+                            <input type="number" id="repayment-amount" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="10000" min="0.01" step="0.01" required>
+                            <div class="text-sm text-gray-500 mt-2">
+                                <span id="remaining-balance-text">Remaining balance: KSH 0</span>
+                                <button type="button" onclick="fillFullBalance()" class="text-primary hover:text-primary-dark text-xs ml-4">
+                                    <i class="fas fa-money-bill-wave mr-1"></i>Repay Full Amount
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Repayment Date</label>
+                            <input type="date" id="repayment-date" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   value="${new Date().toISOString().split('T')[0]}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Reference/Receipt No.</label>
+                            <input type="text" id="repayment-reference" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="e.g., TRX-0012345" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                            <textarea id="repayment-notes" 
+                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                      rows="2" placeholder="Additional notes about this repayment"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                        <h4 class="font-semibold text-gray-800 mb-2 flex items-center">
+                            <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                            Repayment Preview
+                        </h4>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-600">Loan:</span>
+                                <span id="preview-loan" class="font-medium"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Amount:</span>
+                                <span id="preview-amount" class="font-medium text-green-600"></span>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-gray-600">Source Bank:</span>
+                                <span id="preview-source-bank" class="font-medium"></span>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-gray-600">New Loan Balance:</span>
+                                <span id="preview-new-balance" class="font-medium text-blue-600"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-4">
+                        <button type="button" onclick="closeLoanRepaymentModal()"
+                                class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center">
+                            <i class="fas fa-check-circle mr-2"></i>Confirm Repayment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
 <script>
     // Firebase Configuration
     const firebaseConfig = {
@@ -1438,14 +1449,15 @@
             firebaseInitialized = true;
             
             // Set up auth state listener
-            auth.onAuthStateChanged((firebaseUser) => {
+            auth.onAuthStateChanged(async (firebaseUser) => {
                 user = firebaseUser;
                 updateFirebaseUI();
                 
                 if (user) {
                     showToast('Connected to Firebase successfully!', 'success');
-                    loadFirebaseBanks();
-                    loadReceiptPayments();
+                    await loadFirebaseBanks();
+                    await loadReceiptPayments();
+                    await loadUserData(); // Load all user data from Firestore
                     updateBankSelectors(); // Load banks into transfer selectors
                 }
             });
@@ -1457,59 +1469,6 @@
         }
     }
 
-    // Firebase Login Function
-    async function firebaseLogin() {
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        const statusElement = document.getElementById('firebase-status');
-        
-        if (!email || !password) {
-            showToast('Please enter both email and password', 'error');
-            return;
-        }
-        
-        showLoading('Connecting to Firebase...');
-        
-        try {
-            await auth.signInWithEmailAndPassword(email, password);
-            showToast('Login successful!', 'success');
-            toggleFirebaseLogin();
-            
-            // Update UI
-            updateFirebaseUI();
-            
-        } catch (error) {
-            showLoading(false);
-            console.error("Firebase login error:", error);
-            
-            let errorMessage = 'Login failed. ';
-            switch (error.code) {
-                case 'auth/invalid-email':
-                    errorMessage += 'Invalid email address.';
-                    break;
-                case 'auth/user-disabled':
-                    errorMessage += 'This account has been disabled.';
-                    break;
-                case 'auth/user-not-found':
-                    errorMessage += 'No account found with this email.';
-                    break;
-                case 'auth/wrong-password':
-                    errorMessage += 'Incorrect password.';
-                    break;
-                default:
-                    errorMessage += error.message;
-            }
-            
-            showToast(errorMessage, 'error');
-            
-            // Show status in the modal
-            if (statusElement) {
-                statusElement.classList.remove('hidden');
-                document.getElementById('firebase-status-text').textContent = errorMessage;
-            }
-        }
-    }
-
     // Main Application Data
     const { jsPDF } = window.jspdf;
     let pettyCashTransactions = [];
@@ -1517,7 +1476,7 @@
     let banks = [];
     let loans = [];
     let bankTransfers = [];
-    let loanRepayments = []; // <-- ADD THIS LINE
+    let loanRepayments = [];
     const ACCESS_CODE = "2679";
     let pettyChartInstance = null;
     let majorChartInstance = null;
@@ -1533,41 +1492,49 @@
     let addBankStep = 1;
     let selectedFirebaseBank = null;
 
+    // Balance visibility state
+    let balancesHidden = false;
+
     // Initialize Firebase
     initializeFirebase();
 
-    // --- Initialize Loan Bank Selector --- // <-- ADD THIS COMMENT
-function initializeLoanBankSelector() {
-    const bankSelect = document.getElementById('loan-bank-account');
-    if (!bankSelect) return;
-    
-    bankSelect.innerHTML = '<option value="" disabled selected>Select Bank Account</option>';
-    
-    if (banks.length === 0) {
-        const option = document.createElement('option');
-        option.value = "";
-        option.textContent = "No banks available - Add banks first";
-        option.disabled = true;
-        bankSelect.appendChild(option);
-    } else {
-        banks.forEach(bank => {
+    // --- Initialize Loan Bank Selector ---
+    function initializeLoanBankSelector() {
+        const bankSelect = document.getElementById('loan-bank-account');
+        if (!bankSelect) return;
+        
+        bankSelect.innerHTML = '<option value="" disabled selected>Select Bank Account</option>';
+        
+        if (banks.length === 0) {
             const option = document.createElement('option');
-            option.value = bank.id;
-            option.textContent = `${bank.name} (${formatKSH(bank.balance)})`;
+            option.value = "";
+            option.textContent = "No banks available - Add banks first";
+            option.disabled = true;
             bankSelect.appendChild(option);
+        } else {
+            banks.forEach(bank => {
+                const option = document.createElement('option');
+                option.value = bank.id;
+                // Check if M-Pesa exists
+                if (bank.id === 'mpesa') {
+                    option.textContent = `${bank.name} (Petty Cash) - ${formatKSH(bank.balance)}`;
+                } else {
+                    option.textContent = `${bank.name} - ${formatKSH(bank.balance)}`;
+                }
+                bankSelect.appendChild(option);
+            });
+        }
+        
+        // Add event listener to show balance
+        bankSelect.addEventListener('change', function() {
+            const bank = getBankById(this.value);
+            const balanceElement = document.getElementById('loan-bank-balance');
+            if (bank && balanceElement) {
+                balanceElement.innerHTML = 
+                    `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
+            }
         });
     }
-    
-    // Add event listener to show balance
-    bankSelect.addEventListener('change', function() {
-        const bank = getBankById(this.value);
-        const balanceElement = document.getElementById('loan-bank-balance');
-        if (bank && balanceElement) {
-            balanceElement.innerHTML = 
-                `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
-        }
-    });
-}
 
     // --- Tab Switching Function ---
     function openTab(evt, tabName) {
@@ -1652,6 +1619,177 @@ function initializeLoanBankSelector() {
         }
     }
 
+    // --- Firestore Persistent Storage Functions ---
+    async function saveUserData() {
+        if (!user) return;
+        
+        try {
+            const userData = {
+                pettyCashTransactions: pettyCashTransactions,
+                majorTransactions: majorTransactions,
+                banks: banks,
+                loans: loans,
+                bankTransfers: bankTransfers,
+                loanRepayments: loanRepayments,
+                currentMonthSpend: currentMonthSpend,
+                lastUpdated: new Date().toISOString()
+            };
+            
+            await firestore.collection('userData').doc(user.uid).set(userData);
+            console.log("User data saved to Firestore");
+        } catch (error) {
+            console.error("Error saving user data:", error);
+        }
+    }
+
+    async function loadUserData() {
+        if (!user) return;
+        
+        try {
+            const doc = await firestore.collection('userData').doc(user.uid).get();
+            if (doc.exists) {
+                const userData = doc.data();
+                
+                pettyCashTransactions = userData.pettyCashTransactions || [];
+                majorTransactions = userData.majorTransactions || [];
+                banks = userData.banks || [];
+                loans = userData.loans || [];
+                bankTransfers = userData.bankTransfers || [];
+                loanRepayments = userData.loanRepayments || [];
+                currentMonthSpend = userData.currentMonthSpend || {
+                    month: new Date().getMonth(),
+                    year: new Date().getFullYear(),
+                    totalExpense: 0
+                };
+                
+                // Ensure M-Pesa bank exists
+                ensureMpesaBank();
+                
+                // Update all UI components
+                renderPettyCash();
+                updatePettyCashBalanceDisplay();
+                updatePettyCashChart();
+                updatePettyExpenditureChart();
+                updateBankSelectors();
+                updateTransferBankSelectors();
+                updateMajorSummary();
+                updateFinancialDashboard();
+                updateBankCards();
+                updateTransferHistory();
+                updateQuickStats();
+                initializeLoanBankSelector();
+                updateLoanCards();
+                
+                showToast('User data loaded from Firestore', 'success');
+            } else {
+                // Initialize with default M-Pesa bank
+                ensureMpesaBank();
+                showToast('Welcome! Starting with new data', 'info');
+            }
+        } catch (error) {
+            console.error("Error loading user data:", error);
+            // Initialize with default M-Pesa bank
+            ensureMpesaBank();
+        }
+    }
+
+    // --- M-Pesa Bank Functions ---
+    function ensureMpesaBank() {
+        const mpesaBank = banks.find(b => b.id === 'mpesa');
+        if (!mpesaBank) {
+            banks.push({
+                id: 'mpesa',
+                name: 'M-Pesa',
+                accountNumber: '0712-XXX-XXX',
+                branch: 'Mobile Money',
+                balance: 0,
+                isMpesa: true,
+                lastUpdated: new Date().toISOString(),
+                primaryPettyCash: true
+            });
+        }
+    }
+
+    function updateMpesaFromPettyCash() {
+        const mpesaBank = banks.find(b => b.id === 'mpesa');
+        if (!mpesaBank) return;
+        
+        const { currentBalance } = calculatePettyCashBalance();
+        mpesaBank.balance = currentBalance;
+        mpesaBank.lastUpdated = new Date().toISOString();
+        
+        // Update bank cards if on bank management tab
+        updateBankCards();
+        updateBankSelectors();
+        updateTransferBankSelectors();
+        
+        // Save to Firestore
+        if (user) saveUserData();
+    }
+
+    // --- Balance Visibility Functions ---
+    function toggleAllBalances() {
+        balancesHidden = !balancesHidden;
+        
+        // Update all balance displays
+        updateBalanceDisplay('current-balance', balancesHidden);
+        updateBalanceDisplay('day-expense', balancesHidden);
+        updateBalanceDisplay('day-income', balancesHidden);
+        updateBalanceDisplay('total-bank-funds', balancesHidden);
+        updateBalanceDisplay('total-outstanding-loans', balancesHidden);
+        updateBalanceDisplay('monthly-spend', balancesHidden);
+        
+        // Update bank cards
+        updateBankCards();
+        
+        // Update button text
+        const button = document.querySelector('#petty-cash-balance-bar button:first-child');
+        if (button) {
+            if (balancesHidden) {
+                button.innerHTML = '<i class="fas fa-eye mr-2"></i>Show All Balances';
+            } else {
+                button.innerHTML = '<i class="fas fa-eye-slash mr-2"></i>Hide All Balances';
+            }
+        }
+    }
+
+    function updateBalanceDisplay(elementId, hidden) {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+        
+        if (hidden) {
+            element.classList.add('hidden-balance');
+            if (elementId === 'current-balance') {
+                element.textContent = '********';
+            } else if (elementId === 'day-expense' || elementId === 'day-income') {
+                element.textContent = 'KSH *****';
+            } else {
+                element.textContent = '*****';
+            }
+        } else {
+            element.classList.remove('hidden-balance');
+            // Restore actual values
+            if (elementId === 'current-balance') {
+                const { currentBalance } = calculatePettyCashBalance();
+                element.textContent = formatKSH(currentBalance);
+            } else if (elementId === 'day-expense') {
+                const { totalExpense } = calculatePettyCashBalance();
+                element.textContent = formatKSH(totalExpense);
+            } else if (elementId === 'day-income') {
+                const { totalIncome } = calculatePettyCashBalance();
+                element.textContent = formatKSH(totalIncome);
+            } else if (elementId === 'total-bank-funds') {
+                const totalBankFunds = banks.reduce((sum, bank) => sum + bank.balance, 0);
+                element.textContent = formatKSH(totalBankFunds);
+            } else if (elementId === 'total-outstanding-loans') {
+                const totalOutstandingLoans = loans.reduce((sum, loan) => sum + loan.balance, 0);
+                element.textContent = formatKSH(totalOutstandingLoans);
+            } else if (elementId === 'monthly-spend') {
+                element.textContent = formatKSH(currentMonthSpend.totalExpense);
+            }
+        }
+    }
+
     async function loadFirebaseBanks() {
         if (!user) return;
         
@@ -1687,7 +1825,6 @@ function initializeLoanBankSelector() {
                     hasAvailableBanks = true;
                     
                     // Extract bank name from Firebase data
-                    // Try different possible field names for bank name
                     const bankName = bankData.bankName || 
                                    bankData.name || 
                                    bankData.bank || 
@@ -1770,37 +1907,59 @@ function initializeLoanBankSelector() {
             const amount = parseFloat(receipt.amount) || 0;
             
             if (bankName && amount) {
-                // Find local bank by name
-                const localBank = banks.find(b => 
-                    b.name.toLowerCase().includes(bankName.toLowerCase()) || 
-                    bankName.toLowerCase().includes(b.name.toLowerCase())
-                );
-                
-                if (localBank && receipt.paymentDate) {
-                    // This is a payment, so it's income for the bank
-                    localBank.balance += amount;
+                // Check if it's M-Pesa
+                if (bankName.toLowerCase().includes('mpesa') || bankName.toLowerCase().includes('mobile')) {
+                    const mpesaBank = banks.find(b => b.id === 'mpesa');
+                    if (mpesaBank) {
+                        mpesaBank.balance += amount;
+                        
+                        // Add to petty cash as income
+                        pettyCashTransactions.push({
+                            date: new Date(receipt.paymentDate || Date.now()).toLocaleDateString('en-KE'),
+                            time: new Date(receipt.paymentDate || Date.now()).toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+                            description: `M-Pesa payment: ${receipt.receiptNumber || 'Unknown'}`,
+                            recipient: 'M-Pesa',
+                            cost: amount,
+                            type: 'income'
+                        });
+                        
+                        renderPettyCash();
+                        updatePettyCashBalanceDisplay();
+                        updatePettyCashChart();
+                    }
+                } else {
+                    // Find local bank by name
+                    const localBank = banks.find(b => 
+                        b.name.toLowerCase().includes(bankName.toLowerCase()) || 
+                        bankName.toLowerCase().includes(b.name.toLowerCase())
+                    );
                     
-                    // Add to major transactions
-                    majorTransactions.push({
-                        description: `Payment from receipt: ${receipt.receiptNumber || 'Unknown'}`,
-                        amount: amount,
-                        category: 'Sales',
-                        date: new Date(receipt.paymentDate).toLocaleDateString('en-KE') || new Date().toLocaleDateString('en-KE'),
-                        bankId: localBank.id,
-                        isFromReceipt: true
-                    });
-                    
-                    console.log(`Updated ${localBank.name} balance by +${amount} from receipt`);
-                    
-                    // Update UI
-                    updateBankCards();
-                    updateBankSelectors();
-                    updateTransferBankSelectors();
+                    if (localBank && receipt.paymentDate) {
+                        localBank.balance += amount;
+                        
+                        // Add to major transactions
+                        majorTransactions.push({
+                            description: `Payment from receipt: ${receipt.receiptNumber || 'Unknown'}`,
+                            amount: amount,
+                            category: 'Sales',
+                            date: new Date(receipt.paymentDate).toLocaleDateString('en-KE') || new Date().toLocaleDateString('en-KE'),
+                            bankId: localBank.id,
+                            isFromReceipt: true
+                        });
+                        
+                        console.log(`Updated ${localBank.name} balance by +${amount} from receipt`);
+                    }
                 }
             }
         });
         
         updateFinancialDashboard();
+        updateBankCards();
+        updateBankSelectors();
+        updateTransferBankSelectors();
+        
+        // Save to Firestore
+        if (user) saveUserData();
     }
 
     function selectFirebaseBank(bankId, bankData) {
@@ -1970,6 +2129,9 @@ function initializeLoanBankSelector() {
         
         // Update quick stats
         updateQuickStats();
+        
+        // Save to Firestore
+        if (user) saveUserData();
     }
 
     // --- Inter-Bank Transfer Functions ---
@@ -1995,7 +2157,11 @@ function initializeLoanBankSelector() {
         banks.forEach(bank => {
             const fromOption = document.createElement('option');
             fromOption.value = bank.id;
-            fromOption.textContent = `${bank.name} (${formatKSH(bank.balance)})`;
+            if (bank.id === 'mpesa') {
+                fromOption.textContent = `${bank.name} (Petty Cash) - ${formatKSH(bank.balance)}`;
+            } else {
+                fromOption.textContent = `${bank.name} - ${formatKSH(bank.balance)}`;
+            }
             fromSelect.appendChild(fromOption.cloneNode(true));
             
             const toOption = fromOption.cloneNode(true);
@@ -2071,6 +2237,35 @@ function initializeLoanBankSelector() {
         fromBank.balance -= totalDebit;
         toBank.balance += amount;
         
+        // If transferring to/from M-Pesa, update petty cash
+        if (toBank.id === 'mpesa') {
+            // Add as petty cash income
+            pettyCashTransactions.push({
+                date: new Date().toLocaleDateString('en-KE'),
+                time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+                description: `Bank transfer to M-Pesa: ${reason || 'Transfer'}`,
+                recipient: 'M-Pesa',
+                cost: amount,
+                type: 'income'
+            });
+            renderPettyCash();
+            updatePettyCashBalanceDisplay();
+            updatePettyCashChart();
+        } else if (fromBank.id === 'mpesa') {
+            // Add as petty cash expense
+            pettyCashTransactions.push({
+                date: new Date().toLocaleDateString('en-KE'),
+                time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+                description: `M-Pesa transfer to ${toBank.name}: ${reason || 'Transfer'}`,
+                recipient: toBank.name,
+                cost: amount + fee,
+                type: 'expense'
+            });
+            renderPettyCash();
+            updatePettyCashBalanceDisplay();
+            updatePettyCashChart();
+        }
+        
         // Record transfer
         const transferId = 't' + Date.now();
         const transferRecord = {
@@ -2140,6 +2335,9 @@ function initializeLoanBankSelector() {
         
         // Update quick stats
         updateQuickStats();
+        
+        // Save to Firestore
+        if (user) saveUserData();
     }
 
     function updateTransferHistory() {
@@ -2210,55 +2408,66 @@ function initializeLoanBankSelector() {
         
         banks.forEach(bank => {
             const card = document.createElement('div');
-            card.className = 'bg-white rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-all duration-300';
+            
+            // Special styling for M-Pesa
+            if (bank.id === 'mpesa') {
+                card.className = 'mpesa-card rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-all duration-300';
+            } else {
+                card.className = 'bg-white rounded-xl shadow-card overflow-hidden hover:shadow-card-hover transition-all duration-300';
+            }
+            
             card.setAttribute('data-bank-id', bank.id);
             
-            const balanceColor = bank.balance < 0 ? 'text-red-500' : 'text-primary';
+            const balanceColor = bank.balance < 0 ? 'text-red-500' : (bank.id === 'mpesa' ? 'text-white' : 'text-primary');
             const balanceIcon = bank.balance < 0 ? 'fa-arrow-down' : 'fa-arrow-up';
+            const displayBalance = balancesHidden ? '*****' : formatKSH(bank.balance);
             
             card.innerHTML = `
                 <div class="p-6">
                     <div class="flex justify-between items-start mb-4">
                         <div>
-                            <h4 class="text-xl font-bold text-gray-800">${bank.name}</h4>
-                            <p class="text-sm text-gray-600 mt-1">${bank.accountNumber || 'No account number'}</p>
-                            ${bank.branch ? `<p class="text-xs text-gray-500 mt-1">${bank.branch}</p>` : ''}
+                            <h4 class="text-xl font-bold ${bank.id === 'mpesa' ? 'text-white' : 'text-gray-800'}">
+                                ${bank.name}
+                                ${bank.id === 'mpesa' ? '<span class="mpesa-badge text-xs px-2 py-1 rounded-full ml-2">Petty Cash</span>' : ''}
+                            </h4>
+                            <p class="${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'} mt-1">${bank.accountNumber || 'No account number'}</p>
+                            ${bank.branch ? `<p class="${bank.id === 'mpesa' ? 'text-white opacity-60' : 'text-gray-500'} text-xs mt-1">${bank.branch}</p>` : ''}
                         </div>
-                        <div class="bg-primary bg-opacity-10 text-primary p-3 rounded-lg">
-                            <i class="fas fa-university text-xl"></i>
+                        <div class="${bank.id === 'mpesa' ? 'bg-white bg-opacity-20 text-white' : 'bg-primary bg-opacity-10 text-primary'} p-3 rounded-lg">
+                            <i class="fas ${bank.id === 'mpesa' ? 'fa-mobile-alt' : 'fa-university'} text-xl"></i>
                         </div>
                     </div>
                     
                     <div class="mb-4">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-gray-600">Current Balance</span>
-                            <span class="text-xs text-gray-500">Updated: ${new Date(bank.lastUpdated || Date.now()).toLocaleTimeString('en-KE', {hour: '2-digit', minute:'2-digit'})}</span>
+                            <span class="${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'}">Current Balance</span>
+                            <span class="text-xs ${bank.id === 'mpesa' ? 'text-white opacity-60' : 'text-gray-500'}">Updated: ${new Date(bank.lastUpdated || Date.now()).toLocaleTimeString('en-KE', {hour: '2-digit', minute:'2-digit'})}</span>
                         </div>
-                        <div class="text-2xl font-bold ${balanceColor} flex items-center">
+                        <div class="text-2xl font-bold ${balanceColor} flex items-center ${balancesHidden ? 'hidden-balance' : ''}">
                             <i class="fas ${balanceIcon} mr-2"></i>
-                            ${formatKSH(bank.balance)}
+                            ${displayBalance}
                         </div>
                     </div>
                     
                     <div class="flex space-x-2">
                         <button onclick="updateBankBalance('${bank.id}')"
-                                class="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
+                                class="flex-1 ${bank.id === 'mpesa' ? 'bg-white bg-opacity-20 hover:bg-opacity-30 text-white' : 'bg-blue-50 hover:bg-blue-100 text-blue-600'} font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
                             <i class="fas fa-edit mr-2"></i>Update
                         </button>
                         <button onclick="showBankTransactions('${bank.id}')"
-                                class="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
+                                class="flex-1 ${bank.id === 'mpesa' ? 'bg-white bg-opacity-10 hover:bg-opacity-20 text-white' : 'bg-gray-50 hover:bg-gray-100 text-gray-600'} font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
                             <i class="fas fa-history mr-2"></i>History
                         </button>
                     </div>
                 </div>
                 
                 ${bank.firebaseId ? `
-                <div class="bg-gray-50 px-6 py-3 border-t border-gray-100">
-                    <div class="flex items-center text-sm text-gray-600">
-                        <i class="fas fa-fire text-orange-500 mr-2"></i>
+                <div class="${bank.id === 'mpesa' ? 'bg-white bg-opacity-10' : 'bg-gray-50'} px-6 py-3 border-t ${bank.id === 'mpesa' ? 'border-white border-opacity-20' : 'border-gray-100'}">
+                    <div class="flex items-center text-sm ${bank.id === 'mpesa' ? 'text-white opacity-80' : 'text-gray-600'}">
+                        <i class="fas fa-fire ${bank.id === 'mpesa' ? 'text-yellow-300' : 'text-orange-500'} mr-2"></i>
                         <span>Synced with Firebase</span>
                         <button onclick="syncBankWithFirebase('${bank.id}')"
-                                class="ml-auto text-primary hover:text-primary-dark text-xs font-medium">
+                                class="ml-auto ${bank.id === 'mpesa' ? 'text-yellow-300 hover:text-yellow-200' : 'text-primary hover:text-primary-dark'} text-xs font-medium">
                             <i class="fas fa-sync-alt mr-1"></i>Sync Now
                         </button>
                     </div>
@@ -2274,240 +2483,246 @@ function initializeLoanBankSelector() {
     }
 
     // --- Loan Card Functions ---
-function updateLoanCards() {
-    const container = document.getElementById('loan-cards-container');
-    if (!container) return;
-    
-    container.innerHTML = '';
-    
-    if (loans.length === 0) {
-        container.innerHTML = `
-            <div class="col-span-full text-center py-8 text-gray-500">
-                <i class="fas fa-hand-holding-usd text-3xl mb-3"></i>
-                <p>No active loans</p>
-                <p class="text-sm mt-2">Add loans to see them listed here</p>
-            </div>
-        `;
-        return;
-    }
-    
-    loans.forEach(loan => {
-        const card = document.createElement('div');
-        card.className = 'bg-white border border-gray-200 rounded-xl shadow-card hover:shadow-card-hover transition-all duration-300';
+    function updateLoanCards() {
+        const container = document.getElementById('loan-cards-container');
+        if (!container) return;
         
-        // Calculate repayment progress
-        const repaymentProgress = ((loan.originalBalance - loan.balance) / loan.originalBalance) * 100;
-        const dueDate = new Date(loan.dueDate);
-        const today = new Date();
-        const daysRemaining = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
-        const isOverdue = daysRemaining < 0;
+        container.innerHTML = '';
         
-        // Determine card color based on status
-        let statusColor = 'bg-green-100 text-green-800';
-        if (isOverdue) {
-            statusColor = 'bg-red-100 text-red-800';
-        } else if (daysRemaining < 30) {
-            statusColor = 'bg-yellow-100 text-yellow-800';
+        if (loans.length === 0) {
+            container.innerHTML = `
+                <div class="col-span-full text-center py-8 text-gray-500">
+                    <i class="fas fa-hand-holding-usd text-3xl mb-3"></i>
+                    <p>No active loans</p>
+                    <p class="text-sm mt-2">Add loans to see them listed here</p>
+                </div>
+            `;
+            return;
         }
         
-        card.innerHTML = `
-            <div class="p-5">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <h4 class="text-xl font-bold text-gray-800">${loan.institution}</h4>
-                        <p class="text-sm text-gray-600 mt-1">${loan.type.charAt(0).toUpperCase() + loan.type.slice(1)} Loan</p>
-                    </div>
-                    <div class="bg-primary bg-opacity-10 text-primary p-3 rounded-lg">
-                        <i class="fas fa-landmark text-xl"></i>
-                    </div>
-                </div>
-                
-                <div class="mb-4">
-                    <div class="flex justify-between items-center mb-2">
-                        <span class="text-gray-600">Current Balance</span>
-                        <span class="font-bold text-lg ${loan.balance > 0 ? 'text-red-600' : 'text-green-600'}">${formatKSH(loan.balance)}</span>
+        loans.forEach(loan => {
+            const card = document.createElement('div');
+            card.className = 'bg-white border border-gray-200 rounded-xl shadow-card hover:shadow-card-hover transition-all duration-300';
+            
+            // Calculate repayment progress
+            const repaymentProgress = ((loan.originalBalance - loan.balance) / loan.originalBalance) * 100;
+            const dueDate = new Date(loan.dueDate);
+            const today = new Date();
+            const daysRemaining = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            const isOverdue = daysRemaining < 0;
+            
+            // Determine card color based on status
+            let statusColor = 'bg-green-100 text-green-800';
+            if (isOverdue) {
+                statusColor = 'bg-red-100 text-red-800';
+            } else if (daysRemaining < 30) {
+                statusColor = 'bg-yellow-100 text-yellow-800';
+            }
+            
+            card.innerHTML = `
+                <div class="p-5">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <h4 class="text-xl font-bold text-gray-800">${loan.institution}</h4>
+                            <p class="text-sm text-gray-600 mt-1">${loan.type.charAt(0).toUpperCase() + loan.type.slice(1)} Loan</p>
+                        </div>
+                        <div class="bg-primary bg-opacity-10 text-primary p-3 rounded-lg">
+                            <i class="fas fa-landmark text-xl"></i>
+                        </div>
                     </div>
                     
-                    <div class="w-full bg-gray-200 rounded-full h-2 mb-1">
-                        <div class="bg-primary h-2 rounded-full" style="width: ${Math.min(100, repaymentProgress)}%"></div>
+                    <div class="mb-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-600">Current Balance</span>
+                            <span class="font-bold text-lg ${loan.balance > 0 ? 'text-red-600' : 'text-green-600'} ${balancesHidden ? 'hidden-balance' : ''}">
+                                ${balancesHidden ? '*****' : formatKSH(loan.balance)}
+                            </span>
+                        </div>
+                        
+                        <div class="w-full bg-gray-200 rounded-full h-2 mb-1">
+                            <div class="bg-primary h-2 rounded-full" style="width: ${Math.min(100, repaymentProgress)}%"></div>
+                        </div>
+                        <div class="text-xs text-gray-500 flex justify-between">
+                            <span>Repaid: ${repaymentProgress.toFixed(1)}%</span>
+                            <span class="${balancesHidden ? 'hidden-balance' : ''}">Original: ${balancesHidden ? '*****' : formatKSH(loan.originalBalance)}</span>
+                        </div>
                     </div>
-                    <div class="text-xs text-gray-500 flex justify-between">
-                        <span>Repaid: ${repaymentProgress.toFixed(1)}%</span>
-                        <span>Original: ${formatKSH(loan.originalBalance)}</span>
+                    
+                    <div class="grid grid-cols-2 gap-4 text-sm mb-4">
+                        <div>
+                            <span class="text-gray-600 block">Interest Rate</span>
+                            <span class="font-semibold">${loan.interestRate}%</span>
+                        </div>
+                        <div>
+                            <span class="text-gray-600 block">Due In</span>
+                            <span class="font-semibold ${isOverdue ? 'text-red-600' : ''}">
+                                ${isOverdue ? Math.abs(daysRemaining) + ' days overdue' : daysRemaining + ' days'}
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-2">
+                        <button onclick="openLoanRepaymentModal('${loan.id}')"
+                                class="flex-1 bg-primary hover:bg-primary-dark text-white font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
+                            <i class="fas fa-money-check-alt mr-2"></i>Repay
+                        </button>
+                        <button onclick="viewLoanDetails('${loan.id}')"
+                                class="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
+                            <i class="fas fa-history mr-2"></i>History
+                        </button>
                     </div>
                 </div>
                 
-                <div class="grid grid-cols-2 gap-4 text-sm mb-4">
-                    <div>
-                        <span class="text-gray-600 block">Interest Rate</span>
-                        <span class="font-semibold">${loan.interestRate}%</span>
-                    </div>
-                    <div>
-                        <span class="text-gray-600 block">Due In</span>
-                        <span class="font-semibold ${isOverdue ? 'text-red-600' : ''}">
-                            ${isOverdue ? Math.abs(daysRemaining) + ' days overdue' : daysRemaining + ' days'}
-                        </span>
+                <div class="px-5 py-3 border-t border-gray-100 ${statusColor}">
+                    <div class="flex items-center text-sm">
+                        <i class="fas ${isOverdue ? 'fa-exclamation-triangle' : 'fa-calendar-check'} mr-2"></i>
+                        <span>${isOverdue ? 'PAYMENT OVERDUE' : (daysRemaining < 30 ? 'PAYMENT DUE SOON' : 'ACTIVE')}</span>
                     </div>
                 </div>
-                
-                <div class="flex space-x-2">
-                    <button onclick="openLoanRepaymentModal('${loan.id}')"
-                            class="flex-1 bg-primary hover:bg-primary-dark text-white font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
-                        <i class="fas fa-money-check-alt mr-2"></i>Repay
-                    </button>
-                    <button onclick="viewLoanDetails('${loan.id}')"
-                            class="flex-1 bg-gray-50 hover:bg-gray-100 text-gray-600 font-medium py-2 px-3 rounded-lg text-sm transition-all flex items-center justify-center">
-                        <i class="fas fa-history mr-2"></i>History
-                    </button>
-                </div>
-            </div>
+            `;
             
-            <div class="px-5 py-3 border-t border-gray-100 ${statusColor}">
-                <div class="flex items-center text-sm">
-                    <i class="fas ${isOverdue ? 'fa-exclamation-triangle' : 'fa-calendar-check'} mr-2"></i>
-                    <span>${isOverdue ? 'PAYMENT OVERDUE' : (daysRemaining < 30 ? 'PAYMENT DUE SOON' : 'ACTIVE')}</span>
+            container.appendChild(card);
+        });
+    }
+
+    let currentRepaymentLoanId = null;
+
+    function openLoanRepaymentModal(loanId) {
+        currentRepaymentLoanId = loanId;
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) return;
+        
+        const modal = document.getElementById('loan-repayment-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+        }
+        
+        // Update loan details
+        const detailsDiv = document.getElementById('repayment-loan-details');
+        detailsDiv.innerHTML = `
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <span class="text-gray-600 text-sm">Institution:</span>
+                    <p class="font-semibold">${loan.institution}</p>
+                </div>
+                <div>
+                    <span class="text-gray-600 text-sm">Current Balance:</span>
+                    <p class="font-bold text-lg text-red-600">${formatKSH(loan.balance)}</p>
+                </div>
+                <div>
+                    <span class="text-gray-600 text-sm">Loan Type:</span>
+                    <p class="font-medium">${loan.type.charAt(0).toUpperCase() + loan.type.slice(1)}</p>
+                </div>
+                <div>
+                    <span class="text-gray-600 text-sm">Due Date:</span>
+                    <p class="font-medium">${new Date(loan.dueDate).toLocaleDateString('en-KE')}</p>
                 </div>
             </div>
         `;
         
-        container.appendChild(card);
-    });
-}
-
-let currentRepaymentLoanId = null;
-
-function openLoanRepaymentModal(loanId) {
-    currentRepaymentLoanId = loanId;
-    const loan = loans.find(l => l.id === loanId);
-    if (!loan) return;
-    
-    const modal = document.getElementById('loan-repayment-modal');
-    if (modal) {
-        modal.classList.remove('hidden');
-    }
-    
-    // Update loan details
-    const detailsDiv = document.getElementById('repayment-loan-details');
-    detailsDiv.innerHTML = `
-        <div class="grid grid-cols-2 gap-3">
-            <div>
-                <span class="text-gray-600 text-sm">Institution:</span>
-                <p class="font-semibold">${loan.institution}</p>
-            </div>
-            <div>
-                <span class="text-gray-600 text-sm">Current Balance:</span>
-                <p class="font-bold text-lg text-red-600">${formatKSH(loan.balance)}</p>
-            </div>
-            <div>
-                <span class="text-gray-600 text-sm">Loan Type:</span>
-                <p class="font-medium">${loan.type.charAt(0).toUpperCase() + loan.type.slice(1)}</p>
-            </div>
-            <div>
-                <span class="text-gray-600 text-sm">Due Date:</span>
-                <p class="font-medium">${new Date(loan.dueDate).toLocaleDateString('en-KE')}</p>
-            </div>
-        </div>
-    `;
-    
-    // Update bank selector
-    const bankSelect = document.getElementById('repayment-bank-select');
-    bankSelect.innerHTML = '<option value="" disabled selected>Select Bank for Repayment</option>';
-    
-    if (banks.length === 0) {
-        const option = document.createElement('option');
-        option.value = "";
-        option.textContent = "No banks available";
-        option.disabled = true;
-        bankSelect.appendChild(option);
-    } else {
-        banks.forEach(bank => {
+        // Update bank selector
+        const bankSelect = document.getElementById('repayment-bank-select');
+        bankSelect.innerHTML = '<option value="" disabled selected>Select Bank for Repayment</option>';
+        
+        if (banks.length === 0) {
             const option = document.createElement('option');
-            option.value = bank.id;
-            option.textContent = `${bank.name} (${formatKSH(bank.balance)})`;
+            option.value = "";
+            option.textContent = "No banks available";
+            option.disabled = true;
             bankSelect.appendChild(option);
-        });
-    }
-    
-    // Add event listener for bank balance display
-    bankSelect.addEventListener('change', function() {
-        const bank = getBankById(this.value);
-        const balanceElement = document.getElementById('repayment-bank-balance');
-        if (bank && balanceElement) {
-            balanceElement.innerHTML = 
-                `<span class="font-semibold">Available Balance:</span> ${formatKSH(bank.balance)}`;
+        } else {
+            banks.forEach(bank => {
+                const option = document.createElement('option');
+                option.value = bank.id;
+                if (bank.id === 'mpesa') {
+                    option.textContent = `${bank.name} (Petty Cash) - ${formatKSH(bank.balance)}`;
+                } else {
+                    option.textContent = `${bank.name} - ${formatKSH(bank.balance)}`;
+                }
+                bankSelect.appendChild(option);
+            });
         }
-    });
-    
-    // Update remaining balance text
-    document.getElementById('remaining-balance-text').textContent = 
-        `Remaining balance: ${formatKSH(loan.balance)}`;
-    
-    // Update preview
-    updateRepaymentPreview();
-    
-    // Add event listeners for real-time preview
-    document.getElementById('repayment-amount').addEventListener('input', updateRepaymentPreview);
-    document.getElementById('repayment-bank-select').addEventListener('change', updateRepaymentPreview);
-}
-
-function closeLoanRepaymentModal() {
-    const modal = document.getElementById('loan-repayment-modal');
-    if (modal) {
-        modal.classList.add('hidden');
-    }
-    currentRepaymentLoanId = null;
-    document.getElementById('loan-repayment-form').reset();
-}
-
-function fillFullBalance() {
-    const loan = loans.find(l => l.id === currentRepaymentLoanId);
-    if (!loan) return;
-    
-    document.getElementById('repayment-amount').value = loan.balance.toFixed(2);
-    updateRepaymentPreview();
-}
-
-function updateRepaymentPreview() {
-    const loan = loans.find(l => l.id === currentRepaymentLoanId);
-    if (!loan) return;
-    
-    const amount = parseFloat(document.getElementById('repayment-amount').value) || 0;
-    const bankId = document.getElementById('repayment-bank-select').value;
-    const bank = getBankById(bankId);
-    
-    document.getElementById('preview-loan').textContent = loan.institution;
-    document.getElementById('preview-amount').textContent = formatKSH(amount);
-    document.getElementById('preview-source-bank').textContent = bank ? bank.name : 'Not selected';
-    document.getElementById('preview-new-balance').textContent = formatKSH(Math.max(0, loan.balance - amount));
-}
-
-function viewLoanDetails(loanId) {
-    const loan = loans.find(l => l.id === loanId);
-    if (!loan) return;
-    
-    let message = `Loan Details - ${loan.institution}\n\n`;
-    message += `Type: ${loan.type.charAt(0).toUpperCase() + loan.type.slice(1)}\n`;
-    message += `Original Amount: ${formatKSH(loan.originalBalance)}\n`;
-    message += `Current Balance: ${formatKSH(loan.balance)}\n`;
-    message += `Interest Rate: ${loan.interestRate}%\n`;
-    message += `Due Date: ${new Date(loan.dueDate).toLocaleDateString('en-KE')}\n`;
-    message += `Disbursed to: ${loan.bankName}\n\n`;
-    
-    if (loan.repayments && loan.repayments.length > 0) {
-        message += `Repayment History:\n\n`;
-        loan.repayments.forEach(repayment => {
-            message += `${new Date(repayment.date).toLocaleDateString('en-KE')}: ${formatKSH(repayment.amount)}\n`;
-            message += `  From: ${repayment.bankName}\n`;
-            message += `  Ref: ${repayment.reference}\n`;
-            if (repayment.notes) message += `  Notes: ${repayment.notes}\n`;
-            message += `\n`;
+        
+        // Add event listener for bank balance display
+        bankSelect.addEventListener('change', function() {
+            const bank = getBankById(this.value);
+            const balanceElement = document.getElementById('repayment-bank-balance');
+            if (bank && balanceElement) {
+                balanceElement.innerHTML = 
+                    `<span class="font-semibold">Available Balance:</span> ${formatKSH(bank.balance)}`;
+            }
         });
-    } else {
-        message += `No repayments made yet.\n`;
+        
+        // Update remaining balance text
+        document.getElementById('remaining-balance-text').textContent = 
+            `Remaining balance: ${formatKSH(loan.balance)}`;
+        
+        // Update preview
+        updateRepaymentPreview();
+        
+        // Add event listeners for real-time preview
+        document.getElementById('repayment-amount').addEventListener('input', updateRepaymentPreview);
+        document.getElementById('repayment-bank-select').addEventListener('change', updateRepaymentPreview);
     }
-    
-    alert(message);
-}
+
+    function closeLoanRepaymentModal() {
+        const modal = document.getElementById('loan-repayment-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+        currentRepaymentLoanId = null;
+        document.getElementById('loan-repayment-form').reset();
+    }
+
+    function fillFullBalance() {
+        const loan = loans.find(l => l.id === currentRepaymentLoanId);
+        if (!loan) return;
+        
+        document.getElementById('repayment-amount').value = loan.balance.toFixed(2);
+        updateRepaymentPreview();
+    }
+
+    function updateRepaymentPreview() {
+        const loan = loans.find(l => l.id === currentRepaymentLoanId);
+        if (!loan) return;
+        
+        const amount = parseFloat(document.getElementById('repayment-amount').value) || 0;
+        const bankId = document.getElementById('repayment-bank-select').value;
+        const bank = getBankById(bankId);
+        
+        document.getElementById('preview-loan').textContent = loan.institution;
+        document.getElementById('preview-amount').textContent = formatKSH(amount);
+        document.getElementById('preview-source-bank').textContent = bank ? bank.name : 'Not selected';
+        document.getElementById('preview-new-balance').textContent = formatKSH(Math.max(0, loan.balance - amount));
+    }
+
+    function viewLoanDetails(loanId) {
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) return;
+        
+        let message = `Loan Details - ${loan.institution}\n\n`;
+        message += `Type: ${loan.type.charAt(0).toUpperCase() + loan.type.slice(1)}\n`;
+        message += `Original Amount: ${formatKSH(loan.originalBalance)}\n`;
+        message += `Current Balance: ${formatKSH(loan.balance)}\n`;
+        message += `Interest Rate: ${loan.interestRate}%\n`;
+        message += `Due Date: ${new Date(loan.dueDate).toLocaleDateString('en-KE')}\n`;
+        message += `Disbursed to: ${loan.bankName}\n\n`;
+        
+        if (loan.repayments && loan.repayments.length > 0) {
+            message += `Repayment History:\n\n`;
+            loan.repayments.forEach(repayment => {
+                message += `${new Date(repayment.date).toLocaleDateString('en-KE')}: ${formatKSH(repayment.amount)}\n`;
+                message += `  From: ${repayment.bankName}\n`;
+                message += `  Ref: ${repayment.reference}\n`;
+                if (repayment.notes) message += `  Notes: ${repayment.notes}\n`;
+                message += `\n`;
+            });
+        } else {
+            message += `No repayments made yet.\n`;
+        }
+        
+        alert(message);
+    }
 
     function updateBankBalance(bankId) {
         const bank = getBankById(bankId);
@@ -2521,6 +2736,27 @@ function viewLoanDetails(loanId) {
                 const oldBalance = bank.balance;
                 bank.balance = balance;
                 bank.lastUpdated = new Date().toISOString();
+                
+                // If updating M-Pesa, also update petty cash
+                if (bank.id === 'mpesa') {
+                    // Update petty cash transactions to reflect new balance
+                    const { currentBalance } = calculatePettyCashBalance();
+                    const difference = balance - currentBalance;
+                    
+                    if (difference !== 0) {
+                        pettyCashTransactions.push({
+                            date: new Date().toLocaleDateString('en-KE'),
+                            time: new Date().toLocaleTimeString('en-KE', { hour: '2-digit', minute: '2-digit' }),
+                            description: `Manual M-Pesa balance adjustment`,
+                            recipient: 'System',
+                            cost: Math.abs(difference),
+                            type: difference > 0 ? 'income' : 'expense'
+                        });
+                        renderPettyCash();
+                        updatePettyCashBalanceDisplay();
+                        updatePettyCashChart();
+                    }
+                }
                 
                 // Record the adjustment
                 majorTransactions.push({
@@ -2540,6 +2776,9 @@ function viewLoanDetails(loanId) {
                 updateTransferBankSelectors();
                 
                 showToast(`Updated ${bank.name} balance to ${formatKSH(balance)}`, 'success');
+                
+                // Save to Firestore
+                if (user) saveUserData();
             } else {
                 showToast('Invalid balance amount', 'error');
             }
@@ -2589,6 +2828,9 @@ function viewLoanDetails(loanId) {
                 // Update the last updated time
                 bank.lastUpdated = new Date().toISOString();
                 updateBankCards();
+                
+                // Save to Firestore
+                if (user) saveUserData();
             }, 1000);
             
         } catch (error) {
@@ -2699,6 +2941,7 @@ function viewLoanDetails(loanId) {
         if (user) {
             loadFirebaseBanks();
             loadReceiptPayments();
+            loadUserData();
         }
         
         // Update all local data
@@ -2709,7 +2952,7 @@ function viewLoanDetails(loanId) {
         updateMajorCategoryChart();
         updateTransferHistory();
         updateQuickStats();
-        updateLoanCards();  // <-- ADD THIS LINE
+        updateLoanCards();
         
         setTimeout(() => {
             showLoading(false);
@@ -2778,10 +3021,17 @@ function viewLoanDetails(loanId) {
                 updatePettyCashBalanceDisplay();
                 updatePettyCashChart();
                 updatePettyExpenditureChart();
+                
+                // Update M-Pesa balance
+                updateMpesaFromPettyCash();
+                
                 document.getElementById('petty-cash-form').reset();
                 checkAnomalies(newTransaction);
                 updateQuickStats();
                 showToast('Transaction added successfully!', 'success');
+                
+                // Save to Firestore
+                if (user) saveUserData();
             });
         }
         
@@ -2827,68 +3077,74 @@ function viewLoanDetails(loanId) {
                 updateFinancialDashboard();
                 document.getElementById('major-transaction-form').reset();
                 showToast(`Major Transaction Logged: ${description} - ${formatKSH(cost)}`, 'success');
+                
+                // Save to Firestore
+                if (user) saveUserData();
             });
         }
         
-  // Loan Form
-const loanForm = document.getElementById('loan-form');
-if (loanForm) {
-    loanForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const institution = document.getElementById('loan-institution').value;
-        const balance = parseFloat(document.getElementById('loan-balance').value);
-        const bankId = document.getElementById('loan-bank-account').value;
-        const loanType = document.getElementById('loan-type').value;
-        const interestRate = parseFloat(document.getElementById('loan-interest-rate').value) || 0;
-        const dueDate = document.getElementById('loan-due-date').value;
-        
-        if (!bankId) {
-            showToast('Please select a bank account for loan disbursement', 'error');
-            return;
+        // Loan Form
+        const loanForm = document.getElementById('loan-form');
+        if (loanForm) {
+            loanForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const institution = document.getElementById('loan-institution').value;
+                const balance = parseFloat(document.getElementById('loan-balance').value);
+                const bankId = document.getElementById('loan-bank-account').value;
+                const loanType = document.getElementById('loan-type').value;
+                const interestRate = parseFloat(document.getElementById('loan-interest-rate').value) || 0;
+                const dueDate = document.getElementById('loan-due-date').value;
+                
+                if (!bankId) {
+                    showToast('Please select a bank account for loan disbursement', 'error');
+                    return;
+                }
+                
+                const selectedBank = getBankById(bankId);
+                
+                // Add loan amount to selected bank
+                selectedBank.balance += balance;
+                
+                const newLoan = {
+                    id: 'l' + Date.now(),
+                    institution: institution,
+                    balance: balance,
+                    originalBalance: balance,
+                    bankId: bankId,
+                    bankName: selectedBank.name,
+                    type: loanType,
+                    interestRate: interestRate,
+                    dueDate: dueDate,
+                    createdAt: new Date().toISOString(),
+                    repayments: []
+                };
+                
+                loans.push(newLoan);
+                
+                // Add loan disbursement as major transaction
+                majorTransactions.push({
+                    description: `Loan disbursement from ${institution}`,
+                    amount: balance,
+                    category: 'Sales',
+                    date: new Date().toLocaleDateString('en-KE'),
+                    bankId: bankId,
+                    isLoanDisbursement: true,
+                    loanId: newLoan.id
+                });
+                
+                updateFinancialDashboard();
+                updateBankCards();
+                updateBankSelectors();
+                initializeLoanBankSelector();
+                updateLoanCards();
+                document.getElementById('loan-form').reset();
+                
+                showToast(`Loan from ${institution} added. ${formatKSH(balance)} deposited to ${selectedBank.name}`, 'success');
+                
+                // Save to Firestore
+                if (user) saveUserData();
+            });
         }
-        
-        const selectedBank = getBankById(bankId);
-        
-        // Add loan amount to selected bank
-        selectedBank.balance += balance;
-        
-        const newLoan = {
-            id: 'l' + Date.now(),
-            institution: institution,
-            balance: balance,
-            originalBalance: balance,
-            bankId: bankId,
-            bankName: selectedBank.name,
-            type: loanType,
-            interestRate: interestRate,
-            dueDate: dueDate,
-            createdAt: new Date().toISOString(),
-            repayments: []
-        };
-        
-        loans.push(newLoan);
-        
-        // Add loan disbursement as major transaction
-        majorTransactions.push({
-            description: `Loan disbursement from ${institution}`,
-            amount: balance,
-            category: 'Sales',
-            date: new Date().toLocaleDateString('en-KE'),
-            bankId: bankId,
-            isLoanDisbursement: true,
-            loanId: newLoan.id
-        });
-        
-        updateFinancialDashboard();
-        updateBankCards();
-        updateBankSelectors();
-        initializeLoanBankSelector();
-        updateLoanCards();
-        document.getElementById('loan-form').reset();
-        
-        showToast(`Loan from ${institution} added. ${formatKSH(balance)} deposited to ${selectedBank.name}`, 'success');
-    });
-}
         
         // Bank Transfer Form
         const bankTransferForm = document.getElementById('bank-transfer-form');
@@ -2947,98 +3203,101 @@ if (loanForm) {
         }
 
         // Loan Repayment Form
-const repaymentForm = document.getElementById('loan-repayment-form');
-if (repaymentForm) {
-    repaymentForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const loan = loans.find(l => l.id === currentRepaymentLoanId);
-        if (!loan) {
-            showToast('Loan not found', 'error');
-            return;
+        const repaymentForm = document.getElementById('loan-repayment-form');
+        if (repaymentForm) {
+            repaymentForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                const loan = loans.find(l => l.id === currentRepaymentLoanId);
+                if (!loan) {
+                    showToast('Loan not found', 'error');
+                    return;
+                }
+                
+                const bankId = document.getElementById('repayment-bank-select').value;
+                const amount = parseFloat(document.getElementById('repayment-amount').value);
+                const date = document.getElementById('repayment-date').value;
+                const reference = document.getElementById('repayment-reference').value;
+                const notes = document.getElementById('repayment-notes').value;
+                
+                if (!bankId) {
+                    showToast('Please select a bank account', 'error');
+                    return;
+                }
+                
+                if (!amount || amount <= 0) {
+                    showToast('Please enter a valid repayment amount', 'error');
+                    return;
+                }
+                
+                if (amount > loan.balance) {
+                    showToast(`Repayment amount cannot exceed loan balance of ${formatKSH(loan.balance)}`, 'error');
+                    return;
+                }
+                
+                const bank = getBankById(bankId);
+                if (amount > bank.balance) {
+                    showToast(`Insufficient funds in ${bank.name}. Available: ${formatKSH(bank.balance)}`, 'error');
+                    return;
+                }
+                
+                // Deduct from bank
+                bank.balance -= amount;
+                
+                // Update loan balance
+                loan.balance -= amount;
+                
+                // Record repayment
+                const repaymentId = 'r' + Date.now();
+                const repaymentRecord = {
+                    id: repaymentId,
+                    loanId: loan.id,
+                    date: new Date(date).toISOString(),
+                    amount: amount,
+                    bankId: bankId,
+                    bankName: bank.name,
+                    reference: reference,
+                    notes: notes,
+                    previousBalance: loan.balance + amount,
+                    newBalance: loan.balance
+                };
+                
+                loanRepayments.push(repaymentRecord);
+                loan.repayments = loan.repayments || [];
+                loan.repayments.push(repaymentRecord);
+                
+                // Add repayment as major transaction
+                majorTransactions.push({
+                    description: `Loan repayment to ${loan.institution} - Ref: ${reference}`,
+                    amount: amount,
+                    category: 'Payroll',
+                    date: new Date(date).toLocaleDateString('en-KE'),
+                    bankId: bankId,
+                    isLoanRepayment: true,
+                    loanId: loan.id,
+                    repaymentId: repaymentId
+                });
+                
+                // Update UI
+                updateFinancialDashboard();
+                updateBankCards();
+                updateBankSelectors();
+                updateLoanCards();
+                closeLoanRepaymentModal();
+                
+                showToast(`Loan repayment of ${formatKSH(amount)} to ${loan.institution} processed successfully!`, 'success');
+                
+                // If loan is fully paid, show confirmation
+                if (loan.balance <= 0) {
+                    setTimeout(() => {
+                        showToast(`🎉 Congratulations! Loan from ${loan.institution} has been fully paid off!`, 'success');
+                    }, 1000);
+                }
+                
+                // Save to Firestore
+                if (user) saveUserData();
+            });
         }
-        
-        const bankId = document.getElementById('repayment-bank-select').value;
-        const amount = parseFloat(document.getElementById('repayment-amount').value);
-        const date = document.getElementById('repayment-date').value;
-        const reference = document.getElementById('repayment-reference').value;
-        const notes = document.getElementById('repayment-notes').value;
-        
-        if (!bankId) {
-            showToast('Please select a bank account', 'error');
-            return;
-        }
-        
-        if (!amount || amount <= 0) {
-            showToast('Please enter a valid repayment amount', 'error');
-            return;
-        }
-        
-        if (amount > loan.balance) {
-            showToast(`Repayment amount cannot exceed loan balance of ${formatKSH(loan.balance)}`, 'error');
-            return;
-        }
-        
-        const bank = getBankById(bankId);
-        if (amount > bank.balance) {
-            showToast(`Insufficient funds in ${bank.name}. Available: ${formatKSH(bank.balance)}`, 'error');
-            return;
-        }
-        
-        // Deduct from bank
-        bank.balance -= amount;
-        
-        // Update loan balance
-        loan.balance -= amount;
-        
-        // Record repayment
-        const repaymentId = 'r' + Date.now();
-        const repaymentRecord = {
-            id: repaymentId,
-            loanId: loan.id,
-            date: new Date(date).toISOString(),
-            amount: amount,
-            bankId: bankId,
-            bankName: bank.name,
-            reference: reference,
-            notes: notes,
-            previousBalance: loan.balance + amount,
-            newBalance: loan.balance
-        };
-        
-        loanRepayments.push(repaymentRecord);
-        loan.repayments = loan.repayments || [];
-        loan.repayments.push(repaymentRecord);
-        
-        // Add repayment as major transaction
-        majorTransactions.push({
-            description: `Loan repayment to ${loan.institution} - Ref: ${reference}`,
-            amount: amount,
-            category: 'Payroll',
-            date: new Date(date).toLocaleDateString('en-KE'),
-            bankId: bankId,
-            isLoanRepayment: true,
-            loanId: loan.id,
-            repaymentId: repaymentId
-        });
-        
-        // Update UI
-        updateFinancialDashboard();
-        updateBankCards();
-        updateBankSelectors();
-        updateLoanCards();
-        closeLoanRepaymentModal();
-        
-        showToast(`Loan repayment of ${formatKSH(amount)} to ${loan.institution} processed successfully!`, 'success');
-        
-        // If loan is fully paid, show confirmation
-        if (loan.balance <= 0) {
-            setTimeout(() => {
-                showToast(`🎉 Congratulations! Loan from ${loan.institution} has been fully paid off!`, 'success');
-            }, 1000);
-        }
-    });
-}
         
         // EMI Calculator Form
         const emiForm = document.getElementById('emi-calculator-form');
@@ -3142,33 +3401,35 @@ if (repaymentForm) {
         const dayExpenseElement = document.getElementById('day-expense');
         const dayIncomeElement = document.getElementById('day-income');
         
-        if (currentBalanceElement) currentBalanceElement.textContent = formatKSH(currentBalance);
-        if (dayExpenseElement) dayExpenseElement.textContent = formatKSH(totalExpense);
-        if (dayIncomeElement) dayIncomeElement.textContent = formatKSH(totalIncome);
-        
         if (currentBalanceElement) {
-            currentBalanceElement.style.color = currentBalance < 0 ? '#dc3545' : 'var(--primary-color)';
+            if (balancesHidden) {
+                currentBalanceElement.textContent = '********';
+                currentBalanceElement.classList.add('hidden-balance');
+            } else {
+                currentBalanceElement.textContent = formatKSH(currentBalance);
+                currentBalanceElement.classList.remove('hidden-balance');
+                currentBalanceElement.style.color = currentBalance < 0 ? '#dc3545' : 'var(--primary-color)';
+            }
         }
-    }
-
-    function togglePettyCashBalance() {
-        const currentBalance = document.getElementById('current-balance');
-        const dayExpense = document.getElementById('day-expense');
-        const dayIncome = document.getElementById('day-income');
-        const button = document.querySelector('.balance-bar button:first-child');
         
-        if (!currentBalance || !dayExpense || !dayIncome || !button) return;
+        if (dayExpenseElement) {
+            if (balancesHidden) {
+                dayExpenseElement.textContent = 'KSH *****';
+                dayExpenseElement.classList.add('hidden-balance');
+            } else {
+                dayExpenseElement.textContent = formatKSH(totalExpense);
+                dayExpenseElement.classList.remove('hidden-balance');
+            }
+        }
         
-        const isHidden = dayIncome.textContent.includes('*****');
-        
-        if (isHidden) {
-            updatePettyCashBalanceDisplay();
-            button.innerHTML = '<i class="fas fa-eye-slash mr-2"></i>Hide Balances';
-        } else {
-            currentBalance.textContent = '********';
-            dayExpense.textContent = 'KSH *****';
-            dayIncome.textContent = 'KSH *****';
-            button.innerHTML = '<i class="fas fa-eye mr-2"></i>Reveal Balances';
+        if (dayIncomeElement) {
+            if (balancesHidden) {
+                dayIncomeElement.textContent = 'KSH *****';
+                dayIncomeElement.classList.add('hidden-balance');
+            } else {
+                dayIncomeElement.textContent = formatKSH(totalIncome);
+                dayIncomeElement.classList.remove('hidden-balance');
+            }
         }
     }
 
@@ -3437,12 +3698,28 @@ if (repaymentForm) {
         // 1. Total Bank Funds
         const totalBankFunds = banks.reduce((sum, bank) => sum + bank.balance, 0);
         const totalBankElement = document.getElementById('total-bank-funds');
-        if (totalBankElement) totalBankElement.textContent = formatKSH(totalBankFunds);
+        if (totalBankElement) {
+            if (balancesHidden) {
+                totalBankElement.textContent = '*****';
+                totalBankElement.classList.add('hidden-balance');
+            } else {
+                totalBankElement.textContent = formatKSH(totalBankFunds);
+                totalBankElement.classList.remove('hidden-balance');
+            }
+        }
         
         // 2. Total Outstanding Loans
         const totalOutstandingLoans = loans.reduce((sum, loan) => sum + loan.balance, 0);
         const totalLoansElement = document.getElementById('total-outstanding-loans');
-        if (totalLoansElement) totalLoansElement.textContent = formatKSH(totalOutstandingLoans);
+        if (totalLoansElement) {
+            if (balancesHidden) {
+                totalLoansElement.textContent = '*****';
+                totalLoansElement.classList.add('hidden-balance');
+            } else {
+                totalLoansElement.textContent = formatKSH(totalOutstandingLoans);
+                totalLoansElement.classList.remove('hidden-balance');
+            }
+        }
         
         // 3. Monthly Spend
         const now = new Date();
@@ -3462,7 +3739,15 @@ if (repaymentForm) {
         }
         
         const monthlySpendElement = document.getElementById('monthly-spend');
-        if (monthlySpendElement) monthlySpendElement.textContent = formatKSH(currentMonthSpend.totalExpense);
+        if (monthlySpendElement) {
+            if (balancesHidden) {
+                monthlySpendElement.textContent = '*****';
+                monthlySpendElement.classList.add('hidden-balance');
+            } else {
+                monthlySpendElement.textContent = formatKSH(currentMonthSpend.totalExpense);
+                monthlySpendElement.classList.remove('hidden-balance');
+            }
+        }
     }
 
     // --- Auditing Logic ---
@@ -3700,7 +3985,11 @@ if (repaymentForm) {
                 banks.forEach(bank => {
                     const option = document.createElement('option');
                     option.value = bank.id;
-                    option.textContent = `${bank.name} (${formatKSH(bank.balance)})`;
+                    if (bank.id === 'mpesa') {
+                        option.textContent = `${bank.name} (Petty Cash) - ${formatKSH(bank.balance)}`;
+                    } else {
+                        option.textContent = `${bank.name} - ${formatKSH(bank.balance)}`;
+                    }
                     majorSelect.appendChild(option);
                 });
             }
@@ -3711,7 +4000,7 @@ if (repaymentForm) {
     }
 
     // --- Initialize the application ---
-    window.onload = () => {
+    window.onload = async () => {
         // Check for dark mode preference
         if (localStorage.getItem('darkMode') === 'true') {
             toggleDarkMode();
@@ -3719,6 +4008,9 @@ if (repaymentForm) {
         
         // Initialize the default tab (Petty Cash)
         openTab({ currentTarget: document.querySelector('.custom-tab.active') }, 'petty-cash');
+        
+        // Initialize M-Pesa bank
+        ensureMpesaBank();
         
         // Initialize other components
         renderPettyCash();
@@ -3732,8 +4024,8 @@ if (repaymentForm) {
         updateBankCards();
         updateTransferHistory();
         updateQuickStats();
-        initializeLoanBankSelector();  // <-- ADD THIS
-        updateLoanCards();             // <-- ADD THIS
+        initializeLoanBankSelector();
+        updateLoanCards();
         
         // Initialize calculator tab
         const calcTabButton = document.querySelector('#calculator-tabs .calc-tab-button.active');
