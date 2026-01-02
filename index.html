@@ -1441,34 +1441,6 @@
     let firebaseInitialized = false;
     let user = null;
 
-    function initializeFirebase() {
-        try {
-            firebaseApp = firebase.initializeApp(firebaseConfig);
-            firestore = firebase.firestore();
-            auth = firebase.auth();
-            firebaseInitialized = true;
-            
-            // Set up auth state listener
-            auth.onAuthStateChanged(async (firebaseUser) => {
-                user = firebaseUser;
-                updateFirebaseUI();
-                
-                if (user) {
-                    showToast('Connected to Firebase successfully!', 'success');
-                    await loadFirebaseBanks();
-                    await loadReceiptPayments();
-                    await loadUserData(); // Load all user data from Firestore
-                    updateBankSelectors(); // Load banks into transfer selectors
-                }
-            });
-            
-            console.log("Firebase initialized successfully");
-        } catch (error) {
-            console.error("Firebase initialization error:", error);
-            showToast('Firebase initialization failed. Using local data only.', 'error');
-        }
-    }
-
     // Main Application Data
     const { jsPDF } = window.jspdf;
     let pettyCashTransactions = [];
@@ -1495,84 +1467,62 @@
     // Balance visibility state
     let balancesHidden = false;
 
-    // Initialize Firebase
-    initializeFirebase();
+    // Current repayment loan ID
+    let currentRepaymentLoanId = null;
 
-    // --- Initialize Loan Bank Selector ---
-    function initializeLoanBankSelector() {
-        const bankSelect = document.getElementById('loan-bank-account');
-        if (!bankSelect) return;
+    // --- Firebase Login Function ---
+    async function firebaseLogin() {
+        const email = document.getElementById('login-email').value;
+        const password = document.getElementById('login-password').value;
+        const statusElement = document.getElementById('firebase-status');
         
-        bankSelect.innerHTML = '<option value="" disabled selected>Select Bank Account</option>';
-        
-        if (banks.length === 0) {
-            const option = document.createElement('option');
-            option.value = "";
-            option.textContent = "No banks available - Add banks first";
-            option.disabled = true;
-            bankSelect.appendChild(option);
-        } else {
-            banks.forEach(bank => {
-                const option = document.createElement('option');
-                option.value = bank.id;
-                // Check if M-Pesa exists
-                if (bank.id === 'mpesa') {
-                    option.textContent = `${bank.name} (Petty Cash) - ${formatKSH(bank.balance)}`;
-                } else {
-                    option.textContent = `${bank.name} - ${formatKSH(bank.balance)}`;
-                }
-                bankSelect.appendChild(option);
-            });
+        if (!email || !password) {
+            showToast('Please enter both email and password', 'error');
+            return;
         }
         
-        // Add event listener to show balance
-        bankSelect.addEventListener('change', function() {
-            const bank = getBankById(this.value);
-            const balanceElement = document.getElementById('loan-bank-balance');
-            if (bank && balanceElement) {
-                balanceElement.innerHTML = 
-                    `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
+        showLoading('Connecting to Firebase...');
+        
+        try {
+            await auth.signInWithEmailAndPassword(email, password);
+            showToast('Login successful!', 'success');
+            toggleFirebaseLogin();
+            
+            // Update UI
+            updateFirebaseUI();
+            
+        } catch (error) {
+            showLoading(false);
+            console.error("Firebase login error:", error);
+            
+            let errorMessage = 'Login failed. ';
+            switch (error.code) {
+                case 'auth/invalid-email':
+                    errorMessage += 'Invalid email address.';
+                    break;
+                case 'auth/user-disabled':
+                    errorMessage += 'This account has been disabled.';
+                    break;
+                case 'auth/user-not-found':
+                    errorMessage += 'No account found with this email.';
+                    break;
+                case 'auth/wrong-password':
+                    errorMessage += 'Incorrect password.';
+                    break;
+                default:
+                    errorMessage += error.message;
             }
-        });
-    }
-
-    // --- Tab Switching Function ---
-    function openTab(evt, tabName) {
-        // Hide all tab contents
-        const tabContents = document.querySelectorAll('.tab-content');
-        tabContents.forEach(tab => {
-            tab.classList.remove('active');
-            tab.style.display = 'none';
-        });
-
-        // Remove active class from all tab buttons
-        const tabButtons = document.querySelectorAll('.custom-tab');
-        tabButtons.forEach(button => {
-            button.classList.remove('active');
-        });
-
-        // Show the selected tab
-        const selectedTab = document.getElementById(tabName);
-        if (selectedTab) {
-            selectedTab.style.display = 'block';
-            selectedTab.classList.add('active');
-        }
-
-        // Add active class to clicked button
-        if (evt && evt.currentTarget) {
-            evt.currentTarget.classList.add('active');
-        }
-        
-        // Update data when switching to bank management tab
-        if (tabName === 'bank-management') {
-            updateBankSelectors();
-            updateTransferBankSelectors();
-            updateBankCards();
-            updateTransferHistory();
+            
+            showToast(errorMessage, 'error');
+            
+            // Show status in the modal
+            if (statusElement) {
+                statusElement.classList.remove('hidden');
+                document.getElementById('firebase-status-text').textContent = errorMessage;
+            }
         }
     }
 
-    // --- Firebase Functions ---
     function toggleFirebaseLogin() {
         const modal = document.getElementById('login-modal');
         if (!modal) return;
@@ -1616,6 +1566,34 @@
             
             userInfo.classList.add('hidden');
             syncStatus.classList.add('hidden');
+        }
+    }
+
+    function initializeFirebase() {
+        try {
+            firebaseApp = firebase.initializeApp(firebaseConfig);
+            firestore = firebase.firestore();
+            auth = firebase.auth();
+            firebaseInitialized = true;
+            
+            // Set up auth state listener
+            auth.onAuthStateChanged(async (firebaseUser) => {
+                user = firebaseUser;
+                updateFirebaseUI();
+                
+                if (user) {
+                    showToast('Connected to Firebase successfully!', 'success');
+                    await loadFirebaseBanks();
+                    await loadReceiptPayments();
+                    await loadUserData(); // Load all user data from Firestore
+                    updateBankSelectors(); // Load banks into transfer selectors
+                }
+            });
+            
+            console.log("Firebase initialized successfully");
+        } catch (error) {
+            console.error("Firebase initialization error:", error);
+            showToast('Firebase initialization failed. Using local data only.', 'error');
         }
     }
 
@@ -1690,6 +1668,80 @@
             console.error("Error loading user data:", error);
             // Initialize with default M-Pesa bank
             ensureMpesaBank();
+        }
+    }
+
+    // --- Initialize Loan Bank Selector ---
+    function initializeLoanBankSelector() {
+        const bankSelect = document.getElementById('loan-bank-account');
+        if (!bankSelect) return;
+        
+        bankSelect.innerHTML = '<option value="" disabled selected>Select Bank Account</option>';
+        
+        if (banks.length === 0) {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "No banks available - Add banks first";
+            option.disabled = true;
+            bankSelect.appendChild(option);
+        } else {
+            banks.forEach(bank => {
+                const option = document.createElement('option');
+                option.value = bank.id;
+                // Check if M-Pesa exists
+                if (bank.id === 'mpesa') {
+                    option.textContent = `${bank.name} (Petty Cash) - ${formatKSH(bank.balance)}`;
+                } else {
+                    option.textContent = `${bank.name} - ${formatKSH(bank.balance)}`;
+                }
+                bankSelect.appendChild(option);
+            });
+        }
+        
+        // Add event listener to show balance
+        bankSelect.addEventListener('change', function() {
+            const bank = getBankById(this.value);
+            const balanceElement = document.getElementById('loan-bank-balance');
+            if (bank && balanceElement) {
+                balanceElement.innerHTML = 
+                    `<span class="font-semibold">Current Balance:</span> ${formatKSH(bank.balance)}`;
+            }
+        });
+    }
+
+    // --- Tab Switching Function ---
+    function openTab(evt, tabName) {
+        // Hide all tab contents
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(tab => {
+            tab.classList.remove('active');
+            tab.style.display = 'none';
+        });
+
+        // Remove active class from all tab buttons
+        const tabButtons = document.querySelectorAll('.custom-tab');
+        tabButtons.forEach(button => {
+            button.classList.remove('active');
+        });
+
+        // Show the selected tab
+        const selectedTab = document.getElementById(tabName);
+        if (selectedTab) {
+            selectedTab.style.display = 'block';
+            selectedTab.classList.add('active');
+        }
+
+        // Add active class to clicked button
+        if (evt && evt.currentTarget) {
+            evt.currentTarget.classList.add('active');
+        }
+        
+        // Update data when switching to bank management tab
+        if (tabName === 'bank-management') {
+            updateBankSelectors();
+            updateTransferBankSelectors();
+            updateBankCards();
+            updateTransferHistory();
         }
     }
 
@@ -1772,6 +1824,7 @@
             if (elementId === 'current-balance') {
                 const { currentBalance } = calculatePettyCashBalance();
                 element.textContent = formatKSH(currentBalance);
+                element.style.color = currentBalance < 0 ? '#dc3545' : 'var(--primary-color)';
             } else if (elementId === 'day-expense') {
                 const { totalExpense } = calculatePettyCashBalance();
                 element.textContent = formatKSH(totalExpense);
@@ -2584,8 +2637,6 @@
             container.appendChild(card);
         });
     }
-
-    let currentRepaymentLoanId = null;
 
     function openLoanRepaymentModal(loanId) {
         currentRepaymentLoanId = loanId;
@@ -4005,6 +4056,9 @@
         if (localStorage.getItem('darkMode') === 'true') {
             toggleDarkMode();
         }
+        
+        // Initialize Firebase
+        initializeFirebase();
         
         // Initialize the default tab (Petty Cash)
         openTab({ currentTarget: document.querySelector('.custom-tab.active') }, 'petty-cash');
