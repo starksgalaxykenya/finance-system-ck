@@ -1653,55 +1653,90 @@
     }
 
     async function loadUserData() {
-        if (!user) return;
-        
-        try {
-            const doc = await firestore.collection('userData').doc(user.uid).get();
-            if (doc.exists) {
-                const userData = doc.data();
-                
-                pettyCashTransactions = userData.pettyCashTransactions || [];
-                majorTransactions = userData.majorTransactions || [];
-                banks = userData.banks || [];
-                loans = userData.loans || [];
-                bankTransfers = userData.bankTransfers || [];
-                loanRepayments = userData.loanRepayments || [];
-                currentMonthSpend = userData.currentMonthSpend || {
-                    month: new Date().getMonth(),
-                    year: new Date().getFullYear(),
-                    totalExpense: 0
-                };
-                
-                // Ensure M-Pesa bank exists
-                ensureMpesaBank();
-                
-                // Update all UI components
-                renderPettyCash();
-                updatePettyCashBalanceDisplay();
-                updatePettyCashChart();
-                updatePettyExpenditureChart();
-                updateBankSelectors();
-                updateTransferBankSelectors();
-                updateMajorSummary();
-                updateFinancialDashboard();
-                updateBankCards();
-                updateTransferHistory();
-                updateQuickStats();
-                initializeLoanBankSelector();
-                updateLoanCards();
-                
-                showToast('User data loaded from Firestore', 'success');
-            } else {
-                // Initialize with default M-Pesa bank
-                ensureMpesaBank();
-                showToast('Welcome! Starting with new data', 'info');
-            }
-        } catch (error) {
-            console.error("Error loading user data:", error);
+    if (!user) return;
+    
+    try {
+        const doc = await firestore.collection('userData').doc(user.uid).get();
+        if (doc.exists) {
+            const userData = doc.data();
+            
+            // Load data
+            pettyCashTransactions = userData.pettyCashTransactions || [];
+            majorTransactions = userData.majorTransactions || [];
+            banks = userData.banks || [];
+            loans = userData.loans || [];
+            bankTransfers = userData.bankTransfers || [];
+            loanRepayments = userData.loanRepayments || [];
+            currentMonthSpend = userData.currentMonthSpend || {
+                month: new Date().getMonth(),
+                year: new Date().getFullYear(),
+                totalExpense: 0
+            };
+            
+            // Recalculate balances to ensure integrity
+            await recalculateBalances();
+            
+            // Ensure M-Pesa bank exists
+            ensureMpesaBank();
+            
+            // Update all UI components
+            renderPettyCash();
+            updatePettyCashBalanceDisplay();
+            updatePettyCashChart();
+            updatePettyExpenditureChart();
+            updateBankSelectors();
+            updateTransferBankSelectors();
+            updateMajorSummary();
+            updateFinancialDashboard();
+            updateBankCards();
+            updateTransferHistory();
+            updateQuickStats();
+            initializeLoanBankSelector();
+            updateLoanCards();
+            
+            showToast('User data loaded from Firestore', 'success');
+        } else {
             // Initialize with default M-Pesa bank
             ensureMpesaBank();
+            showToast('Welcome! Starting with new data', 'info');
+        }
+    } catch (error) {
+        console.error("Error loading user data:", error);
+        // Initialize with default M-Pesa bank
+        ensureMpesaBank();
+    }
+}
+
+// Add function to recalculate balances
+async function recalculateBalances() {
+    // Reset all bank balances to 0
+    banks.forEach(bank => {
+        bank.balance = 0;
+    });
+    
+    // Recalculate from transactions
+    for (const transaction of majorTransactions) {
+        const bank = banks.find(b => b.id === transaction.bankId);
+        if (bank) {
+            if (transaction.category === 'Sales' || 
+                transaction.isFromReceipt || 
+                transaction.isLoanDisbursement) {
+                // Income transactions
+                bank.balance += transaction.amount;
+            } else {
+                // Expense transactions
+                bank.balance -= transaction.amount;
+            }
         }
     }
+    
+    // Recalculate petty cash
+    const { currentBalance } = calculatePettyCashBalance();
+    const mpesaBank = banks.find(b => b.id === 'mpesa');
+    if (mpesaBank) {
+        mpesaBank.balance = currentBalance;
+    }
+}
 
   // --- Initialize Loan Bank Selector ---
 async function initializeLoanBankSelector() {
@@ -1843,8 +1878,20 @@ async function startPaymentScanner() {
 }
 
 // Process a new payment from Firestore
+// Update the processNewPayment function
 async function processNewPayment(payment) {
     try {
+        // Check if this payment has already been processed
+        const existingTransaction = majorTransactions.find(t => 
+            t.receiptId === payment.id || 
+            (t.isFromReceipt && t.description.includes(payment.receiptNumber || payment.id))
+        );
+        
+        if (existingTransaction) {
+            console.log('Payment already processed, skipping:', payment.id);
+            return;
+        }
+        
         const paymentMethod = payment.paymentMethod || payment.paymentMethod || 'Unknown';
         let amount = 0;
         let currency = 'KSH';
@@ -1866,14 +1913,19 @@ async function processNewPayment(payment) {
             return;
         }
         
-        // Find the appropriate bank based on payment method
-        const targetBank = findBankByPaymentMethod(paymentMethod, currency);
+        // Find the appropriate bank based on payment method (ONLY from existing banks)
+        const targetBank = await findBankByPaymentMethod(paymentMethod, currency);
         
         if (targetBank) {
-            // Convert USD to KSH if needed (assuming 1 USD = 150 KSH)
+            // Convert USD to KSH if needed with proper exchange rate
             let amountInBankCurrency = amount;
-            if (currency === 'USD' && !targetBank.currency || targetBank.currency === 'KSH') {
-                amountInBankCurrency = amount * 150; // Simple conversion
+            if (currency === 'USD' && targetBank.currency === 'KSH') {
+                // Use actual exchange rate (fetch from API or use stored rate)
+                const exchangeRate = await getExchangeRate('USD', 'KSH');
+                amountInBankCurrency = amount * exchangeRate;
+            } else if (currency === 'KSH' && targetBank.currency === 'USD') {
+                const exchangeRate = await getExchangeRate('KSH', 'USD');
+                amountInBankCurrency = amount * exchangeRate;
             }
             
             // Update bank balance
@@ -1881,18 +1933,24 @@ async function processNewPayment(payment) {
             targetBank.lastUpdated = new Date().toISOString();
             
             // Add to major transactions
-            majorTransactions.push({
+            const newTransaction = {
+                id: 't' + Date.now(),
                 description: `Payment received: ${payment.receiptNumber || 'Receipt'} - ${paymentMethod}`,
                 amount: amountInBankCurrency,
                 category: 'Sales',
-                date: new Date().toLocaleDateString('en-KE'),
+                date: new Date().toISOString(),
+                formattedDate: new Date().toLocaleDateString('en-KE'),
                 bankId: targetBank.id,
+                bankName: targetBank.name,
                 isFromReceipt: true,
                 receiptId: payment.id,
                 originalCurrency: currency,
                 originalAmount: amount,
-                convertedAmount: amountInBankCurrency
-            });
+                convertedAmount: amountInBankCurrency,
+                exchangeRateUsed: currency !== targetBank.currency ? await getExchangeRate(currency, targetBank.currency) : 1
+            };
+            
+            majorTransactions.push(newTransaction);
             
             // Update UI
             updateFinancialDashboard();
@@ -1907,8 +1965,25 @@ async function processNewPayment(payment) {
             console.log(`Payment processed: ${amount} ${currency} added to ${targetBank.name}`);
         } else {
             console.log('No matching bank found for payment method:', paymentMethod);
-            // Create a notification for unmatched payment methods
-            showToast(`Payment received but no bank found for ${paymentMethod}`, 'warning');
+            // Don't create ghost banks - just log the payment separately
+            majorTransactions.push({
+                id: 't' + Date.now(),
+                description: `Unmatched payment: ${payment.receiptNumber || 'Receipt'} - ${paymentMethod}`,
+                amount: amount,
+                category: 'Sales',
+                date: new Date().toISOString(),
+                formattedDate: new Date().toLocaleDateString('en-KE'),
+                bankId: 'unmatched',
+                bankName: 'Unmatched Bank',
+                isFromReceipt: true,
+                receiptId: payment.id,
+                originalCurrency: currency,
+                originalAmount: amount,
+                convertedAmount: amount,
+                isUnmatched: true
+            });
+            
+            showToast(`Payment received but no matching bank found for ${paymentMethod}`, 'warning');
         }
         
     } catch (error) {
@@ -1916,17 +1991,37 @@ async function processNewPayment(payment) {
         showToast('Error processing payment', 'error');
     }
 }
-
 // Find bank by payment method and currency
-function findBankByPaymentMethod(paymentMethod, currency) {
+// Find bank by payment method (ONLY from existing banks, no ghost banks)
+async function findBankByPaymentMethod(paymentMethod, currency) {
     const method = paymentMethod.toLowerCase();
     
-    // Check for M-Pesa/Mobile Money
+    // First, check for M-Pesa/Mobile Money
     if (method.includes('mpesa') || method.includes('mobile') || method.includes('pesa')) {
-        return banks.find(b => b.id === 'mpesa');
+        const mpesaBank = banks.find(b => b.id === 'mpesa');
+        if (mpesaBank) {
+            return mpesaBank;
+        }
     }
     
-    // Check for specific banks by name
+    // Try to find bank by exact name match
+    for (const bank of banks) {
+        // Skip M-Pesa (already handled above)
+        if (bank.id === 'mpesa') continue;
+        
+        // Check if bank name is contained in payment method or vice versa
+        const bankNameLower = bank.name.toLowerCase();
+        if (method.includes(bankNameLower) || bankNameLower.includes(method)) {
+            // Check currency compatibility
+            if (!bank.currency || bank.currency === currency || 
+                (bank.currency === 'KSH' && currency === 'USD') || 
+                (bank.currency === 'USD' && currency === 'KSH')) {
+                return bank;
+            }
+        }
+    }
+    
+    // Try partial name matching
     const bankKeywords = [
         { keywords: ['equity', 'equity bank'], currency: 'KSH' },
         { keywords: ['kcb', 'kenya commercial'], currency: 'KSH' },
@@ -1946,62 +2041,58 @@ function findBankByPaymentMethod(paymentMethod, currency) {
     for (const bankInfo of bankKeywords) {
         for (const keyword of bankInfo.keywords) {
             if (method.includes(keyword)) {
-                // First try to find a bank with matching name and currency
-                let bank = banks.find(b => 
-                    b.name.toLowerCase().includes(keyword) && 
-                    (!b.currency || b.currency === bankInfo.currency)
-                );
+                // Find existing bank with matching currency
+                const matchingBank = banks.find(b => {
+                    if (b.id === 'mpesa') return false;
+                    const bankNameLower = b.name.toLowerCase();
+                    return (bankNameLower.includes(keyword) || 
+                            bankNameLower.includes(bankInfo.keywords[0])) &&
+                           (!b.currency || b.currency === bankInfo.currency);
+                });
                 
-                // If not found, try any bank with matching name
-                if (!bank) {
-                    bank = banks.find(b => b.name.toLowerCase().includes(keyword));
+                if (matchingBank) {
+                    return matchingBank;
                 }
-                
-                // If still not found and we have currency match, create a new bank entry
-                if (!bank && bankInfo.currency === currency) {
-                    bank = createBankFromPaymentMethod(paymentMethod, currency);
-                }
-                
-                return bank;
             }
         }
     }
     
-    // Check if any bank name contains the payment method
-    for (const bank of banks) {
-        if (method.includes(bank.name.toLowerCase()) || 
-            bank.name.toLowerCase().includes(method)) {
-            return bank;
+    // No matching bank found - DO NOT create ghost banks
+    return null;
+}
+// Exchange rate function (with fallback)
+async function getExchangeRate(fromCurrency, toCurrency) {
+    // Try to get live rate from an API
+    try {
+        const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${fromCurrency}`);
+        if (response.ok) {
+            const data = await response.json();
+            return data.rates[toCurrency] || getDefaultExchangeRate(fromCurrency, toCurrency);
         }
+    } catch (error) {
+        console.log('Using default exchange rate:', error);
     }
     
-    // If no bank found, check if we should create a new one
-    return createBankFromPaymentMethod(paymentMethod, currency);
+    // Fallback to default rates
+    return getDefaultExchangeRate(fromCurrency, toCurrency);
 }
 
-// Create a new bank entry from payment method
-function createBankFromPaymentMethod(paymentMethod, currency) {
-    // Only create new banks for significant payment methods
-    if (paymentMethod.toLowerCase().includes('cash') || 
-        paymentMethod.toLowerCase().includes('unknown')) {
-        return null;
-    }
-    
-    const newBank = {
-        id: 'b' + Date.now(),
-        name: paymentMethod.charAt(0).toUpperCase() + paymentMethod.slice(1),
-        accountNumber: 'Auto-generated',
-        balance: 0,
-        currency: currency,
-        isAutoGenerated: true,
-        lastUpdated: new Date().toISOString()
+function getDefaultExchangeRate(fromCurrency, toCurrency) {
+    // Default rates (update these as needed)
+    const rates = {
+        'USD_KSH': 150, // 1 USD = 150 KSH
+        'KSH_USD': 1/150 // 1 KSH = 0.00667 USD
     };
     
-    banks.push(newBank);
-    showToast(`New bank "${newBank.name}" created for ${currency} payments`, 'info');
+    if (fromCurrency === 'USD' && toCurrency === 'KSH') {
+        return rates.USD_KSH;
+    } else if (fromCurrency === 'KSH' && toCurrency === 'USD') {
+        return rates.KSH_USD;
+    }
     
-    return newBank;
+    return 1; // Same currency
 }
+
 
     // --- Tab Switching Function ---
     function openTab(evt, tabName) {
@@ -2137,98 +2228,100 @@ function createBankFromPaymentMethod(paymentMethod, currency) {
         }
     }
 
-    async function loadFirebaseBanks() {
-        if (!user) return;
+ async function loadFirebaseBanks() {
+    if (!user) return;
+    
+    showLoading('Loading bank data from Firebase...');
+    
+    try {
+        const banksSnapshot = await firestore.collection('bankDetails').get();
+        const banksListDiv = document.getElementById('firebase-banks-list');
+        banksListDiv.innerHTML = '';
         
-        showLoading('Loading bank data from Firebase...');
-        
-        try {
-            const banksSnapshot = await firestore.collection('bankDetails').get();
-            const banksListDiv = document.getElementById('firebase-banks-list');
-            banksListDiv.innerHTML = '';
-            
-            if (banksSnapshot.empty) {
-                banksListDiv.innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <i class="fas fa-university text-3xl mb-3"></i>
-                        <p>No banks found in Firebase</p>
-                        <p class="text-sm mt-2">Add banks in your other system first</p>
-                    </div>
-                `;
-                showLoading(false);
-                return;
-            }
-            
-            let hasAvailableBanks = false;
-            banksSnapshot.forEach(doc => {
-                const bankData = doc.data();
-                const bankId = doc.id;
-                
-                // Check if bank already exists locally
-                const existingBank = banks.find(b => b.firebaseId === bankId);
-                
-                // Only show banks not already added locally
-                if (!existingBank) {
-                    hasAvailableBanks = true;
-                    
-                    // Extract bank name from Firebase data
-                    const bankName = bankData.bankName || 
-                                   bankData.name || 
-                                   bankData.bank || 
-                                   bankData.bank_name || 
-                                   bankData.bankName || 
-                                   'Bank Account';
-                    
-                    // Extract account number
-                    const accountNumber = bankData.accountNumber || 
-                                        bankData.account || 
-                                        bankData.account_number || 
-                                        bankData.accountNumber || 
-                                        'N/A';
-                    
-                    // Extract branch
-                    const branch = bankData.branch || 
-                                 bankData.branchName || 
-                                 bankData.branch_name || 
-                                 bankData.branchName || 
-                                 '';
-                    
-                    const bankOption = document.createElement('div');
-                    bankOption.className = `p-4 border rounded-lg cursor-pointer transition-all hover:bg-gray-50 bg-white border-gray-200`;
-                    bankOption.onclick = () => selectFirebaseBank(bankId, bankData);
-                    bankOption.innerHTML = `
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h4 class="font-semibold text-gray-800">${bankName}</h4>
-                                <p class="text-sm text-gray-600">Account: ${accountNumber}</p>
-                                ${branch ? `<p class="text-xs text-gray-500 mt-1">${branch}</p>` : ''}
-                                <p class="text-xs text-gray-500 mt-1">Click to add</p>
-                            </div>
-                            <i class="fas fa-chevron-right text-gray-400"></i>
-                        </div>
-                    `;
-                    
-                    banksListDiv.appendChild(bankOption);
-                }
-            });
-            
-            if (!hasAvailableBanks) {
-                banksListDiv.innerHTML = `
-                    <div class="text-center py-8 text-gray-500">
-                        <i class="fas fa-check-circle text-3xl mb-3 text-green-500"></i>
-                        <p>All Firebase banks have been added</p>
-                        <p class="text-sm mt-2">Add more banks in your other system</p>
-                    </div>
-                `;
-            }
-            
+        if (banksSnapshot.empty) {
+            banksListDiv.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-university text-3xl mb-3"></i>
+                    <p>No banks found in Firebase</p>
+                    <p class="text-sm mt-2">Add banks in your other system first</p>
+                </div>
+            `;
             showLoading(false);
-        } catch (error) {
-            console.error("Error loading banks:", error);
-            showLoading(false);
-            showToast('Error loading banks from Firebase', 'error');
+            return;
         }
+        
+        let hasAvailableBanks = false;
+        banksSnapshot.forEach(doc => {
+            const bankData = doc.data();
+            const bankId = doc.id;
+            
+            // Skip any documents that aren't actual banks (like transfers)
+            if (bankData.isTransfer || bankData.transferId || 
+                bankData.type === 'transfer' || bankData.category === 'transfer') {
+                return; // Skip this document
+            }
+            
+            // Check if bank already exists locally
+            const existingBank = banks.find(b => b.firebaseId === bankId);
+            
+            // Only show banks not already added locally
+            if (!existingBank) {
+                hasAvailableBanks = true;
+                
+                // Extract bank name from Firebase data
+                const bankName = bankData.bankName || 
+                               bankData.name || 
+                               bankData.bank || 
+                               'Bank Account';
+                
+                // Extract account number
+                const accountNumber = bankData.accountNumber || 
+                                    bankData.account || 
+                                    'N/A';
+                
+                // Extract branch
+                const branch = bankData.branch || '';
+                
+                // Extract currency
+                const currency = bankData.currency || 'KSH';
+                
+                const bankOption = document.createElement('div');
+                bankOption.className = `p-4 border rounded-lg cursor-pointer transition-all hover:bg-gray-50 bg-white border-gray-200`;
+                bankOption.onclick = () => selectFirebaseBank(bankId, bankData);
+                bankOption.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <h4 class="font-semibold text-gray-800">${bankName}</h4>
+                            <p class="text-sm text-gray-600">Account: ${accountNumber}</p>
+                            <p class="text-xs text-gray-500 mt-1">Currency: ${currency}</p>
+                            ${branch ? `<p class="text-xs text-gray-500 mt-1">${branch}</p>` : ''}
+                            <p class="text-xs text-green-600 mt-1 font-medium">Click to add</p>
+                        </div>
+                        <i class="fas fa-chevron-right text-gray-400"></i>
+                    </div>
+                `;
+                
+                banksListDiv.appendChild(bankOption);
+            }
+        });
+        
+        if (!hasAvailableBanks) {
+            banksListDiv.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-check-circle text-3xl mb-3 text-green-500"></i>
+                    <p>All Firebase banks have been added</p>
+                    <p class="text-sm mt-2">Add more banks in your other system</p>
+                </div>
+            `;
+        }
+        
+        showLoading(false);
+    } catch (error) {
+        console.error("Error loading banks:", error);
+        showLoading(false);
+        showToast('Error loading banks from Firebase', 'error');
     }
+}
 
    // Modify the existing loadReceiptPayments function to use the new processing
 async function loadReceiptPayments() {
@@ -2455,41 +2548,52 @@ async function loadReceiptPayments() {
         }
     }
 
-    function submitNewBank() {
-        const termsAccepted = document.getElementById('confirm-terms').checked;
-        if (!termsAccepted) {
-            showToast('Please confirm the terms', 'error');
-            return;
-        }
-        
-        const balance = parseFloat(document.getElementById('bank-initial-balance').value);
-        
-        const newBank = {
-            id: 'b' + Date.now(),
-            name: selectedFirebaseBank.name,
-            accountNumber: selectedFirebaseBank.accountNumber,
-            branch: selectedFirebaseBank.branch,
-            balance: balance,
-            firebaseId: selectedFirebaseBank.id,
-            firebaseData: selectedFirebaseBank.data,
-            lastUpdated: new Date().toISOString()
-        };
-        
-        banks.push(newBank);
-        updateBankSelectors();
-        updateTransferBankSelectors();
-        updateFinancialDashboard();
-        updateBankCards();
-        
-        showToast(`Bank ${newBank.name} added successfully!`, 'success');
-        closeAddBankModal();
-        
-        // Update quick stats
-        updateQuickStats();
-        
-        // Save to Firestore
-        if (user) saveUserData();
+  function submitNewBank() {
+    const termsAccepted = document.getElementById('confirm-terms').checked;
+    if (!termsAccepted) {
+        showToast('Please confirm the terms', 'error');
+        return;
     }
+    
+    const balance = parseFloat(document.getElementById('bank-initial-balance').value);
+    
+    const newBank = {
+        id: 'fb_' + selectedFirebaseBank.id,
+        name: selectedFirebaseBank.name,
+        accountNumber: selectedFirebaseBank.accountNumber,
+        branch: selectedFirebaseBank.branch,
+        currency: selectedFirebaseBank.data.currency || 'KSH',
+        balance: balance,
+        firebaseId: selectedFirebaseBank.id,
+        firebaseData: selectedFirebaseBank.data,
+        lastUpdated: new Date().toISOString(),
+        isSynced: true
+    };
+    
+    // Check if bank already exists
+    const existingBankIndex = banks.findIndex(b => b.firebaseId === newBank.firebaseId);
+    if (existingBankIndex >= 0) {
+        // Update existing bank
+        banks[existingBankIndex] = { ...banks[existingBankIndex], ...newBank };
+        showToast(`Bank ${newBank.name} updated successfully!`, 'success');
+    } else {
+        // Add new bank
+        banks.push(newBank);
+        showToast(`Bank ${newBank.name} added successfully!`, 'success');
+    }
+    
+    updateBankSelectors();
+    updateTransferBankSelectors();
+    updateFinancialDashboard();
+    updateBankCards();
+    closeAddBankModal();
+    
+    // Update quick stats
+    updateQuickStats();
+    
+    // Save to Firestore
+    if (user) saveUserData();
+}
 
     // --- Inter-Bank Transfer Functions ---
     function updateTransferBankSelectors() {
@@ -2589,6 +2693,19 @@ function executeBankTransfer() {
     
     const fromBank = getBankById(fromBankId);
     const toBank = getBankById(toBankId);
+
+      // Check if currencies match, convert if necessary
+    if (fromBank.currency !== toBank.currency) {
+        const confirmConvert = confirm(
+            `Currency mismatch!\nFrom: ${fromBank.currency}\nTo: ${toBank.currency}\n` +
+            `Amount ${formatCurrency(amount, fromBank.currency)} will be converted.\n\n` +
+            `Continue with conversion?`
+        );
+        
+        if (!confirmConvert) {
+            return;
+        }
+    }
     
     // Calculate total debit based on fee bearer
     let fromBankDebit = amount;
@@ -2770,6 +2887,13 @@ function executeBankTransfer() {
     // --- Bank Cards Display ---
 // Add currency display to bank cards
 function updateBankCards() {
+     // Filter out any banks that might be transfers
+    const actualBanks = banks.filter(bank => 
+        !bank.isTransfer && 
+        !bank.transferId && 
+        bank.id !== 'transfer' &&
+        !bank.name.toLowerCase().includes('transfer')
+    );
     const container = document.getElementById('bank-details-cards');
     const loading = document.getElementById('bank-cards-loading');
     const noBanks = document.getElementById('no-banks-message');
@@ -2803,6 +2927,7 @@ function updateBankCards() {
         const balanceIcon = bank.balance < 0 ? 'fa-arrow-down' : 'fa-arrow-up';
         const displayBalance = balancesHidden ? '*****' : formatKSH(bank.balance);
         const currency = bank.currency || 'KSH';
+        const currencySymbol = currency === 'USD' ? '$' : 'KSH';
         
         card.innerHTML = `
             <div class="p-6">
@@ -2832,7 +2957,7 @@ function updateBankCards() {
                     <div class="text-2xl font-bold ${balanceColor} flex items-center ${balancesHidden ? 'hidden-balance' : ''}">
                         <i class="fas ${balanceIcon} mr-2"></i>
                         ${displayBalance}
-                        ${currency === 'USD' ? '<span class="text-sm ml-2">($USD)</span>' : ''}
+                        <span class="text-sm ml-2">${currency === 'USD' ? '($USD)' : '(KSH)'}</span>
                     </div>
                 </div>
                 
@@ -3228,9 +3353,20 @@ function updateBankCards() {
         return banks.find(b => b.id === id);
     }
 
-    function formatKSH(amount) {
+   function formatKSH(amount) {
+    // This function now handles different currencies
+    const currency = 'KSH'; // Default to KSH for backward compatibility
+    return `${currency} ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+// Add a new function for proper currency formatting
+function formatCurrency(amount, currency = 'KSH') {
+    if (currency === 'USD') {
+        return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    } else {
         return `KSH ${amount.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     }
+}
 
     function showLoading(message = 'Loading...') {
         const overlay = document.getElementById('loading-overlay');
