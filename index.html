@@ -1635,29 +1635,38 @@
     }
 
     // --- Firestore Persistent Storage Functions ---
-    async function saveUserData() {
-        if (!user) return;
+   async function saveUserData() {
+    if (!user) return;
+    
+    try {
+        // Get current processed payments from the payment scanner
+        const processedPaymentIds = new Set();
         
-        try {
-            const userData = {
-                pettyCashTransactions: pettyCashTransactions,
-                majorTransactions: majorTransactions,
-                banks: banks,
-                loans: loans,
-                bankTransfers: bankTransfers,
-                loanRepayments: loanRepayments,
-                currentMonthSpend: currentMonthSpend,
-                lastUpdated: new Date().toISOString()
-            };
-            
-            await firestore.collection('userData').doc(user.uid).set(userData);
-            console.log("User data saved to Firestore");
-        } catch (error) {
-            console.error("Error saving user data:", error);
-        }
+        // Collect all receipt IDs from majorTransactions
+        majorTransactions
+            .filter(t => t.isFromReceipt && t.receiptId)
+            .forEach(t => processedPaymentIds.add(t.receiptId));
+        
+        const userData = {
+            pettyCashTransactions: pettyCashTransactions,
+            majorTransactions: majorTransactions,
+            banks: banks,
+            loans: loans,
+            bankTransfers: bankTransfers,
+            loanRepayments: loanRepayments,
+            currentMonthSpend: currentMonthSpend,
+            processedReceiptPayments: Array.from(processedPaymentIds), // Save processed payments
+            lastUpdated: new Date().toISOString()
+        };
+        
+        await firestore.collection('userData').doc(user.uid).set(userData, { merge: true });
+        console.log("User data saved to Firestore");
+    } catch (error) {
+        console.error("Error saving user data:", error);
     }
+}
 
-    async function loadUserData() {
+   async function loadUserData() {
     if (!user) return;
     
     try {
@@ -1677,6 +1686,8 @@
                 year: new Date().getFullYear(),
                 totalExpense: 0
             };
+            
+            // Note: processedReceiptPayments is loaded separately in startPaymentScanner
             
             // Recalculate balances to ensure integrity
             await recalculateBalances();
@@ -1711,15 +1722,21 @@
         ensureMpesaBank();
     }
 }
-
 // Add function to recalculate balances
 async function recalculateBalances() {
+    console.log('Recalculating all balances...');
+    
     // Reset all bank balances to 0
     banks.forEach(bank => {
+        const originalBalance = bank.balance;
         bank.balance = 0;
+        console.log(`Reset ${bank.name} balance from ${formatCurrency(originalBalance, bank.currency)} to 0`);
     });
     
-    // Recalculate from transactions
+    // Recalculate from ALL major transactions including receipts
+    let receiptTransactions = 0;
+    let otherTransactions = 0;
+    
     for (const transaction of majorTransactions) {
         const bank = banks.find(b => b.id === transaction.bankId);
         if (bank) {
@@ -1728,19 +1745,29 @@ async function recalculateBalances() {
                 transaction.isLoanDisbursement) {
                 // Income transactions
                 bank.balance += transaction.amount;
+                if (transaction.isFromReceipt) receiptTransactions++;
             } else {
                 // Expense transactions
                 bank.balance -= transaction.amount;
+                otherTransactions++;
             }
         }
     }
+    
+    console.log(`Recalculated balances: ${receiptTransactions} receipt transactions, ${otherTransactions} other transactions`);
     
     // Recalculate petty cash
     const { currentBalance } = calculatePettyCashBalance();
     const mpesaBank = banks.find(b => b.id === 'mpesa');
     if (mpesaBank) {
+        console.log(`M-Pesa balance set to petty cash balance: ${formatCurrency(currentBalance, mpesaBank.currency)}`);
         mpesaBank.balance = currentBalance;
     }
+    
+    // Log final balances
+    banks.forEach(bank => {
+        console.log(`${bank.name} final balance: ${formatCurrency(bank.balance, bank.currency)}`);
+    });
 }
 
   // --- Initialize Loan Bank Selector ---
@@ -1868,52 +1895,117 @@ async function startPaymentScanner() {
     // Track already processed payment IDs in memory
     let processedPaymentIds = new Set();
     
-    // Load already processed payments from Firestore or localStorage
+    // Load already processed payments from Firestore user data
     try {
-        const processedPaymentsData = localStorage.getItem('processedReceiptPayments');
-        if (processedPaymentsData) {
-            const parsedData = JSON.parse(processedPaymentsData);
-            if (Array.isArray(parsedData)) {
-                parsedData.forEach(id => processedPaymentIds.add(id));
+        if (user) {
+            const userDataDoc = await firestore.collection('userData').doc(user.uid).get();
+            if (userDataDoc.exists) {
+                const userData = userDataDoc.data();
+                const processedPayments = userData.processedReceiptPayments || [];
+                processedPayments.forEach(id => processedPaymentIds.add(id));
+                console.log('Loaded processed payments from Firestore:', processedPayments.length);
             }
         }
     } catch (error) {
-        console.error("Error loading processed payments:", error);
+        console.error("Error loading processed payments from Firestore:", error);
     }
     
-    // Set up a real-time listener for receipt_payments collection
+    // Function to process a single payment
+    async function processPaymentIfNew(payment) {
+        // Check if this payment has already been processed
+        if (processedPaymentIds.has(payment.id)) {
+            console.log('Payment already processed, skipping:', payment.id);
+            return false;
+        }
+        
+        await processNewPayment(payment);
+        
+        // Mark as processed
+        processedPaymentIds.add(payment.id);
+        return true;
+    }
+    
+    // Process ALL existing payments in the collection first
+    try {
+        showLoading('Scanning all receipt payments...');
+        
+        const paymentsCollection = firestore.collection('receipt_payments');
+        const allPaymentsSnapshot = await paymentsCollection.get();
+        
+        console.log(`Found ${allPaymentsSnapshot.size} payments in receipt_payments collection`);
+        
+        let processedCount = 0;
+        const paymentsToProcess = [];
+        
+        // First, collect all payments
+        allPaymentsSnapshot.forEach(doc => {
+            const payment = { id: doc.id, ...doc.data() };
+            paymentsToProcess.push(payment);
+        });
+        
+        // Process payments in batches to avoid overwhelming the system
+        for (const payment of paymentsToProcess) {
+            const wasProcessed = await processPaymentIfNew(payment);
+            if (wasProcessed) processedCount++;
+            
+            // Small delay to prevent overwhelming the system
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+        console.log(`Processed ${processedCount} new payments out of ${paymentsToProcess.length} total`);
+        
+        if (processedCount > 0) {
+            showToast(`Processed ${processedCount} receipt payments`, 'success');
+        }
+        
+        showLoading(false);
+        
+    } catch (error) {
+        console.error("Error processing existing payments:", error);
+        showLoading(false);
+        showToast('Error processing existing payments', 'error');
+    }
+    
+    // Now set up real-time listener for NEW payments only
     const paymentsCollection = firestore.collection('receipt_payments');
     
-    // Listen for new documents added to receipt_payments
+    // Listen for new documents added to receipt_payments (real-time updates)
     paymentsCollection.onSnapshot((snapshot) => {
         snapshot.docChanges().forEach(async (change) => {
             if (change.type === 'added') {
                 const payment = { id: change.doc.id, ...change.doc.data() };
                 
-                // Check if this payment has already been processed
-                if (processedPaymentIds.has(payment.id)) {
-                    console.log('Payment already processed, skipping:', payment.id);
-                    return;
-                }
-                
-                await processNewPayment(payment);
-                
-                // Mark as processed
-                processedPaymentIds.add(payment.id);
-                
-                // Save processed payments to localStorage
-                try {
-                    localStorage.setItem('processedReceiptPayments', 
-                        JSON.stringify(Array.from(processedPaymentIds)));
-                } catch (error) {
-                    console.error("Error saving processed payments:", error);
+                // Check if this is a brand new payment (not from initial load)
+                if (!processedPaymentIds.has(payment.id)) {
+                    console.log('New real-time payment detected:', payment.id);
+                    await processPaymentIfNew(payment);
                 }
             }
         });
     }, (error) => {
-        console.error("Payment scanner error:", error);
-        showToast('Payment scanner error', 'error');
+        console.error("Payment scanner real-time listener error:", error);
+        showToast('Payment scanner real-time listener error', 'error');
     });
+    
+    // Save processed payments to Firestore periodically
+    async function saveProcessedPayments() {
+        if (!user) return;
+        
+        try {
+            const processedArray = Array.from(processedPaymentIds);
+            await firestore.collection('userData').doc(user.uid).update({
+                processedReceiptPayments: processedArray,
+                lastPaymentScan: new Date().toISOString()
+            });
+            console.log('Saved processed payments to Firestore:', processedArray.length);
+        } catch (error) {
+            console.error("Error saving processed payments:", error);
+        }
+    }
+    
+    // Save processed payments every 30 seconds and on page unload
+    setInterval(saveProcessedPayments, 30000);
+    window.addEventListener('beforeunload', saveProcessedPayments);
 }
 // Process a new payment from Firestore
 // Update the processNewPayment function
