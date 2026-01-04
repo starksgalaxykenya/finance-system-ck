@@ -1865,6 +1865,22 @@ async function initializeLoanBankSelector() {
 async function startPaymentScanner() {
     if (!user) return;
     
+    // Track already processed payment IDs in memory
+    let processedPaymentIds = new Set();
+    
+    // Load already processed payments from Firestore or localStorage
+    try {
+        const processedPaymentsData = localStorage.getItem('processedReceiptPayments');
+        if (processedPaymentsData) {
+            const parsedData = JSON.parse(processedPaymentsData);
+            if (Array.isArray(parsedData)) {
+                parsedData.forEach(id => processedPaymentIds.add(id));
+            }
+        }
+    } catch (error) {
+        console.error("Error loading processed payments:", error);
+    }
+    
     // Set up a real-time listener for receipt_payments collection
     const paymentsCollection = firestore.collection('receipt_payments');
     
@@ -1873,7 +1889,25 @@ async function startPaymentScanner() {
         snapshot.docChanges().forEach(async (change) => {
             if (change.type === 'added') {
                 const payment = { id: change.doc.id, ...change.doc.data() };
+                
+                // Check if this payment has already been processed
+                if (processedPaymentIds.has(payment.id)) {
+                    console.log('Payment already processed, skipping:', payment.id);
+                    return;
+                }
+                
                 await processNewPayment(payment);
+                
+                // Mark as processed
+                processedPaymentIds.add(payment.id);
+                
+                // Save processed payments to localStorage
+                try {
+                    localStorage.setItem('processedReceiptPayments', 
+                        JSON.stringify(Array.from(processedPaymentIds)));
+                } catch (error) {
+                    console.error("Error saving processed payments:", error);
+                }
             }
         });
     }, (error) => {
@@ -1881,24 +1915,31 @@ async function startPaymentScanner() {
         showToast('Payment scanner error', 'error');
     });
 }
-
 // Process a new payment from Firestore
 // Update the processNewPayment function
 // Process a new payment from Firestore
+// Process a new payment from Firestore
 async function processNewPayment(payment) {
     try {
-        // Check if this payment has already been processed
+        // Create a unique identifier for this payment to prevent duplicates
+        const paymentId = payment.id;
+        const paymentDate = payment.paymentDate || payment.date || payment.createdAt || Date.now();
+        const receiptNumber = payment.receiptNumber || payment.id;
+        
+        // Check if this payment has already been processed using multiple criteria
         const existingTransaction = majorTransactions.find(t => 
-            t.receiptId === payment.id || 
-            (t.isFromReceipt && t.description.includes(payment.receiptNumber || payment.id))
+            t.receiptId === paymentId || 
+            (t.isFromReceipt && t.receiptNumber === receiptNumber) ||
+            (t.isFromReceipt && t.description.includes(receiptNumber)) ||
+            (t.isFromReceipt && t.originalPaymentId === paymentId)
         );
         
         if (existingTransaction) {
-            console.log('Payment already processed, skipping:', payment.id);
+            console.log('Payment already processed, skipping:', paymentId, receiptNumber);
             return;
         }
         
-        const paymentMethod = payment.paymentMethod || 'Unknown';
+        const paymentMethod = payment.paymentMethod || payment.method || 'Unknown';
         let amount = 0;
         let currency = 'KSH';
         
@@ -1934,29 +1975,34 @@ async function processNewPayment(payment) {
                 console.log(`Currency conversion: ${amount} ${currency} to ${amountInBankCurrency} ${targetBank.currency} (Rate: ${exchangeRate})`);
             }
             
-            // Update bank balance
+            // Update bank balance - add only if not already added
+            const currentBankBalance = targetBank.balance;
             targetBank.balance += amountInBankCurrency;
             targetBank.lastUpdated = new Date().toISOString();
             
-            // Add to major transactions
+            // Add to major transactions with unique identifiers
             const newTransaction = {
-                id: 't' + Date.now(),
-                description: `Payment received: ${payment.receiptNumber || 'Receipt'} - ${paymentMethod}`,
+                id: 'receipt_' + Date.now() + '_' + paymentId,
+                description: `Payment received: ${receiptNumber} - ${paymentMethod}`,
                 amount: amountInBankCurrency,
                 category: 'Sales',
-                date: new Date().toISOString(),
-                formattedDate: new Date().toLocaleDateString('en-KE'),
+                date: new Date(paymentDate).toISOString(),
+                formattedDate: new Date(paymentDate).toLocaleDateString('en-KE'),
                 bankId: targetBank.id,
                 bankName: targetBank.name,
                 bankCurrency: targetBank.currency,
                 isFromReceipt: true,
-                receiptId: payment.id,
-                receiptNumber: payment.receiptNumber,
+                receiptId: paymentId,
+                receiptNumber: receiptNumber,
                 originalCurrency: currency,
                 originalAmount: amount,
                 convertedAmount: amountInBankCurrency,
                 exchangeRateUsed: currency !== targetBank.currency ? await getExchangeRate(currency, targetBank.currency) : 1,
-                paymentMethod: paymentMethod
+                paymentMethod: paymentMethod,
+                originalPaymentId: paymentId, // Store original payment ID to prevent duplicates
+                processedAt: new Date().toISOString(),
+                previousBankBalance: currentBankBalance,
+                newBankBalance: currentBankBalance + amountInBankCurrency
             };
             
             majorTransactions.push(newTransaction);
@@ -1972,31 +2018,37 @@ async function processNewPayment(payment) {
             if (user) await saveUserData();
             
             showToast(`New ${currency} ${formatCurrency(amount, currency)} payment added to ${targetBank.name} (${targetBank.currency})`, 'success');
-            console.log(`Payment processed: ${amount} ${currency} added to ${targetBank.name} as ${amountInBankCurrency} ${targetBank.currency}`);
+            console.log(`Payment processed: ${amount} ${currency} added to ${targetBank.name} as ${amountInBankCurrency} ${targetBank.currency}. Bank balance updated from ${formatCurrency(currentBankBalance, targetBank.currency)} to ${formatCurrency(targetBank.balance, targetBank.currency)}`);
         } else {
             console.log('No matching bank found for payment method:', paymentMethod, 'with currency:', currency);
             
             // Log as unmatched for debugging
-            majorTransactions.push({
-                id: 't' + Date.now(),
-                description: `Unmatched payment: ${payment.receiptNumber || 'Receipt'} - ${paymentMethod} (${currency} ${amount})`,
+            const unmatchedTransaction = {
+                id: 'unmatched_' + Date.now(),
+                description: `Unmatched payment: ${receiptNumber} - ${paymentMethod} (${currency} ${amount})`,
                 amount: amount,
                 category: 'Sales',
-                date: new Date().toISOString(),
-                formattedDate: new Date().toLocaleDateString('en-KE'),
+                date: new Date(paymentDate).toISOString(),
+                formattedDate: new Date(paymentDate).toLocaleDateString('en-KE'),
                 bankId: 'unmatched',
                 bankName: 'Unmatched Bank',
                 isFromReceipt: true,
-                receiptId: payment.id,
+                receiptId: paymentId,
+                receiptNumber: receiptNumber,
                 originalCurrency: currency,
                 originalAmount: amount,
                 convertedAmount: amount,
                 isUnmatched: true,
-                paymentMethod: paymentMethod
-            });
+                paymentMethod: paymentMethod,
+                processedAt: new Date().toISOString()
+            };
+            
+            majorTransactions.push(unmatchedTransaction);
             
             showToast(`Payment received but no matching ${currency} bank found for: ${paymentMethod}`, 'warning');
-            console.log('Available banks in bankDetails:', await getAvailableBanksFromFirestore());
+            
+            // Save to Firestore even if unmatched
+            if (user) await saveUserData();
         }
         
     } catch (error) {
@@ -2449,9 +2501,20 @@ async function loadReceiptPayments() {
             receipts.push({ id: doc.id, ...doc.data() });
         });
         
-        // Process all receipts
+        // Track processed payments to avoid duplicates
+        const processedPaymentIds = new Set(
+            majorTransactions
+                .filter(t => t.isFromReceipt && t.receiptId)
+                .map(t => t.receiptId)
+        );
+        
+        // Process only unprocessed receipts
         for (const receipt of receipts) {
-            await processNewPayment(receipt);
+            if (!processedPaymentIds.has(receipt.id)) {
+                await processNewPayment(receipt);
+            } else {
+                console.log('Skipping already processed payment:', receipt.id);
+            }
         }
         
         // Update all UI components
