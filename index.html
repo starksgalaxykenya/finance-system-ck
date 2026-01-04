@@ -1879,6 +1879,7 @@ async function startPaymentScanner() {
 
 // Process a new payment from Firestore
 // Update the processNewPayment function
+// Process a new payment from Firestore
 async function processNewPayment(payment) {
     try {
         // Check if this payment has already been processed
@@ -1892,11 +1893,11 @@ async function processNewPayment(payment) {
             return;
         }
         
-        const paymentMethod = payment.paymentMethod || payment.paymentMethod || 'Unknown';
+        const paymentMethod = payment.paymentMethod || 'Unknown';
         let amount = 0;
         let currency = 'KSH';
         
-        // Check for amount in USD or KSH
+        // Check for amount in USD or KSH (prioritize USD if both exist)
         if (payment.amountUSD && payment.amountUSD > 0) {
             amount = parseFloat(payment.amountUSD);
             currency = 'USD';
@@ -1913,19 +1914,19 @@ async function processNewPayment(payment) {
             return;
         }
         
-        // Find the appropriate bank based on payment method (ONLY from existing banks)
+        // Find the appropriate bank based on payment method and currency
         const targetBank = await findBankByPaymentMethod(paymentMethod, currency);
         
         if (targetBank) {
             // Convert USD to KSH if needed with proper exchange rate
             let amountInBankCurrency = amount;
-            if (currency === 'USD' && targetBank.currency === 'KSH') {
-                // Use actual exchange rate (fetch from API or use stored rate)
-                const exchangeRate = await getExchangeRate('USD', 'KSH');
+            
+            // If currencies don't match, convert
+            if (currency !== targetBank.currency) {
+                const exchangeRate = await getExchangeRate(currency, targetBank.currency);
                 amountInBankCurrency = amount * exchangeRate;
-            } else if (currency === 'KSH' && targetBank.currency === 'USD') {
-                const exchangeRate = await getExchangeRate('KSH', 'USD');
-                amountInBankCurrency = amount * exchangeRate;
+                
+                console.log(`Currency conversion: ${amount} ${currency} to ${amountInBankCurrency} ${targetBank.currency} (Rate: ${exchangeRate})`);
             }
             
             // Update bank balance
@@ -1942,12 +1943,15 @@ async function processNewPayment(payment) {
                 formattedDate: new Date().toLocaleDateString('en-KE'),
                 bankId: targetBank.id,
                 bankName: targetBank.name,
+                bankCurrency: targetBank.currency,
                 isFromReceipt: true,
                 receiptId: payment.id,
+                receiptNumber: payment.receiptNumber,
                 originalCurrency: currency,
                 originalAmount: amount,
                 convertedAmount: amountInBankCurrency,
-                exchangeRateUsed: currency !== targetBank.currency ? await getExchangeRate(currency, targetBank.currency) : 1
+                exchangeRateUsed: currency !== targetBank.currency ? await getExchangeRate(currency, targetBank.currency) : 1,
+                paymentMethod: paymentMethod
             };
             
             majorTransactions.push(newTransaction);
@@ -1957,18 +1961,20 @@ async function processNewPayment(payment) {
             updateBankCards();
             updateBankSelectors();
             updateTransferBankSelectors();
+            updateQuickStats();
             
             // Save to Firestore
             if (user) await saveUserData();
             
-            showToast(`New ${currency} ${amount} payment added to ${targetBank.name}`, 'success');
-            console.log(`Payment processed: ${amount} ${currency} added to ${targetBank.name}`);
+            showToast(`New ${currency} ${formatCurrency(amount, currency)} payment added to ${targetBank.name} (${targetBank.currency})`, 'success');
+            console.log(`Payment processed: ${amount} ${currency} added to ${targetBank.name} as ${amountInBankCurrency} ${targetBank.currency}`);
         } else {
-            console.log('No matching bank found for payment method:', paymentMethod);
-            // Don't create ghost banks - just log the payment separately
+            console.log('No matching bank found for payment method:', paymentMethod, 'with currency:', currency);
+            
+            // Log as unmatched for debugging
             majorTransactions.push({
                 id: 't' + Date.now(),
-                description: `Unmatched payment: ${payment.receiptNumber || 'Receipt'} - ${paymentMethod}`,
+                description: `Unmatched payment: ${payment.receiptNumber || 'Receipt'} - ${paymentMethod} (${currency} ${amount})`,
                 amount: amount,
                 category: 'Sales',
                 date: new Date().toISOString(),
@@ -1980,10 +1986,12 @@ async function processNewPayment(payment) {
                 originalCurrency: currency,
                 originalAmount: amount,
                 convertedAmount: amount,
-                isUnmatched: true
+                isUnmatched: true,
+                paymentMethod: paymentMethod
             });
             
-            showToast(`Payment received but no matching bank found for ${paymentMethod}`, 'warning');
+            showToast(`Payment received but no matching ${currency} bank found for: ${paymentMethod}`, 'warning');
+            console.log('Available banks in bankDetails:', await getAvailableBanksFromFirestore());
         }
         
     } catch (error) {
@@ -1991,9 +1999,41 @@ async function processNewPayment(payment) {
         showToast('Error processing payment', 'error');
     }
 }
+
+// Helper function to get available banks from Firestore
+async function getAvailableBanksFromFirestore() {
+    if (!user) return [];
+    
+    try {
+        const banksSnapshot = await firestore.collection('bankDetails').get();
+        const availableBanks = [];
+        
+        banksSnapshot.forEach(doc => {
+            const bankData = doc.data();
+            // Skip transfer documents
+            if (bankData.isTransfer || bankData.transferId || bankData.type === 'transfer') {
+                return;
+            }
+            
+            availableBanks.push({
+                id: doc.id,
+                name: bankData.bankName || bankData.name || bankData.bank || 'Unknown',
+                currency: bankData.currency || 'KSH'
+            });
+        });
+        
+        return availableBanks;
+    } catch (error) {
+        console.error("Error getting available banks:", error);
+        return [];
+    }
+}
 // Find bank by payment method and currency
 // Find bank by payment method (ONLY from existing banks, no ghost banks)
+// Find bank by payment method (Query Firestore directly)
 async function findBankByPaymentMethod(paymentMethod, currency) {
+    if (!user) return null;
+    
     const method = paymentMethod.toLowerCase();
     
     // First, check for M-Pesa/Mobile Money
@@ -2004,60 +2044,129 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
         }
     }
     
-    // Try to find bank by exact name match
-    for (const bank of banks) {
-        // Skip M-Pesa (already handled above)
-        if (bank.id === 'mpesa') continue;
+    try {
+        // Query bankDetails collection in Firestore
+        const banksSnapshot = await firestore.collection('bankDetails').get();
         
-        // Check if bank name is contained in payment method or vice versa
-        const bankNameLower = bank.name.toLowerCase();
-        if (method.includes(bankNameLower) || bankNameLower.includes(method)) {
-            // Check currency compatibility
-            if (!bank.currency || bank.currency === currency || 
-                (bank.currency === 'KSH' && currency === 'USD') || 
-                (bank.currency === 'USD' && currency === 'KSH')) {
-                return bank;
+        // Array to store matching banks
+        const matchingBanks = [];
+        
+        banksSnapshot.forEach(doc => {
+            const bankData = doc.data();
+            const bankName = (bankData.bankName || bankData.name || bankData.bank || '').toLowerCase();
+            const bankCurrency = bankData.currency || 'KSH';
+            
+            // Skip documents that aren't actual banks
+            if (bankData.isTransfer || bankData.transferId || bankData.type === 'transfer') {
+                return;
             }
-        }
-    }
-    
-    // Try partial name matching
-    const bankKeywords = [
-        { keywords: ['equity', 'equity bank'], currency: 'KSH' },
-        { keywords: ['kcb', 'kenya commercial'], currency: 'KSH' },
-        { keywords: ['cooperative', 'co-op'], currency: 'KSH' },
-        { keywords: ['standard chartered', 'standard'], currency: 'KSH' },
-        { keywords: ['barclays', 'absa'], currency: 'KSH' },
-        { keywords: ['diamond trust', 'dtb'], currency: 'KSH' },
-        { keywords: ['ncba'], currency: 'KSH' },
-        { keywords: ['bank of africa', 'boa'], currency: 'KSH' },
-        { keywords: ['citibank', 'citi'], currency: 'USD' },
-        { keywords: ['stanbic'], currency: 'KSH' },
-        { keywords: ['family bank'], currency: 'KSH' },
-        { keywords: ['gt bank', 'guaranty trust'], currency: 'KSH' },
-        { keywords: ['i&m'], currency: 'KSH' }
-    ];
-    
-    for (const bankInfo of bankKeywords) {
-        for (const keyword of bankInfo.keywords) {
-            if (method.includes(keyword)) {
-                // Find existing bank with matching currency
-                const matchingBank = banks.find(b => {
-                    if (b.id === 'mpesa') return false;
-                    const bankNameLower = b.name.toLowerCase();
-                    return (bankNameLower.includes(keyword) || 
-                            bankNameLower.includes(bankInfo.keywords[0])) &&
-                           (!b.currency || b.currency === bankInfo.currency);
+            
+            // Check if payment method contains bank name or vice versa
+            const methodMatchesBank = method.includes(bankName) || bankName.includes(method);
+            const currencyMatches = bankCurrency === currency;
+            
+            // If both method and currency match, this is a strong candidate
+            if (methodMatchesBank && currencyMatches) {
+                matchingBanks.push({
+                    id: doc.id,
+                    name: bankData.bankName || bankData.name || bankData.bank || 'Bank Account',
+                    accountNumber: bankData.accountNumber || bankData.account || 'N/A',
+                    branch: bankData.branch || '',
+                    currency: bankCurrency,
+                    firebaseId: doc.id,
+                    firebaseData: bankData
                 });
-                
-                if (matchingBank) {
-                    return matchingBank;
+            }
+        });
+        
+        // If we found exact matches, return the first one
+        if (matchingBanks.length > 0) {
+            // Check if this bank already exists locally
+            const existingBank = banks.find(b => b.firebaseId === matchingBanks[0].id);
+            if (existingBank) {
+                return existingBank;
+            }
+            
+            // Create a new local bank entry
+            const newBank = {
+                id: 'fb_' + matchingBanks[0].id,
+                name: matchingBanks[0].name,
+                accountNumber: matchingBanks[0].accountNumber,
+                branch: matchingBanks[0].branch,
+                currency: matchingBanks[0].currency,
+                balance: 0,
+                firebaseId: matchingBanks[0].id,
+                firebaseData: matchingBanks[0].firebaseData,
+                lastUpdated: new Date().toISOString(),
+                isSynced: true
+            };
+            
+            // Add to local banks array
+            banks.push(newBank);
+            return newBank;
+        }
+        
+        // If no exact matches found, try fuzzy matching
+        // Define bank keywords with their typical currencies
+        const bankKeywords = [
+            { keywords: ['equity', 'equity bank'], currency: 'KSH' },
+            { keywords: ['kcb', 'kenya commercial'], currency: 'KSH' },
+            { keywords: ['cooperative', 'co-op'], currency: 'KSH' },
+            { keywords: ['standard chartered', 'standard'], currency: 'KSH' },
+            { keywords: ['barclays', 'absa'], currency: 'KSH' },
+            { keywords: ['diamond trust', 'dtb'], currency: 'KSH' },
+            { keywords: ['ncba'], currency: 'KSH' },
+            { keywords: ['bank of africa', 'boa'], currency: 'KSH' },
+            { keywords: ['citibank', 'citi'], currency: 'USD' },
+            { keywords: ['stanbic'], currency: 'KSH' },
+            { keywords: ['family bank'], currency: 'KSH' },
+            { keywords: ['gt bank', 'guaranty trust'], currency: 'KSH' },
+            { keywords: ['i&m'], currency: 'KSH' }
+        ];
+        
+        for (const bankInfo of bankKeywords) {
+            for (const keyword of bankInfo.keywords) {
+                if (method.includes(keyword)) {
+                    // Search for this bank in Firestore
+                    banksSnapshot.forEach(doc => {
+                        const bankData = doc.data();
+                        const bankName = (bankData.bankName || bankData.name || bankData.bank || '').toLowerCase();
+                        const bankCurrency = bankData.currency || 'KSH';
+                        
+                        if (bankName.includes(keyword) && bankCurrency === currency) {
+                            // Check if this bank already exists locally
+                            const existingBank = banks.find(b => b.firebaseId === doc.id);
+                            if (existingBank) {
+                                return existingBank;
+                            }
+                            
+                            // Create new local bank entry
+                            const newBank = {
+                                id: 'fb_' + doc.id,
+                                name: bankData.bankName || bankData.name || bankData.bank || 'Bank Account',
+                                accountNumber: bankData.accountNumber || bankData.account || 'N/A',
+                                branch: bankData.branch || '',
+                                currency: bankCurrency,
+                                balance: 0,
+                                firebaseId: doc.id,
+                                firebaseData: bankData,
+                                lastUpdated: new Date().toISOString(),
+                                isSynced: true
+                            };
+                            
+                            banks.push(newBank);
+                            return newBank;
+                        }
+                    });
                 }
             }
         }
+        
+    } catch (error) {
+        console.error("Error querying banks from Firestore:", error);
     }
     
-    // No matching bank found - DO NOT create ghost banks
+    // No matching bank found
     return null;
 }
 // Exchange rate function (with fallback)
@@ -2956,7 +3065,7 @@ function updateBankCards() {
                     </div>
                     <div class="text-2xl font-bold ${balanceColor} flex items-center ${balancesHidden ? 'hidden-balance' : ''}">
                         <i class="fas ${balanceIcon} mr-2"></i>
-                        ${displayBalance}
+                        ${displayBalance} ${currency === 'USD' ? '(USD)' : '(KSH)'}
                         <span class="text-sm ml-2">${currency === 'USD' ? '($USD)' : '(KSH)'}</span>
                     </div>
                 </div>
