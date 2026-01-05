@@ -2233,6 +2233,7 @@ async function getAvailableBanksFromFirestore() {
 // Find bank by payment method (Query Firestore directly)
 // Find bank by payment method and currency
 // Find bank by payment method and currency
+// Find bank by payment method and currency
 async function findBankByPaymentMethod(paymentMethod, currency) {
     if (!user) return null;
     
@@ -2342,11 +2343,10 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
         console.error("Error querying banks from Firestore:", error);
     }
     
-    console.log('No matching bank found for:', method, 'currency:', currency);
-    return null;
-}
+    // If no exact matches found, try fuzzy matching
+    try {
+        const banksSnapshot = await firestore.collection('bankDetails').get();
         
-        // If no exact matches found, try fuzzy matching
         // Define bank keywords with their typical currencies
         const bankKeywords = [
             { keywords: ['equity', 'equity bank'], currency: 'KSH' },
@@ -2367,6 +2367,8 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
         for (const bankInfo of bankKeywords) {
             for (const keyword of bankInfo.keywords) {
                 if (method.includes(keyword)) {
+                    let foundBank = null;
+                    
                     // Search for this bank in Firestore
                     banksSnapshot.forEach(doc => {
                         const bankData = doc.data();
@@ -2377,7 +2379,8 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
                             // Check if this bank already exists locally
                             const existingBank = banks.find(b => b.firebaseId === doc.id);
                             if (existingBank) {
-                                return existingBank;
+                                foundBank = existingBank;
+                                return;
                             }
                             
                             // Create new local bank entry
@@ -2395,18 +2398,23 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
                             };
                             
                             banks.push(newBank);
-                            return newBank;
+                            foundBank = newBank;
+                            return;
                         }
                     });
+                    
+                    if (foundBank) {
+                        return foundBank;
+                    }
                 }
             }
         }
-        
- catch (error) {
-        console.error("Error querying banks from Firestore:", error);
+    } catch (error) {
+        console.error("Error in fuzzy matching banks:", error);
     }
     
     // No matching bank found
+    console.log('No matching bank found for:', method, 'currency:', currency);
     return null;
 }
 // Exchange rate function (with fallback)
