@@ -2035,31 +2035,17 @@ async function processNewPayment(payment) {
         let amount = 0;
         let currency = 'KSH';
         
-     // Extract amount and currency from payment data
-// First check for specific currency fields, then generic amount field
-if (payment.amountKSH && payment.amountKSH > 0) {
-    amount = parseFloat(payment.amountKSH);
-    currency = 'KSH';
-} else if (payment.amountUSD && payment.amountUSD > 0) {
-    amount = parseFloat(payment.amountUSD);
-    currency = 'USD';
-} else if (payment.amount && payment.amount > 0) {
-    // Try to determine currency from payment data
-    amount = parseFloat(payment.amount);
-    
-    // Check various possible field names for currency
-    currency = payment.currency || 
-              (payment.amountCurrency ? payment.amountCurrency.toUpperCase() : null) ||
-              (payment.currencyCode ? payment.currencyCode.toUpperCase() : null) ||
-              'KSH'; // Default to KSH
-    
-    // Convert common currency codes
-    if (currency === 'KES') currency = 'KSH';
-    if (currency === 'USD' || currency === 'US$' || currency === '$') currency = 'USD';
-} else {
-    console.log('Skipping payment with zero or negative amount:', payment);
-    return;
-}
+        // Check for amount in USD or KSH (prioritize USD if both exist)
+        if (payment.amountUSD && payment.amountUSD > 0) {
+            amount = parseFloat(payment.amountUSD);
+            currency = 'USD';
+        } else if (payment.amountKSH && payment.amountKSH > 0) {
+            amount = parseFloat(payment.amountKSH);
+            currency = 'KSH';
+        } else if (payment.amount && payment.amount > 0) {
+            amount = parseFloat(payment.amount);
+            currency = payment.currency || 'KSH';
+        }
         
         if (amount <= 0) {
             console.log('Skipping payment with zero or negative amount:', payment);
@@ -2163,8 +2149,6 @@ if (payment.amountKSH && payment.amountKSH > 0) {
     }
 }
 
-    
-
 // Helper function to get available banks from Firestore
 async function getAvailableBanksFromFirestore() {
     if (!user) return [];
@@ -2198,9 +2182,7 @@ async function getAvailableBanksFromFirestore() {
 // Find bank by payment method (Query Firestore directly)
 async function findBankByPaymentMethod(paymentMethod, currency) {
     if (!user) return null;
-
-    // Normalize currency for matching
-const normalizedCurrency = currency === 'KES' ? 'KSH' : currency;
+    
     const method = paymentMethod.toLowerCase();
     
     // First, check for M-Pesa/Mobile Money
@@ -2230,7 +2212,7 @@ const normalizedCurrency = currency === 'KES' ? 'KSH' : currency;
             
             // Check if payment method contains bank name or vice versa
             const methodMatchesBank = method.includes(bankName) || bankName.includes(method);
-            const currencyMatches = bankCurrency === normalizedCurrency;
+            const currencyMatches = bankCurrency === currency;
             
             // If both method and currency match, this is a strong candidate
             if (methodMatchesBank && currencyMatches) {
