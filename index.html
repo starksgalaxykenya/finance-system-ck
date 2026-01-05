@@ -2187,12 +2187,14 @@ async function processNewPayment(payment) {
                     return;
                 }
             }
+        }
+    }
             
             // If still no bank found, log as unmatched
             showToast(`Payment received but no matching bank found for: ${paymentMethod} (${currency})`, 'warning');
         }
         
-    } catch (error) {
+     catch (error) {
         console.error("Error processing payment:", error);
         showToast('Error processing payment', 'error');
     }
@@ -2441,41 +2443,41 @@ function getDefaultExchangeRate(fromCurrency, toCurrency) {
 }
 
 
-    // --- Tab Switching Function ---
-    function openTab(evt, tabName) {
-        // Hide all tab contents
-        const tabContents = document.querySelectorAll('.tab-content');
-        tabContents.forEach(tab => {
-            tab.classList.remove('active');
-            tab.style.display = 'none';
-        });
+   // --- Tab Switching Function ---
+function openTab(evt, tabName) {
+    // Hide all tab contents
+    const tabContents = document.querySelectorAll('.tab-content');
+    tabContents.forEach(tab => {
+        tab.classList.remove('active');
+        tab.style.display = 'none';
+    });
 
-        // Remove active class from all tab buttons
-        const tabButtons = document.querySelectorAll('.custom-tab');
-        tabButtons.forEach(button => {
-            button.classList.remove('active');
-        });
+    // Remove active class from all tab buttons
+    const tabButtons = document.querySelectorAll('.custom-tab');
+    tabButtons.forEach(button => {
+        button.classList.remove('active');
+    });
 
-        // Show the selected tab
-        const selectedTab = document.getElementById(tabName);
-        if (selectedTab) {
-            selectedTab.style.display = 'block';
-            selectedTab.classList.add('active');
-        }
-
-        // Add active class to clicked button
-        if (evt && evt.currentTarget) {
-            evt.currentTarget.classList.add('active');
-        }
-        
-        // Update data when switching to bank management tab
-        if (tabName === 'bank-management') {
-            updateBankSelectors();
-            updateTransferBankSelectors();
-            updateBankCards();
-            updateTransferHistory();
-        }
+    // Show the selected tab
+    const selectedTab = document.getElementById(tabName);
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+        selectedTab.classList.add('active');
     }
+
+    // Add active class to clicked button
+    if (evt && evt.currentTarget) {
+        evt.currentTarget.classList.add('active');
+    }
+    
+    // Update data when switching to bank management tab
+    if (tabName === 'bank-management') {
+        updateBankSelectors();
+        updateTransferBankSelectors();
+        updateBankCards();
+        updateTransferHistory();
+    }
+}
 
     // --- M-Pesa Bank Functions ---
     function ensureMpesaBank() {
