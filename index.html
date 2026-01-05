@@ -2035,7 +2035,7 @@ async function processNewPayment(payment) {
         let amount = 0;
         let currency = 'KSH';
         
-        // Check for amount in USD or KSH (prioritize USD if both exist)
+       // Check for amount in USD or KSH (prioritize USD if both exist)
         if (payment.amountUSD && payment.amountUSD > 0) {
             amount = parseFloat(payment.amountUSD);
             currency = 'USD';
@@ -2059,12 +2059,15 @@ async function processNewPayment(payment) {
             // Convert USD to KSH if needed with proper exchange rate
             let amountInBankCurrency = amount;
             
-            // If currencies don't match, convert
+            // Only convert if currencies are different
             if (currency !== targetBank.currency) {
                 const exchangeRate = await getExchangeRate(currency, targetBank.currency);
                 amountInBankCurrency = amount * exchangeRate;
                 
                 console.log(`Currency conversion: ${amount} ${currency} to ${amountInBankCurrency} ${targetBank.currency} (Rate: ${exchangeRate})`);
+            } else {
+                // Same currency, no conversion needed
+                console.log(`Same currency (${currency}), no conversion needed`);
             }
             
             // Update bank balance - add only if not already added
@@ -2180,6 +2183,7 @@ async function getAvailableBanksFromFirestore() {
 // Find bank by payment method and currency
 // Find bank by payment method (ONLY from existing banks, no ghost banks)
 // Find bank by payment method (Query Firestore directly)
+// Find bank by payment method and currency
 async function findBankByPaymentMethod(paymentMethod, currency) {
     if (!user) return null;
     
@@ -2188,8 +2192,21 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
     // First, check for M-Pesa/Mobile Money
     if (method.includes('mpesa') || method.includes('mobile') || method.includes('pesa')) {
         const mpesaBank = banks.find(b => b.id === 'mpesa');
-        if (mpesaBank) {
+        if (mpesaBank && mpesaBank.currency === currency) {
             return mpesaBank;
+        }
+    }
+    
+    // For KSH payments, also check all local banks with KSH currency
+    if (currency === 'KSH' || currency === 'KES') {
+        // First check local banks that match the currency
+        const matchingLocalBank = banks.find(b => 
+            b.currency === 'KSH' || b.currency === 'KES' ||
+            !b.currency || b.currency === ''
+        );
+        
+        if (matchingLocalBank) {
+            return matchingLocalBank;
         }
     }
     
