@@ -2035,6 +2035,29 @@ async function processNewPayment(payment) {
 let amount = 0;
 let currency = 'KSH'; // Default to KSH
 
+    // Check specific amount fields first
+if (payment.amountKSH && parseFloat(payment.amountKSH) > 0) {
+    amount = parseFloat(payment.amountKSH);
+    currency = 'KSH';
+} else if (payment.amountUSD && parseFloat(payment.amountUSD) > 0) {
+    amount = parseFloat(payment.amountUSD);
+    currency = 'USD';
+} else if (payment.amount && parseFloat(payment.amount) > 0) {
+    amount = parseFloat(payment.amount);
+    // Use currency from field if available
+    if (payment.currency) {
+        currency = payment.currency.toUpperCase();
+        if (currency === 'KES') currency = 'KSH';
+    }
+}
+
+if (amount <= 0) {
+    console.log('Skipping payment with zero or negative amount:', payment);
+    return;
+}
+
+console.log(`Processing ${amount} ${currency} from ${paymentMethod}`);    
+
 // First, check if payment method contains currency hints
 const paymentMethodUpper = paymentMethod.toUpperCase();
 if (paymentMethodUpper.includes('(USD)') || paymentMethodUpper.includes('USD') || paymentMethodUpper.includes('$')) {
@@ -2203,23 +2226,22 @@ async function getAvailableBanksFromFirestore() {
 // Find bank by payment method (ONLY from existing banks, no ghost banks)
 // Find bank by payment method (Query Firestore directly)
 // Find bank by payment method (Query Firestore directly)
+
+// Find bank by payment method (Query Firestore directly)
 async function findBankByPaymentMethod(paymentMethod, currency) {
     if (!user) return null;
     
     const method = paymentMethod.toLowerCase();
-    console.log(`DEBUG: Looking for bank matching payment method: "${method}", currency: ${currency}`);
     
     // First, check for M-Pesa/Mobile Money
     if (method.includes('mpesa') || method.includes('mobile') || method.includes('pesa')) {
         const mpesaBank = banks.find(b => b.id === 'mpesa');
         if (mpesaBank) {
-            console.log(`DEBUG: Found M-Pesa bank for payment method: ${method}`);
             return mpesaBank;
         }
     }
     
     // Clean the payment method string to extract bank name
-    // Remove currency indicators like (USD), (KSH), etc.
     let cleanMethod = method;
     cleanMethod = cleanMethod.replace(/\(usd\)/gi, '');
     cleanMethod = cleanMethod.replace(/\(ksh\)/gi, '');
@@ -2228,8 +2250,6 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
     cleanMethod = cleanMethod.replace(/ksh/gi, '');
     cleanMethod = cleanMethod.replace(/kes/gi, '');
     cleanMethod = cleanMethod.replace(/\s+/g, ' ').trim();
-    
-    console.log(`DEBUG: Cleaned payment method: "${cleanMethod}"`);
     
     try {
         // Query bankDetails collection in Firestore
@@ -2252,8 +2272,6 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
             const methodMatchesBank = cleanMethod.includes(bankName) || bankName.includes(cleanMethod);
             const currencyMatches = bankCurrency === currency;
             
-            console.log(`DEBUG: Checking bank: ${bankName}, currency: ${bankCurrency}, methodMatches: ${methodMatchesBank}, currencyMatches: ${currencyMatches}`);
-            
             // If both method and currency match, this is a strong candidate
             if (methodMatchesBank && currencyMatches) {
                 matchingBanks.push({
@@ -2270,11 +2288,9 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
         
         // If we found exact matches, return the first one
         if (matchingBanks.length > 0) {
-            console.log(`DEBUG: Found ${matchingBanks.length} matching banks`);
             // Check if this bank already exists locally
             const existingBank = banks.find(b => b.firebaseId === matchingBanks[0].id);
             if (existingBank) {
-                console.log(`DEBUG: Using existing local bank: ${existingBank.name}`);
                 return existingBank;
             }
             
@@ -2292,14 +2308,11 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
                 isSynced: true
             };
             
-            // Add to local banks array
             banks.push(newBank);
-            console.log(`DEBUG: Created new local bank: ${newBank.name}`);
             return newBank;
         }
         
-        // If no exact matches found, try fuzzy matching with currency consideration
-        // Define bank keywords with their typical currencies
+        // If no exact matches found, try fuzzy matching
         const bankKeywords = [
             { keywords: ['equity', 'equity bank'], currency: 'KSH' },
             { keywords: ['kcb', 'kenya commercial'], currency: 'KSH' },
@@ -2314,15 +2327,14 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
             { keywords: ['family bank'], currency: 'KSH' },
             { keywords: ['gt bank', 'guaranty trust'], currency: 'KSH' },
             { keywords: ['i&m'], currency: 'KSH' },
-            { keywords: ['choice financial'], currency: 'USD' } // Add this for your specific case
+            { keywords: ['choice financial'], currency: 'USD' }
         ];
         
         for (const bankInfo of bankKeywords) {
             for (const keyword of bankInfo.keywords) {
                 if (cleanMethod.includes(keyword) && bankInfo.currency === currency) {
-                    console.log(`DEBUG: Found keyword match: "${keyword}" for currency: ${currency}`);
                     // Search for this bank in Firestore
-                    for (const doc of banksSnapshot.docs) {
+                    banksSnapshot.forEach(doc => {
                         const bankData = doc.data();
                         const bankName = (bankData.bankName || bankData.name || bankData.bank || '').toLowerCase();
                         const bankCurrency = bankData.currency || 'KSH';
@@ -2331,7 +2343,6 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
                             // Check if this bank already exists locally
                             const existingBank = banks.find(b => b.firebaseId === doc.id);
                             if (existingBank) {
-                                console.log(`DEBUG: Found existing bank via keyword: ${existingBank.name}`);
                                 return existingBank;
                             }
                             
@@ -2350,15 +2361,12 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
                             };
                             
                             banks.push(newBank);
-                            console.log(`DEBUG: Created new bank via keyword: ${newBank.name}`);
                             return newBank;
                         }
-                    }
+                    });
                 }
             }
         }
-        
-        console.log(`DEBUG: No matching bank found for: "${cleanMethod}" with currency: ${currency}`);
         
     } catch (error) {
         console.error("Error querying banks from Firestore:", error);
