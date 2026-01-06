@@ -2033,38 +2033,33 @@ async function processNewPayment(payment) {
         
         const paymentMethod = payment.paymentMethod || payment.method || 'Unknown';
         let amount = 0;
-        let currency = 'KSH';
+        let currency = 'KSH'; // Default to KSH
         
-        // Extract amount and currency from payment data
-// First check for specific currency fields, then generic amount field
-if (payment.amountKSH && payment.amountKSH > 0) {
-    amount = parseFloat(payment.amountKSH);
-    currency = 'KSH';
-} else if (payment.amountUSD && payment.amountUSD > 0) {
-    amount = parseFloat(payment.amountUSD);
-    currency = 'USD';
-} else if (payment.amount && payment.amount > 0) {
-    // Try to determine currency from payment data
-    amount = parseFloat(payment.amount);
-    
-    // Check various possible field names for currency
-    currency = payment.currency || 
-              (payment.amountCurrency ? payment.amountCurrency.toUpperCase() : null) ||
-              (payment.currencyCode ? payment.currencyCode.toUpperCase() : null) ||
-              'KSH'; // Default to KSH
-    
-    // Convert common currency codes
-    if (currency === 'KES') currency = 'KSH';
-    if (currency === 'USD' || currency === 'US$' || currency === '$') currency = 'USD';
-} else {
-    console.log('Skipping payment with zero or negative amount:', payment);
-    return;
-}
+        // IMPORTANT FIX: Check for KSH amount FIRST, then USD, then generic amount
+        if (payment.amountKSH && parseFloat(payment.amountKSH) > 0) {
+            amount = parseFloat(payment.amountKSH);
+            currency = 'KSH';
+            console.log('Using KSH amount from amountKSH field:', amount, currency);
+        } else if (payment.amountUSD && parseFloat(payment.amountUSD) > 0) {
+            amount = parseFloat(payment.amountUSD);
+            currency = 'USD';
+            console.log('Using USD amount from amountUSD field:', amount, currency);
+        } else if (payment.amount && parseFloat(payment.amount) > 0) {
+            amount = parseFloat(payment.amount);
+            // Try to detect currency from other fields
+            if (payment.currency) {
+                currency = payment.currency.toUpperCase();
+                if (currency === 'KES') currency = 'KSH';
+            }
+            console.log('Using generic amount field:', amount, currency);
+        }
         
         if (amount <= 0) {
             console.log('Skipping payment with zero or negative amount:', payment);
             return;
         }
+        
+        console.log(`Processing payment: ${amount} ${currency} from receipt ${receiptNumber}, method: ${paymentMethod}`);
         
         // Find the appropriate bank based on payment method and currency
         const targetBank = await findBankByPaymentMethod(paymentMethod, currency);
@@ -2196,6 +2191,8 @@ async function getAvailableBanksFromFirestore() {
 // Find bank by payment method (Query Firestore directly)
 async function findBankByPaymentMethod(paymentMethod, currency) {
     if (!user) return null;
+
+    console.log(`Looking for bank matching payment method: ${paymentMethod}, currency: ${currency}`);
 
     // Normalize currency for matching
 const normalizedCurrency = currency === 'KES' ? 'KSH' : currency;
