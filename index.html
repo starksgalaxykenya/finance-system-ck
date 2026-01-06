@@ -2031,28 +2031,41 @@ async function processNewPayment(payment) {
             return;
         }
         
-        const paymentMethod = payment.paymentMethod || payment.method || 'Unknown';
-        let amount = 0;
-        let currency = 'KSH'; // Default to KSH
-        
-        // IMPORTANT FIX: Check for KSH amount FIRST, then USD, then generic amount
-        if (payment.amountKSH && parseFloat(payment.amountKSH) > 0) {
-            amount = parseFloat(payment.amountKSH);
-            currency = 'KSH';
-            console.log('Using KSH amount from amountKSH field:', amount, currency);
-        } else if (payment.amountUSD && parseFloat(payment.amountUSD) > 0) {
-            amount = parseFloat(payment.amountUSD);
-            currency = 'USD';
-            console.log('Using USD amount from amountUSD field:', amount, currency);
-        } else if (payment.amount && parseFloat(payment.amount) > 0) {
-            amount = parseFloat(payment.amount);
-            // Try to detect currency from other fields
-            if (payment.currency) {
-                currency = payment.currency.toUpperCase();
-                if (currency === 'KES') currency = 'KSH';
-            }
-            console.log('Using generic amount field:', amount, currency);
+       const paymentMethod = payment.paymentMethod || payment.method || 'Unknown';
+let amount = 0;
+let currency = 'KSH'; // Default to KSH
+
+// First, check if payment method contains currency hints
+const paymentMethodUpper = paymentMethod.toUpperCase();
+if (paymentMethodUpper.includes('(USD)') || paymentMethodUpper.includes('USD') || paymentMethodUpper.includes('$')) {
+    // Payment method suggests USD
+    currency = 'USD';
+} else if (paymentMethodUpper.includes('(KSH)') || paymentMethodUpper.includes('KSH') || paymentMethodUpper.includes('KES')) {
+    // Payment method suggests KSH
+    currency = 'KSH';
+}
+
+// Now check amount fields, but override currency if amount field is specific
+if (payment.amountKSH && parseFloat(payment.amountKSH) > 0) {
+    amount = parseFloat(payment.amountKSH);
+    currency = 'KSH'; // Force KSH if amountKSH is present
+    console.log('Using KSH amount from amountKSH field:', amount, currency);
+} else if (payment.amountUSD && parseFloat(payment.amountUSD) > 0) {
+    amount = parseFloat(payment.amountUSD);
+    currency = 'USD'; // Force USD if amountUSD is present
+    console.log('Using USD amount from amountUSD field:', amount, currency);
+} else if (payment.amount && parseFloat(payment.amount) > 0) {
+    amount = parseFloat(payment.amount);
+    // If we already detected currency from payment method, keep it
+    // Otherwise try to detect from currency field
+    if (!paymentMethodUpper.includes('(USD)') && !paymentMethodUpper.includes('(KSH)')) {
+        if (payment.currency) {
+            currency = payment.currency.toUpperCase();
+            if (currency === 'KES') currency = 'KSH';
         }
+    }
+    console.log('Using generic amount field:', amount, currency, 'detected from payment method hint');
+}
         
         if (amount <= 0) {
             console.log('Skipping payment with zero or negative amount:', payment);
@@ -2192,20 +2205,29 @@ async function getAvailableBanksFromFirestore() {
 async function findBankByPaymentMethod(paymentMethod, currency) {
     if (!user) return null;
 
-    console.log(`Looking for bank matching payment method: ${paymentMethod}, currency: ${currency}`);
-
-    // Normalize currency for matching
-const normalizedCurrency = currency === 'KES' ? 'KSH' : currency;
-    
-    const method = paymentMethod.toLowerCase();
+  const method = paymentMethod.toLowerCase();
+    console.log(`DEBUG: Looking for bank matching payment method: "${method}", currency: ${currency}`);
     
     // First, check for M-Pesa/Mobile Money
     if (method.includes('mpesa') || method.includes('mobile') || method.includes('pesa')) {
         const mpesaBank = banks.find(b => b.id === 'mpesa');
         if (mpesaBank) {
+            console.log(`DEBUG: Found M-Pesa bank for payment method: ${method}`);
             return mpesaBank;
         }
     }
+    // Clean the payment method string to extract bank name
+    // Remove currency indicators like (USD), (KSH), etc.
+    let cleanMethod = method;
+    cleanMethod = cleanMethod.replace(/\(usd\)/gi, '');
+    cleanMethod = cleanMethod.replace(/\(ksh\)/gi, '');
+    cleanMethod = cleanMethod.replace(/\(kes\)/gi, '');
+    cleanMethod = cleanMethod.replace(/usd/gi, '');
+    cleanMethod = cleanMethod.replace(/ksh/gi, '');
+    cleanMethod = cleanMethod.replace(/kes/gi, '');
+    cleanMethod = cleanMethod.replace(/\s+/g, ' ').trim();
+    
+    console.log(`DEBUG: Cleaned payment method: "${cleanMethod}"`);
     
     try {
         // Query bankDetails collection in Firestore
