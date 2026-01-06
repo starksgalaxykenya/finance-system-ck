@@ -343,6 +343,100 @@
         </div>
     </div>
 
+    <!-- PIN Manager Modal -->
+    <div id="pin-manager-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-[99999]">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center flex items-center justify-center">
+                    <i class="fas fa-key mr-3"></i>🔐 PIN Management
+                </h2>
+                
+                <div id="pin-manager-tabs" class="flex mb-6 border-b border-gray-200">
+                    <button class="pin-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all active border-primary"
+                            onclick="switchPinTab(event, 'set-pin')">
+                        <i class="fas fa-lock mr-2"></i>Set New PIN
+                    </button>
+                    <button class="pin-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all"
+                            onclick="switchPinTab(event, 'change-pin')">
+                        <i class="fas fa-exchange-alt mr-2"></i>Change PIN
+                    </button>
+                </div>
+                
+                <!-- Set New PIN Tab -->
+                <div id="set-pin" class="pin-tab-content active">
+                    <p class="text-gray-600 mb-6 text-center">Set a new 4-digit PIN for accessing secure tabs</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">New PIN (4 digits)</label>
+                            <input type="password" id="new-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Confirm PIN</label>
+                            <input type="password" id="confirm-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <button onclick="setNewPin()"
+                                class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center">
+                            <i class="fas fa-save mr-2"></i>Save New PIN
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Change PIN Tab -->
+                <div id="change-pin" class="pin-tab-content hidden">
+                    <p class="text-gray-600 mb-6 text-center">Change your existing PIN</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Current PIN</label>
+                            <input type="password" id="current-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">New PIN (4 digits)</label>
+                            <input type="password" id="change-new-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Confirm New PIN</label>
+                            <input type="password" id="change-confirm-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <button onclick="changeExistingPin()"
+                                class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center">
+                            <i class="fas fa-exchange-alt mr-2"></i>Change PIN
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="pin-manager-status" class="mt-6 p-4 bg-blue-50 rounded-lg hidden">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <span id="pin-manager-status-text"></span>
+                    </p>
+                </div>
+                
+                <button onclick="closePinManager()" 
+                        class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Main Header -->
     <header class="bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg">
         <div class="container mx-auto px-4 py-6">
@@ -363,6 +457,11 @@
                     <button id="firebase-login-btn" onclick="toggleFirebaseLogin()"
                             class="bg-white text-primary hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
                         <i class="fas fa-cloud mr-2"></i>Connect Firebase
+                    </button>
+                    
+                    <button onclick="openPinManager()"
+                            class="bg-white text-primary hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
+                        <i class="fas fa-key mr-2"></i>Manage PIN
                     </button>
                     
                     <button onclick="toggleDarkMode()"
@@ -548,21 +647,24 @@
                                 <div class="text-center">
                                     <i class="fas fa-lock text-5xl text-red-500 mb-4"></i>
                                     <h3 class="text-2xl font-bold text-gray-800 mb-3">Access Restricted 🔒</h3>
-                                    <p class="text-gray-600 mb-6">Please enter the security access code to manage major financial transactions and generate reports.</p>
+                                    <p class="text-gray-600 mb-6">Enter your 4-digit security PIN to access financial reports</p>
                                     
                                     <div class="max-w-md mx-auto">
-                                        <input type="text" id="access-code" 
+                                        <input type="password" id="access-code" 
                                                class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent mb-4"
-                                               placeholder="Enter Access Code">
+                                               placeholder="Enter PIN" maxlength="4" pattern="\d{4}">
                                         <button onclick="checkAccessCode()"
                                                 class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center mx-auto">
                                             <i class="fas fa-key mr-2"></i>🔑 Unlock Reports
                                         </button>
                                     </div>
                                     
-                                    <p class="mt-6 text-sm text-gray-500">
-                                        <i class="fas fa-lightbulb mr-2"></i>Hint: The code is <span class="font-mono font-bold">2679</span>
-                                    </p>
+                                    <div class="mt-4">
+                                        <button onclick="openPinManager()"
+                                                class="text-sm text-primary hover:text-primary-dark font-medium flex items-center justify-center mx-auto">
+                                            <i class="fas fa-cog mr-2"></i>Manage PIN Settings
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -761,24 +863,52 @@
 
                         <!-- Bank Management Tab -->
                         <div id="bank-management" class="tab-content hidden">
-                            <!-- Sync Status -->
-                            <div id="firebase-sync-status" class="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 hidden">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center">
-                                        <i class="fas fa-cloud text-2xl text-blue-500 mr-4"></i>
-                                        <div>
-                                            <h4 class="font-semibold text-gray-800">Firebase Sync Active</h4>
-                                            <p class="text-sm text-gray-600" id="sync-status-text">Syncing bank data...</p>
-                                        </div>
+                            <!-- Bank Access Gate -->
+                            <div id="bank-access-gate" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-8 mb-8">
+                                <div class="text-center">
+                                    <i class="fas fa-shield-alt text-5xl text-blue-500 mb-4"></i>
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-3">Secure Access Required 🔒</h3>
+                                    <p class="text-gray-600 mb-6">Enter your 4-digit security PIN to access bank management</p>
+                                    
+                                    <div class="max-w-md mx-auto">
+                                        <input type="password" id="bank-access-code" 
+                                               class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent mb-4"
+                                               placeholder="Enter PIN" maxlength="4" pattern="\d{4}">
+                                        <button onclick="checkBankAccessCode()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center mx-auto">
+                                            <i class="fas fa-key mr-2"></i>🔑 Unlock Bank Management
+                                        </button>
                                     </div>
-                                    <button onclick="refreshBankData()"
-                                            class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
-                                        <i class="fas fa-sync-alt mr-2"></i>Refresh
-                                    </button>
+                                    
+                                    <div class="mt-4">
+                                        <button onclick="openPinManager()"
+                                                class="text-sm text-primary hover:text-primary-dark font-medium flex items-center justify-center mx-auto">
+                                            <i class="fas fa-cog mr-2"></i>Manage PIN Settings
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
-                         <!-- Bank Transfer Form -->
+                            <!-- Bank Management Content (Hidden until PIN is entered) -->
+                            <div id="bank-management-content" class="hidden">
+                                <!-- Sync Status -->
+                                <div id="firebase-sync-status" class="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 hidden">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud text-2xl text-blue-500 mr-4"></i>
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800">Firebase Sync Active</h4>
+                                                <p class="text-sm text-gray-600" id="sync-status-text">Syncing bank data...</p>
+                                            </div>
+                                        </div>
+                                        <button onclick="refreshBankData()"
+                                                class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
+                                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                                        </button>
+                                    </div>
+                                </div>
+
+                             <!-- Bank Transfer Form -->
 <div class="bg-white rounded-xl shadow-card p-6 mb-8">
     <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
         <i class="fas fa-money-check-alt mr-3"></i>💸 Inter-Bank Transfer
@@ -883,69 +1013,70 @@
     </div>
 </div>
 
-                            <!-- Bank Cards Grid -->
-                            <div class="mb-8">
-                                <div class="flex justify-between items-center mb-6">
-                                    <h3 class="text-2xl font-bold text-gray-800 flex items-center">
-                                        <i class="fas fa-credit-card mr-3"></i>🏦 Bank Accounts
-                                    </h3>
-                                    <button onclick="openAddBankModal()"
-                                            class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
-                                        <i class="fas fa-plus-circle mr-2"></i>Add Bank Account
-                                    </button>
+                                <!-- Bank Cards Grid -->
+                                <div class="mb-8">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                                            <i class="fas fa-credit-card mr-3"></i>🏦 Bank Accounts
+                                        </h3>
+                                        <button onclick="openAddBankModal()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
+                                            <i class="fas fa-plus-circle mr-2"></i>Add Bank Account
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Loading Skeleton -->
+                                    <div id="bank-cards-loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                    </div>
+                                    
+                                    <!-- Bank Cards Container -->
+                                    <div id="bank-details-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <!-- Bank cards will be dynamically inserted here -->
+                                    </div>
+                                    
+                                    <div id="no-banks-message" class="text-center py-12 hidden">
+                                        <i class="fas fa-university text-4xl text-gray-300 mb-4"></i>
+                                        <h4 class="text-xl font-semibold text-gray-600 mb-2">No Bank Accounts</h4>
+                                        <p class="text-gray-500 mb-6">Add bank accounts to start managing your finances</p>
+                                        <button onclick="openAddBankModal()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-6 rounded-lg transition-all">
+                                            Add Your First Bank
+                                        </button>
+                                    </div>
                                 </div>
-                                
-                                <!-- Loading Skeleton -->
-                                <div id="bank-cards-loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
-                                    <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
-                                    <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
-                                    <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
-                                </div>
-                                
-                                <!-- Bank Cards Container -->
-                                <div id="bank-details-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    <!-- Bank cards will be dynamically inserted here -->
-                                </div>
-                                
-                                <div id="no-banks-message" class="text-center py-12 hidden">
-                                    <i class="fas fa-university text-4xl text-gray-300 mb-4"></i>
-                                    <h4 class="text-xl font-semibold text-gray-600 mb-2">No Bank Accounts</h4>
-                                    <p class="text-gray-500 mb-6">Add bank accounts to start managing your finances</p>
-                                    <button onclick="openAddBankModal()"
-                                            class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-6 rounded-lg transition-all">
-                                        Add Your First Bank
-                                    </button>
-                                </div>
-                            </div>
 
-                            <!-- Recent Transfers -->
-                            <div class="bg-white rounded-xl shadow-card p-6">
-                                <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                                    <i class="fas fa-history mr-3"></i>Recent Transfers
-                                </h3>
-                                
-                                <div class="overflow-x-auto rounded-lg border border-gray-200">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
-                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">From</th>
-                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">To</th>
-                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
-                                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="transfer-history" class="bg-white divide-y divide-gray-200">
-                                            <!-- Transfer history will be inserted here -->
-                                            <tr>
-                                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
-                                                    <i class="fas fa-exchange-alt text-3xl mb-3"></i>
-                                                    <p>No transfers yet</p>
-                                                    <p class="text-sm mt-2">Make your first inter-bank transfer above</p>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                <!-- Recent Transfers -->
+                                <div class="bg-white rounded-xl shadow-card p-6">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-history mr-3"></i>Recent Transfers
+                                    </h3>
+                                    
+                                    <div class="overflow-x-auto rounded-lg border border-gray-200">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">From</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">To</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="transfer-history" class="bg-white divide-y divide-gray-200">
+                                                <!-- Transfer history will be inserted here -->
+                                                <tr>
+                                                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                                        <i class="fas fa-exchange-alt text-3xl mb-3"></i>
+                                                        <p>No transfers yet</p>
+                                                        <p class="text-sm mt-2">Make your first inter-bank transfer above</p>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1482,7 +1613,11 @@
     let loans = [];
     let bankTransfers = [];
     let loanRepayments = [];
-    const ACCESS_CODE = "2679";
+    const DEFAULT_PIN = "2679";
+    let currentPIN = DEFAULT_PIN;
+    let userPINHash = null;
+    let financialReportsUnlocked = false;
+    let bankManagementUnlocked = false;
     let pettyChartInstance = null;
     let majorChartInstance = null;
     let pettyLineChartInstance = null;
@@ -1502,6 +1637,331 @@
 
     // Current repayment loan ID
     let currentRepaymentLoanId = null;
+
+    // --- PIN Management Functions ---
+    function openPinManager() {
+        const modal = document.getElementById('pin-manager-modal');
+        if (!modal) return;
+        
+        modal.classList.remove('hidden');
+        switchPinTab({ currentTarget: document.querySelector('.pin-tab-button.active') }, 'set-pin');
+        
+        // Clear all inputs
+        document.getElementById('new-pin').value = '';
+        document.getElementById('confirm-pin').value = '';
+        document.getElementById('current-pin').value = '';
+        document.getElementById('change-new-pin').value = '';
+        document.getElementById('change-confirm-pin').value = '';
+        
+        // Hide status
+        const statusElement = document.getElementById('pin-manager-status');
+        if (statusElement) {
+            statusElement.classList.add('hidden');
+        }
+    }
+
+    function closePinManager() {
+        const modal = document.getElementById('pin-manager-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+
+    function switchPinTab(evt, tabName) {
+        document.querySelectorAll(".pin-tab-content").forEach(el => {
+            el.classList.remove('active');
+            el.style.display = 'none';
+        });
+        document.querySelectorAll(".pin-tab-button").forEach(el => {
+            el.classList.remove('active');
+            el.classList.remove('border-primary');
+        });
+        
+        const tabElement = document.getElementById(tabName);
+        if (tabElement) {
+            tabElement.classList.add('active');
+            tabElement.style.display = 'block';
+        }
+        
+        if (evt && evt.currentTarget) {
+            evt.currentTarget.classList.add('active');
+            evt.currentTarget.classList.add('border-primary');
+        }
+    }
+
+    // Simple hash function for PIN (in production, use a proper hashing library)
+    function hashPIN(pin) {
+        // Simple hash - in production, use bcrypt or similar
+        let hash = 0;
+        for (let i = 0; i < pin.length; i++) {
+            const char = pin.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+        return hash.toString();
+    }
+
+    async function setNewPin() {
+        const newPin = document.getElementById('new-pin').value;
+        const confirmPin = document.getElementById('confirm-pin').value;
+        
+        if (!newPin || newPin.length !== 4 || !/^\d+$/.test(newPin)) {
+            showPinStatus('Please enter a valid 4-digit PIN', 'error');
+            return;
+        }
+        
+        if (newPin !== confirmPin) {
+            showPinStatus('PINs do not match', 'error');
+            return;
+        }
+        
+        try {
+            const pinHash = hashPIN(newPin);
+            currentPIN = newPin;
+            userPINHash = pinHash;
+            
+            // Save to localStorage
+            localStorage.setItem('carKenyaPin', newPin);
+            localStorage.setItem('carKenyaPinHash', pinHash);
+            
+            // Save to Firestore if user is logged in
+            if (user) {
+                await firestore.collection('userData').doc(user.uid).set({
+                    pinHash: pinHash,
+                    pinLastUpdated: new Date().toISOString()
+                }, { merge: true });
+            }
+            
+            showPinStatus('New PIN set successfully!', 'success');
+            
+            // Clear inputs after successful save
+            setTimeout(() => {
+                document.getElementById('new-pin').value = '';
+                document.getElementById('confirm-pin').value = '';
+                closePinManager();
+            }, 1500);
+            
+        } catch (error) {
+            console.error("Error saving PIN:", error);
+            showPinStatus('Error saving PIN. Please try again.', 'error');
+        }
+    }
+
+    async function changeExistingPin() {
+        const currentPin = document.getElementById('current-pin').value;
+        const newPin = document.getElementById('change-new-pin').value;
+        const confirmPin = document.getElementById('change-confirm-pin').value;
+        
+        if (!currentPin || currentPin.length !== 4 || !/^\d+$/.test(currentPin)) {
+            showPinStatus('Please enter your current 4-digit PIN', 'error');
+            return;
+        }
+        
+        // Verify current PIN
+        if (currentPin !== currentPIN) {
+            showPinStatus('Current PIN is incorrect', 'error');
+            return;
+        }
+        
+        if (!newPin || newPin.length !== 4 || !/^\d+$/.test(newPin)) {
+            showPinStatus('Please enter a valid new 4-digit PIN', 'error');
+            return;
+        }
+        
+        if (newPin !== confirmPin) {
+            showPinStatus('New PINs do not match', 'error');
+            return;
+        }
+        
+        if (newPin === currentPin) {
+            showPinStatus('New PIN must be different from current PIN', 'error');
+            return;
+        }
+        
+        try {
+            const pinHash = hashPIN(newPin);
+            currentPIN = newPin;
+            userPINHash = pinHash;
+            
+            // Save to localStorage
+            localStorage.setItem('carKenyaPin', newPin);
+            localStorage.setItem('carKenyaPinHash', pinHash);
+            
+            // Save to Firestore if user is logged in
+            if (user) {
+                await firestore.collection('userData').doc(user.uid).set({
+                    pinHash: pinHash,
+                    pinLastUpdated: new Date().toISOString()
+                }, { merge: true });
+            }
+            
+            showPinStatus('PIN changed successfully!', 'success');
+            
+            // Clear inputs after successful change
+            setTimeout(() => {
+                document.getElementById('current-pin').value = '';
+                document.getElementById('change-new-pin').value = '';
+                document.getElementById('change-confirm-pin').value = '';
+                closePinManager();
+            }, 1500);
+            
+        } catch (error) {
+            console.error("Error changing PIN:", error);
+            showPinStatus('Error changing PIN. Please try again.', 'error');
+        }
+    }
+
+    function showPinStatus(message, type = 'info') {
+        const statusElement = document.getElementById('pin-manager-status');
+        const statusText = document.getElementById('pin-manager-status-text');
+        
+        if (statusElement && statusText) {
+            statusElement.classList.remove('hidden');
+            statusElement.className = `mt-6 p-4 rounded-lg ${type === 'error' ? 'bg-red-50 text-red-800' : type === 'success' ? 'bg-green-50 text-green-800' : 'bg-blue-50 text-blue-800'}`;
+            statusText.textContent = message;
+        }
+    }
+
+    // Modified tab opening function to require PIN for secure tabs
+    function openTab(evt, tabName) {
+        // Hide all tab contents
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(tab => {
+            tab.classList.remove('active');
+            tab.style.display = 'none';
+        });
+
+        // Remove active class from all tab buttons
+        const tabButtons = document.querySelectorAll('.custom-tab');
+        tabButtons.forEach(button => {
+            button.classList.remove('active');
+        });
+
+        // Show the selected tab
+        const selectedTab = document.getElementById(tabName);
+        if (selectedTab) {
+            selectedTab.style.display = 'block';
+            selectedTab.classList.add('active');
+            
+            // Handle secure tabs
+            if (tabName === 'financial-reports') {
+                // Always require PIN for financial reports
+                financialReportsUnlocked = false;
+                document.getElementById('access-gate').style.display = 'block';
+                document.getElementById('report-input-area').style.display = 'none';
+                
+                // Clear any previous PIN input
+                document.getElementById('access-code').value = '';
+            } 
+            else if (tabName === 'bank-management') {
+                // Always require PIN for bank management
+                bankManagementUnlocked = false;
+                document.getElementById('bank-access-gate').classList.remove('hidden');
+                document.getElementById('bank-management-content').classList.add('hidden');
+                
+                // Clear any previous PIN input
+                document.getElementById('bank-access-code').value = '';
+            }
+            else {
+                // For non-secure tabs, reset unlock flags
+                financialReportsUnlocked = false;
+                bankManagementUnlocked = false;
+            }
+        }
+
+        // Add active class to clicked button
+        if (evt && evt.currentTarget) {
+            evt.currentTarget.classList.add('active');
+        }
+        
+        // Update data when switching to bank management tab
+        if (tabName === 'bank-management') {
+            updateBankSelectors();
+            updateTransferBankSelectors();
+            updateBankCards();
+            updateTransferHistory();
+        }
+    }
+
+    // Modified checkAccessCode function
+    function checkAccessCode() {
+        const codeInput = document.getElementById('access-code').value;
+        
+        if (!codeInput || codeInput.length !== 4 || !/^\d+$/.test(codeInput)) {
+            showToast('Please enter a valid 4-digit PIN', 'error');
+            return;
+        }
+        
+        if (codeInput === currentPIN) {
+            financialReportsUnlocked = true;
+            document.getElementById('access-gate').style.display = 'none';
+            document.getElementById('report-input-area').style.display = 'block';
+            updateMajorCategoryChart();
+            updateFinancialDashboard();
+            updateBankSelectors();
+            showToast('Access Granted! Welcome to Financial Reports.', 'success');
+        } else {
+            showToast('Access Denied. Invalid PIN.', 'error');
+            document.getElementById('access-code').value = '';
+            document.getElementById('access-code').focus();
+        }
+    }
+
+    // New function for bank management access
+    function checkBankAccessCode() {
+        const codeInput = document.getElementById('bank-access-code').value;
+        
+        if (!codeInput || codeInput.length !== 4 || !/^\d+$/.test(codeInput)) {
+            showToast('Please enter a valid 4-digit PIN', 'error');
+            return;
+        }
+        
+        if (codeInput === currentPIN) {
+            bankManagementUnlocked = true;
+            document.getElementById('bank-access-gate').classList.add('hidden');
+            document.getElementById('bank-management-content').classList.remove('hidden');
+            
+            // Update bank data when unlocked
+            updateBankSelectors();
+            updateTransferBankSelectors();
+            updateBankCards();
+            updateTransferHistory();
+            
+            showToast('Access Granted! Welcome to Bank Management.', 'success');
+        } else {
+            showToast('Access Denied. Invalid PIN.', 'error');
+            document.getElementById('bank-access-code').value = '';
+            document.getElementById('bank-access-code').focus();
+        }
+    }
+
+    async function initializePinSystem() {
+        // Check if user has a saved PIN in localStorage
+        const savedPin = localStorage.getItem('carKenyaPin');
+        const savedPinHash = localStorage.getItem('carKenyaPinHash');
+        
+        if (savedPin && savedPinHash) {
+            currentPIN = savedPin;
+            userPINHash = savedPinHash;
+        }
+        
+        // If user is logged in, try to load PIN from Firestore
+        if (user) {
+            try {
+                const userDoc = await firestore.collection('userData').doc(user.uid).get();
+                if (userDoc.exists) {
+                    const userData = userDoc.data();
+                    if (userData.pinHash) {
+                        userPINHash = userData.pinHash;
+                        // Note: In a real app, you'd need to store the PIN securely
+                        // For this demo, we'll keep using localStorage PIN
+                    }
+                }
+            } catch (error) {
+                console.error("Error loading PIN from Firestore:", error);
+            }
+        }
+    }
 
     // --- Firebase Login Function ---
     async function firebaseLogin() {
@@ -1659,6 +2119,11 @@
             lastUpdated: new Date().toISOString()
         };
         
+        // Also save PIN hash if available
+        if (userPINHash) {
+            userData.pinHash = userPINHash;
+        }
+        
         await firestore.collection('userData').doc(user.uid).set(userData, { merge: true });
         console.log("User data saved to Firestore");
     } catch (error) {
@@ -1673,6 +2138,12 @@
         const doc = await firestore.collection('userData').doc(user.uid).get();
         if (doc.exists) {
             const userData = doc.data();
+            
+            // Load PIN if exists
+            if (userData.pinHash) {
+                userPINHash = userData.pinHash;
+                // Note: In production, you'd verify against the hash
+            }
             
             // Load data
             pettyCashTransactions = userData.pettyCashTransactions || [];
@@ -2031,71 +2502,26 @@ async function processNewPayment(payment) {
             return;
         }
         
-       const paymentMethod = payment.paymentMethod || payment.method || 'Unknown';
-let amount = 0;
-let currency = 'KSH'; // Default to KSH
-
-    // Check specific amount fields first
-if (payment.amountKSH && parseFloat(payment.amountKSH) > 0) {
-    amount = parseFloat(payment.amountKSH);
-    currency = 'KSH';
-} else if (payment.amountUSD && parseFloat(payment.amountUSD) > 0) {
-    amount = parseFloat(payment.amountUSD);
-    currency = 'USD';
-} else if (payment.amount && parseFloat(payment.amount) > 0) {
-    amount = parseFloat(payment.amount);
-    // Use currency from field if available
-    if (payment.currency) {
-        currency = payment.currency.toUpperCase();
-        if (currency === 'KES') currency = 'KSH';
-    }
-}
-
-if (amount <= 0) {
-    console.log('Skipping payment with zero or negative amount:', payment);
-    return;
-}
-
-console.log(`Processing ${amount} ${currency} from ${paymentMethod}`);    
-
-// First, check if payment method contains currency hints
-const paymentMethodUpper = paymentMethod.toUpperCase();
-if (paymentMethodUpper.includes('(USD)') || paymentMethodUpper.includes('USD') || paymentMethodUpper.includes('$')) {
-    // Payment method suggests USD
-    currency = 'USD';
-} else if (paymentMethodUpper.includes('(KSH)') || paymentMethodUpper.includes('KSH') || paymentMethodUpper.includes('KES')) {
-    // Payment method suggests KSH
-    currency = 'KSH';
-}
-
-// Now check amount fields, but override currency if amount field is specific
-if (payment.amountKSH && parseFloat(payment.amountKSH) > 0) {
-    amount = parseFloat(payment.amountKSH);
-    currency = 'KSH'; // Force KSH if amountKSH is present
-    console.log('Using KSH amount from amountKSH field:', amount, currency);
-} else if (payment.amountUSD && parseFloat(payment.amountUSD) > 0) {
-    amount = parseFloat(payment.amountUSD);
-    currency = 'USD'; // Force USD if amountUSD is present
-    console.log('Using USD amount from amountUSD field:', amount, currency);
-} else if (payment.amount && parseFloat(payment.amount) > 0) {
-    amount = parseFloat(payment.amount);
-    // If we already detected currency from payment method, keep it
-    // Otherwise try to detect from currency field
-    if (!paymentMethodUpper.includes('(USD)') && !paymentMethodUpper.includes('(KSH)')) {
-        if (payment.currency) {
-            currency = payment.currency.toUpperCase();
-            if (currency === 'KES') currency = 'KSH';
+        const paymentMethod = payment.paymentMethod || payment.method || 'Unknown';
+        let amount = 0;
+        let currency = 'KSH';
+        
+        // Check for amount in USD or KSH (prioritize USD if both exist)
+        if (payment.amountUSD && payment.amountUSD > 0) {
+            amount = parseFloat(payment.amountUSD);
+            currency = 'USD';
+        } else if (payment.amountKSH && payment.amountKSH > 0) {
+            amount = parseFloat(payment.amountKSH);
+            currency = 'KSH';
+        } else if (payment.amount && payment.amount > 0) {
+            amount = parseFloat(payment.amount);
+            currency = payment.currency || 'KSH';
         }
-    }
-    console.log('Using generic amount field:', amount, currency, 'detected from payment method hint');
-}
         
         if (amount <= 0) {
             console.log('Skipping payment with zero or negative amount:', payment);
             return;
         }
-        
-        console.log(`Processing payment: ${amount} ${currency} from receipt ${receiptNumber}, method: ${paymentMethod}`);
         
         // Find the appropriate bank based on payment method and currency
         const targetBank = await findBankByPaymentMethod(paymentMethod, currency);
@@ -2225,9 +2651,6 @@ async function getAvailableBanksFromFirestore() {
 // Find bank by payment method and currency
 // Find bank by payment method (ONLY from existing banks, no ghost banks)
 // Find bank by payment method (Query Firestore directly)
-// Find bank by payment method (Query Firestore directly)
-
-// Find bank by payment method (Query Firestore directly)
 async function findBankByPaymentMethod(paymentMethod, currency) {
     if (!user) return null;
     
@@ -2240,16 +2663,6 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
             return mpesaBank;
         }
     }
-    
-    // Clean the payment method string to extract bank name
-    let cleanMethod = method;
-    cleanMethod = cleanMethod.replace(/\(usd\)/gi, '');
-    cleanMethod = cleanMethod.replace(/\(ksh\)/gi, '');
-    cleanMethod = cleanMethod.replace(/\(kes\)/gi, '');
-    cleanMethod = cleanMethod.replace(/usd/gi, '');
-    cleanMethod = cleanMethod.replace(/ksh/gi, '');
-    cleanMethod = cleanMethod.replace(/kes/gi, '');
-    cleanMethod = cleanMethod.replace(/\s+/g, ' ').trim();
     
     try {
         // Query bankDetails collection in Firestore
@@ -2269,7 +2682,7 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
             }
             
             // Check if payment method contains bank name or vice versa
-            const methodMatchesBank = cleanMethod.includes(bankName) || bankName.includes(cleanMethod);
+            const methodMatchesBank = method.includes(bankName) || bankName.includes(method);
             const currencyMatches = bankCurrency === currency;
             
             // If both method and currency match, this is a strong candidate
@@ -2308,11 +2721,13 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
                 isSynced: true
             };
             
+            // Add to local banks array
             banks.push(newBank);
             return newBank;
         }
         
         // If no exact matches found, try fuzzy matching
+        // Define bank keywords with their typical currencies
         const bankKeywords = [
             { keywords: ['equity', 'equity bank'], currency: 'KSH' },
             { keywords: ['kcb', 'kenya commercial'], currency: 'KSH' },
@@ -2326,13 +2741,12 @@ async function findBankByPaymentMethod(paymentMethod, currency) {
             { keywords: ['stanbic'], currency: 'KSH' },
             { keywords: ['family bank'], currency: 'KSH' },
             { keywords: ['gt bank', 'guaranty trust'], currency: 'KSH' },
-            { keywords: ['i&m'], currency: 'KSH' },
-            { keywords: ['choice financial'], currency: 'USD' }
+            { keywords: ['i&m'], currency: 'KSH' }
         ];
         
         for (const bankInfo of bankKeywords) {
             for (const keyword of bankInfo.keywords) {
-                if (cleanMethod.includes(keyword) && bankInfo.currency === currency) {
+                if (method.includes(keyword)) {
                     // Search for this bank in Firestore
                     banksSnapshot.forEach(doc => {
                         const bankData = doc.data();
@@ -2408,42 +2822,6 @@ function getDefaultExchangeRate(fromCurrency, toCurrency) {
     return 1; // Same currency
 }
 
-
-    // --- Tab Switching Function ---
-    function openTab(evt, tabName) {
-        // Hide all tab contents
-        const tabContents = document.querySelectorAll('.tab-content');
-        tabContents.forEach(tab => {
-            tab.classList.remove('active');
-            tab.style.display = 'none';
-        });
-
-        // Remove active class from all tab buttons
-        const tabButtons = document.querySelectorAll('.custom-tab');
-        tabButtons.forEach(button => {
-            button.classList.remove('active');
-        });
-
-        // Show the selected tab
-        const selectedTab = document.getElementById(tabName);
-        if (selectedTab) {
-            selectedTab.style.display = 'block';
-            selectedTab.classList.add('active');
-        }
-
-        // Add active class to clicked button
-        if (evt && evt.currentTarget) {
-            evt.currentTarget.classList.add('active');
-        }
-        
-        // Update data when switching to bank management tab
-        if (tabName === 'bank-management') {
-            updateBankSelectors();
-            updateTransferBankSelectors();
-            updateBankCards();
-            updateTransferHistory();
-        }
-    }
 
     // --- M-Pesa Bank Functions ---
     function ensureMpesaBank() {
@@ -3005,7 +3383,7 @@ async function loadReceiptPayments() {
 function executeBankTransfer() {
     const pin = document.getElementById('transfer-pin').value;
     
-    if (pin !== '2679') { // Using the same access code as security pin
+    if (pin !== currentPIN) {
         showToast('Invalid security PIN', 'error');
         return;
     }
@@ -4506,21 +4884,6 @@ if (bankTransferForm) {
     }
 
     // --- Major Financial Reports Logic ---
-    function checkAccessCode() {
-        const codeInput = document.getElementById('access-code').value;
-        if (codeInput === ACCESS_CODE) {
-            document.getElementById('access-gate').style.display = 'none';
-            document.getElementById('report-input-area').style.display = 'block';
-            updateMajorCategoryChart();
-            updateFinancialDashboard();
-            updateBankSelectors();
-            showToast('Access Granted! Welcome to the Major Financial Report Generator.', 'success');
-        } else {
-            showToast('Access Denied. Invalid Code.', 'error');
-            document.getElementById('access-code').value = '';
-        }
-    }
-    
     function updateMajorSummary() {
         const majorSummaryElement = document.getElementById('major-summary');
         if (!majorSummaryElement) return;
@@ -4948,6 +5311,9 @@ if (bankTransferForm) {
         
         // Initialize Firebase
         initializeFirebase();
+        
+        // Initialize PIN system
+        await initializePinSystem();
         
         // Initialize the default tab (Petty Cash)
         openTab({ currentTarget: document.querySelector('.custom-tab.active') }, 'petty-cash');
