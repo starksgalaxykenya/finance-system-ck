@@ -105,6 +105,16 @@
         .bank-card-gradient:hover {
             background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
         }
+        /* Add to the existing CSS section */
+.card-wallet-card {
+    background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+    color: white;
+}
+
+.card-wallet-badge {
+    background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%);
+    color: #000;
+}
 
         /* Shimmer loading effect */
         .shimmer {
@@ -2823,22 +2833,75 @@ function getDefaultExchangeRate(fromCurrency, toCurrency) {
 }
 
 
-    // --- M-Pesa Bank Functions ---
-    function ensureMpesaBank() {
-        const mpesaBank = banks.find(b => b.id === 'mpesa');
-        if (!mpesaBank) {
-            banks.push({
-                id: 'mpesa',
-                name: 'M-Pesa',
-                accountNumber: '0712-XXX-XXX',
-                branch: 'Mobile Money',
-                balance: 0,
-                isMpesa: true,
-                lastUpdated: new Date().toISOString(),
-                primaryPettyCash: true
-            });
-        }
+   // Replace the existing ensureMpesaBank() function with this updated version
+function ensureMpesaBank() {
+    // Ensure M-Pesa exists
+    const mpesaBank = banks.find(b => b.id === 'mpesa');
+    if (!mpesaBank) {
+        banks.push({
+            id: 'mpesa',
+            name: 'M-Pesa',
+            accountNumber: '0712-XXX-XXX',
+            branch: 'Mobile Money',
+            balance: 0,
+            currency: 'KSH',
+            isMpesa: true,
+            lastUpdated: new Date().toISOString(),
+            primaryPettyCash: true
+        });
     }
+    
+    // Ensure Card Wallet exists
+    const cardWallet = banks.find(b => b.id === 'cardwallet');
+    if (!cardWallet) {
+        banks.push({
+            id: 'cardwallet',
+            name: 'CARD WALLET',
+            accountNumber: 'CARD-XXXX-XXXX',
+            branch: 'Digital Wallet',
+            balance: 0,
+            currency: 'KSH', // Default currency, can be changed by user
+            isCardWallet: true,
+            lastUpdated: new Date().toISOString(),
+            primaryCardWallet: true
+        });
+    }
+}
+
+// Add this new function to update Card Wallet from major transactions
+function updateCardWalletFromTransactions() {
+    const cardWallet = banks.find(b => b.id === 'cardwallet');
+    if (!cardWallet) return;
+    
+    // Calculate total card-related transactions
+    let cardBalance = 0;
+    
+    // Sum all card-related major transactions
+    const cardTransactions = majorTransactions.filter(t => 
+        t.paymentMethod && 
+        (t.paymentMethod.toLowerCase().includes('card') || 
+         t.paymentMethod.toLowerCase().includes('visa') ||
+         t.paymentMethod.toLowerCase().includes('mastercard') ||
+         t.paymentMethod.toLowerCase().includes('debit') ||
+         t.paymentMethod.toLowerCase().includes('credit'))
+    );
+    
+    cardTransactions.forEach(t => {
+        if (t.category === 'Sales' || t.isFromReceipt) {
+            cardBalance += t.amount;
+        } else {
+            cardBalance -= t.amount;
+        }
+    });
+    
+    cardWallet.balance = cardBalance;
+    cardWallet.lastUpdated = new Date().toISOString();
+    
+    // Update bank cards if on bank management tab
+    updateBankCards();
+    updateBankSelectors();
+    updateTransferBankSelectors();
+}
 
     function updateMpesaFromPettyCash() {
         const mpesaBank = banks.find(b => b.id === 'mpesa');
