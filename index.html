@@ -681,28 +681,28 @@
                             <!-- Report Input Area -->
                             <div id="report-input-area" class="hidden">
                                 <!-- Financial Summary Dashboard -->
-                                <div class="bg-gradient-to-r from-primary to-primary-dark text-white rounded-2xl shadow-card p-6 mb-8">
-                                    <h3 class="text-2xl font-bold mb-6 flex items-center">
-                                        <i class="fas fa-chart-pie mr-3"></i>💰 Overall Financial Summary
-                                    </h3>
-                                    
-                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
-                                            <div id="total-bank-funds" class="text-4xl font-bold mb-2">KSH 0</div>
-                                            <div class="text-sm opacity-90">Total Bank Funds (All Accounts)</div>
-                                        </div>
-                                        
-                                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
-                                            <div id="total-outstanding-loans" class="text-4xl font-bold mb-2">KSH 0</div>
-                                            <div class="text-sm opacity-90">Total Outstanding Loans</div>
-                                        </div>
-                                        
-                                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
-                                            <div id="monthly-spend" class="text-4xl font-bold mb-2">KSH 0</div>
-                                            <div class="text-sm opacity-90">Current Monthly Expense Spend</div>
-                                        </div>
-                                    </div>
-                                </div>
+                               <div class="bg-gradient-to-r from-primary to-primary-dark text-white rounded-2xl shadow-card p-6 mb-8">
+    <h3 class="text-2xl font-bold mb-6 flex items-center">
+        <i class="fas fa-chart-pie mr-3"></i>💰 Overall Financial Summary
+    </h3>
+    
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
+            <div id="total-kes-funds" class="text-4xl font-bold mb-2">KSH 0</div>
+            <div class="text-sm opacity-90">Total KSH Funds</div>
+        </div>
+        
+        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
+            <div id="total-usd-funds" class="text-4xl font-bold mb-2">$0</div>
+            <div class="text-sm opacity-90">Total USD Funds</div>
+        </div>
+        
+        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
+            <div id="total-outstanding-loans" class="text-4xl font-bold mb-2">KSH 0</div>
+            <div class="text-sm opacity-90">Total Outstanding Loans</div>
+        </div>
+    </div>
+</div>
 
                                 <!-- Major Transaction Form -->
                                 <div class="bg-white rounded-xl shadow-card p-6 mb-8">
@@ -5084,31 +5084,55 @@ if (bankTransferForm) {
 
     // --- Financial Dashboard Functions ---
     function updateFinancialDashboard() {
-        // 1. Total Bank Funds
-        const totalBankFunds = banks.reduce((sum, bank) => sum + bank.balance, 0);
-        const totalBankElement = document.getElementById('total-bank-funds');
-        if (totalBankElement) {
-            if (balancesHidden) {
-                totalBankElement.textContent = '*****';
-                totalBankElement.classList.add('hidden-balance');
-            } else {
-                totalBankElement.textContent = formatKSH(totalBankFunds);
-                totalBankElement.classList.remove('hidden-balance');
-            }
+    // Calculate KSH and USD balances separately
+    let totalKesFunds = 0;
+    let totalUsdFunds = 0;
+    
+    banks.forEach(bank => {
+        if (bank.currency === 'USD') {
+            totalUsdFunds += bank.balance;
+        } else {
+            // Default to KSH for banks without specified currency
+            totalKesFunds += bank.balance;
         }
+    });
+    
+    // 1. Total KSH Funds
+    const totalKesElement = document.getElementById('total-kes-funds');
+    if (totalKesElement) {
+        if (balancesHidden) {
+            totalKesElement.textContent = '*****';
+            totalKesElement.classList.add('hidden-balance');
+        } else {
+            totalKesElement.textContent = formatCurrency(totalKesFunds, 'KSH');
+            totalKesElement.classList.remove('hidden-balance');
+        }
+    }
+    
+    // 2. Total USD Funds
+    const totalUsdElement = document.getElementById('total-usd-funds');
+    if (totalUsdElement) {
+        if (balancesHidden) {
+            totalUsdElement.textContent = '*****';
+            totalUsdElement.classList.add('hidden-balance');
+        } else {
+            totalUsdElement.textContent = formatCurrency(totalUsdFunds, 'USD');
+            totalUsdElement.classList.remove('hidden-balance');
+        }
+    }
         
-        // 2. Total Outstanding Loans
-        const totalOutstandingLoans = loans.reduce((sum, loan) => sum + loan.balance, 0);
-        const totalLoansElement = document.getElementById('total-outstanding-loans');
-        if (totalLoansElement) {
-            if (balancesHidden) {
-                totalLoansElement.textContent = '*****';
-                totalLoansElement.classList.add('hidden-balance');
-            } else {
-                totalLoansElement.textContent = formatKSH(totalOutstandingLoans);
-                totalLoansElement.classList.remove('hidden-balance');
-            }
+   // 3. Total Outstanding Loans (in KSH)
+    const totalOutstandingLoans = loans.reduce((sum, loan) => sum + loan.balance, 0);
+    const totalLoansElement = document.getElementById('total-outstanding-loans');
+    if (totalLoansElement) {
+        if (balancesHidden) {
+            totalLoansElement.textContent = '*****';
+            totalLoansElement.classList.add('hidden-balance');
+        } else {
+            totalLoansElement.textContent = formatCurrency(totalOutstandingLoans, 'KSH');
+            totalLoansElement.classList.remove('hidden-balance');
         }
+    }
         
         // 3. Monthly Spend
         const now = new Date();
