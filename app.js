@@ -375,57 +375,65 @@
     }
 
     // --- Firebase Login Function ---
-    async function firebaseLogin() {
-        const email = document.getElementById('login-email').value;
-        const password = document.getElementById('login-password').value;
-        const statusElement = document.getElementById('firebase-status');
-        
-        if (!email || !password) {
-            showToast('Please enter both email and password', 'error');
+   async function firebaseLogin() {
+    const email = document.getElementById('login-email').value;
+    const password = document.getElementById('login-password').value;
+    const statusElement = document.getElementById('firebase-status');
+    
+    if (!email || !password) {
+        showToast('Please enter both email and password', 'error');
+        return;
+    }
+    
+    showLoading('Connecting to Firebase...');
+    
+    try {
+        // Check if Firebase auth is properly initialized
+        if (!auth) {
+            showLoading(false);
+            showToast('Firebase authentication not initialized', 'error');
             return;
         }
         
-        showLoading('Connecting to Firebase...');
+        // Use the correct signInWithEmailAndPassword method
+        await auth.signInWithEmailAndPassword(email, password);
+        showToast('Login successful!', 'success');
+        toggleFirebaseLogin();
         
-        try {
-            await auth.signInWithEmailAndPassword(email, password);
-            showToast('Login successful!', 'success');
-            toggleFirebaseLogin();
-            
-            // Update UI
-            updateFirebaseUI();
-            
-        } catch (error) {
-            showLoading(false);
-            console.error("Firebase login error:", error);
-            
-            let errorMessage = 'Login failed. ';
-            switch (error.code) {
-                case 'auth/invalid-email':
-                    errorMessage += 'Invalid email address.';
-                    break;
-                case 'auth/user-disabled':
-                    errorMessage += 'This account has been disabled.';
-                    break;
-                case 'auth/user-not-found':
-                    errorMessage += 'No account found with this email.';
-                    break;
-                case 'auth/wrong-password':
-                    errorMessage += 'Incorrect password.';
-                    break;
-                default:
-                    errorMessage += error.message;
-            }
-            
-            showToast(errorMessage, 'error');
-            
-            // Show status in the modal
-            if (statusElement) {
-                statusElement.classList.remove('hidden');
-                document.getElementById('firebase-status-text').textContent = errorMessage;
-            }
+        // Update UI
+        updateFirebaseUI();
+        
+    } catch (error) {
+        showLoading(false);
+        console.error("Firebase login error:", error);
+        
+        let errorMessage = 'Login failed. ';
+        switch (error.code) {
+            case 'auth/invalid-email':
+                errorMessage += 'Invalid email address.';
+                break;
+            case 'auth/user-disabled':
+                errorMessage += 'This account has been disabled.';
+                break;
+            case 'auth/user-not-found':
+                errorMessage += 'No account found with this email.';
+                break;
+            case 'auth/wrong-password':
+                errorMessage += 'Incorrect password.';
+                break;
+            default:
+                errorMessage += error.message;
+        }
+        
+        showToast(errorMessage, 'error');
+        
+        // Show status in the modal
+        if (statusElement) {
+            statusElement.classList.remove('hidden');
+            document.getElementById('firebase-status-text').textContent = errorMessage;
         }
     }
+}
 
     function toggleFirebaseLogin() {
         const modal = document.getElementById('login-modal');
@@ -478,32 +486,47 @@
     }
 
     function initializeFirebase() {
-        try {
+    try {
+        // Check if Firebase is already initialized
+        if (!firebase.apps.length) {
             firebaseApp = firebase.initializeApp(firebaseConfig);
-            firestore = firebase.firestore();
-            auth = firebase.auth();
-            firebaseInitialized = true;
-            
-            // Set up auth state listener
-            auth.onAuthStateChanged(async (firebaseUser) => {
-                user = firebaseUser;
-                updateFirebaseUI();
-                
-                if (user) {
-                    showToast('Connected to Firebase successfully!', 'success');
-                    await loadFirebaseBanks();
-                    await loadReceiptPayments();
-                    await loadUserData(); // Load all user data from Firestore
-                    updateBankSelectors(); // Load banks into transfer selectors
-                }
-            });
-            
-            console.log("Firebase initialized successfully");
-        } catch (error) {
-            console.error("Firebase initialization error:", error);
-            showToast('Firebase initialization failed. Using local data only.', 'error');
+        } else {
+            firebaseApp = firebase.app();
         }
+        
+        // Initialize services with compatibility mode
+        firestore = firebase.firestore();
+        auth = firebase.auth();
+        firebaseInitialized = true;
+        
+        console.log("Firebase initialized successfully", firebaseApp.name);
+        
+        // Set up auth state listener
+        auth.onAuthStateChanged(async (firebaseUser) => {
+            user = firebaseUser;
+            console.log("Auth state changed:", user ? "User logged in" : "User logged out");
+            updateFirebaseUI();
+            
+            if (user) {
+                showToast('Connected to Firebase successfully!', 'success');
+                await loadFirebaseBanks();
+                await loadReceiptPayments();
+                await loadUserData(); // Load all user data from Firestore
+                updateBankSelectors(); // Load banks into transfer selectors
+            }
+        });
+        
+    } catch (error) {
+        console.error("Firebase initialization error:", error);
+        showToast('Firebase initialization failed. Using local data only.', 'error');
+        
+        // Fallback: Set up local data even if Firebase fails
+        ensureMpesaBank();
+        renderPettyCash();
+        updatePettyCashBalanceDisplay();
+        updatePettyCashChart();
     }
+}
 
     // --- Firestore Persistent Storage Functions ---
     async function saveUserData() {
