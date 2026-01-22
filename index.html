@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Updates Underway</title>
+    <style>
+        /* CSS Styles */
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+        }
+
+        /* The Animated Ring */
+        .loader {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+            border: 4px solid rgba(50, 205, 50, 0.1);
+            border-top: 4px solid #32CD32; /* Lime Green */
+            border-radius: 50%;
+            animation: spin 1.5s linear infinite;
+            box-shadow: 0 0 15px rgba(50, 205, 50, 0.2);
+        }
+
+        /* Pulse effect */
+        .loader::after {
+            content: '';
+            position: absolute;
+            top: -10px; left: -10px; right: -10px; bottom: -10px;
+            border-radius: 50%;
+            border: 2px solid #32CD32;
+            opacity: 0;
+            animation: pulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+        }
+
+        .accent {
+            color: #32CD32;
+            text-shadow: 0 0 10px rgba(50, 205, 50, 0.5);
+        }
+
+        p {
+            color: #888;
+            font-size: 1.1rem;
+        }
+
+        /* Animations */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.7; }
+            100% { transform: scale(1.3); opacity: 0; }
+        }
+
+        /* Fade-in for text */
+        .fade-in {
+            opacity: 0;
+            transition: opacity 1.5s ease-in;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="loader"></div>
+        <h1 class="fade-in" id="main-text">UPDATES ARE <span class="accent">UNDERWAY</span></h1>
+        <p class="fade-in" id="sub-text">We're fine-tuning things to make your experience better.</p>
+    </div>
+
+    <script>
+        // JavaScript to handle the entrance animation
+        window.addEventListener('load', () => {
+            const elements = document.querySelectorAll('.fade-in');
+            elements.forEach((el, index) => {
+                setTimeout(() => {
+                    el.style.opacity = '1';
+                }, 300 * (index + 1));
+            });
+        });
+    </script>
+</body>
+</html>
