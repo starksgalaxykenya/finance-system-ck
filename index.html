@@ -3,101 +3,1601 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Updates Underway</title>
+    <title>CarKenya Financial Manager - Integrated & Enhanced</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#267921',
+                        'primary-dark': '#1f641b',
+                        secondary: '#f0f0f0',
+                        'secondary-dark': '#1c272a',
+                        accent: '#0dcaf0',
+                        danger: '#dc3545',
+                        warning: '#ffc107',
+                        success: '#28a745'
+                    },
+                    fontFamily: {
+                        'sans': ['Inter', 'Segoe UI', 'system-ui', '-apple-system', 'sans-serif']
+                    },
+                    boxShadow: {
+                        'card': '0 4px 20px rgba(0, 0, 0, 0.08)',
+                        'card-hover': '0 8px 30px rgba(0, 0, 0, 0.12)',
+                        'floating': '0 10px 40px rgba(0, 0, 0, 0.15)'
+                    },
+                    borderRadius: {
+                        'xl': '1rem',
+                        '2xl': '1.5rem'
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
     <style>
-        /* CSS Styles */
+        /* Custom styles to complement Tailwind */
+        :root {
+            --primary-color: #267921;
+            --secondary-color: #f0f0f0;
+            --text-color: #333;
+            --light-bg: #fff;
+            --dark-bg: #1c272a;
+        }
+
         body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Smooth transitions */
+        .transition-all {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a1a1a1;
+        }
+
+        /* Modal backdrop */
+        .modal-backdrop {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        /* Bank card gradient effects */
+        .bank-card-gradient {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        }
+
+        .bank-card-gradient:hover {
+            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+        }
+        /* Add to the existing CSS section */
+        .card-wallet-card {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+        }
+
+        .card-wallet-badge {
+            background: linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%);
+            color: #000;
+        }
+
+        /* Shimmer loading effect */
+        .shimmer {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+
+        /* Pulse animation for notifications */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        /* Chart container */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        /* Custom tab styling */
+        .custom-tab {
+            position: relative;
             overflow: hidden;
         }
 
-        .container {
-            text-align: center;
-        }
-
-        /* The Animated Ring */
-        .loader {
-            position: relative;
-            width: 120px;
-            height: 120px;
-            margin: 0 auto 30px;
-            border: 4px solid rgba(50, 205, 50, 0.1);
-            border-top: 4px solid #32CD32; /* Lime Green */
-            border-radius: 50%;
-            animation: spin 1.5s linear infinite;
-            box-shadow: 0 0 15px rgba(50, 205, 50, 0.2);
-        }
-
-        /* Pulse effect */
-        .loader::after {
+        .custom-tab::after {
             content: '';
             position: absolute;
-            top: -10px; left: -10px; right: -10px; bottom: -10px;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: var(--primary-color);
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .custom-tab.active::after {
+            transform: translateX(0);
+        }
+
+        /* Confirmation step indicator */
+        .step-indicator {
+            width: 32px;
+            height: 32px;
             border-radius: 50%;
-            border: 2px solid #32CD32;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            background: #e9ecef;
+            color: #6c757d;
+        }
+
+        .step-indicator.active {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .step-indicator.completed {
+            background: #28a745;
+            color: white;
+        }
+
+        /* Bank transfer animation */
+        @keyframes transferPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .transfer-animation {
+            animation: transferPulse 0.5s ease-in-out;
+        }
+
+        /* Loading overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9998;
+            max-width: 350px;
             opacity: 0;
-            animation: pulse 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+            transform: translateX(100%);
+            transition: all 0.3s ease;
         }
 
-        h1 {
-            font-size: 2.5rem;
-            letter-spacing: 2px;
-            margin-bottom: 10px;
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
         }
 
-        .accent {
-            color: #32CD32;
-            text-shadow: 0 0 10px rgba(50, 205, 50, 0.5);
+        /* Tab content styling */
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
         }
 
-        p {
-            color: #888;
-            font-size: 1.1rem;
+        /* Calculator tab styling */
+        .calc-tab-content {
+            display: none;
+        }
+        
+        .calc-tab-content.active {
+            display: block;
         }
 
-        /* Animations */
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        /* Bank step styling */
+        .bank-step {
+            display: none;
+        }
+        
+        .bank-step.active {
+            display: block;
         }
 
-        @keyframes pulse {
-            0% { transform: scale(0.9); opacity: 0.7; }
-            100% { transform: scale(1.3); opacity: 0; }
+        /* Modal z-index fixes */
+        .modal-container {
+            z-index: 99999;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow-y: auto;
+            padding: 20px;
         }
 
-        /* Fade-in for text */
-        .fade-in {
-            opacity: 0;
-            transition: opacity 1.5s ease-in;
+        /* Hide balance text */
+        .hidden-balance {
+            filter: blur(5px);
+            user-select: none;
+        }
+
+        /* M-Pesa specific styling */
+        .mpesa-card {
+            background: linear-gradient(135deg, #00b300 0%, #008000 100%);
+            color: white;
+        }
+
+        .mpesa-badge {
+            background: linear-gradient(135deg, #ffcc00 0%, #ff9900 100%);
+            color: #000;
         }
     </style>
 </head>
-<body>
-
-    <div class="container">
-        <div class="loader"></div>
-        <h1 class="fade-in" id="main-text">UPDATES ARE <span class="accent">UNDERWAY</span></h1>
-        <p class="fade-in" id="sub-text">We're fine-tuning things to make your experience better.</p>
+<body class="bg-gray-50 text-gray-800">
+    
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary mb-4"></div>
+            <p class="text-lg font-semibold text-gray-700" id="loading-text">Loading...</p>
+        </div>
     </div>
 
-    <script>
-        // JavaScript to handle the entrance animation
-        window.addEventListener('load', () => {
-            const elements = document.querySelectorAll('.fade-in');
-            elements.forEach((el, index) => {
-                setTimeout(() => {
-                    el.style.opacity = '1';
-                }, 300 * (index + 1));
-            });
-        });
-    </script>
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-[99999]">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center">🔐 Firebase Login</h2>
+                <p class="text-gray-600 mb-6 text-center">Connect to Firebase to sync bank data and receipts</p>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <input type="email" id="login-email" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                               placeholder="your@email.com">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Password</label>
+                        <input type="password" id="login-password" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                               placeholder="••••••••">
+                    </div>
+                    
+                    <button onclick="firebaseLogin()" 
+                            class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98]">
+                        <i class="fas fa-sign-in-alt mr-2"></i>Login to Firebase
+                    </button>
+                    
+                    <div class="text-center mt-4">
+                        <button onclick="toggleFirebaseLogin()" 
+                                class="text-sm text-gray-500 hover:text-gray-700">
+                            Skip for now (Use Local Data)
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="firebase-status" class="mt-6 p-4 bg-blue-50 rounded-lg hidden">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <span id="firebase-status-text"></span>
+                    </p>
+                </div>
+                
+                <button onclick="toggleFirebaseLogin()" 
+                        class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN Manager Modal -->
+    <div id="pin-manager-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-8 relative z-[99999]">
+                <h2 class="text-2xl font-bold text-gray-800 mb-6 text-center flex items-center justify-center">
+                    <i class="fas fa-key mr-3"></i>🔐 PIN Management
+                </h2>
+                
+                <div id="pin-manager-tabs" class="flex mb-6 border-b border-gray-200">
+                    <button class="pin-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all active border-primary"
+                            onclick="switchPinTab(event, 'set-pin')">
+                        <i class="fas fa-lock mr-2"></i>Set New PIN
+                    </button>
+                    <button class="pin-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all"
+                            onclick="switchPinTab(event, 'change-pin')">
+                        <i class="fas fa-exchange-alt mr-2"></i>Change PIN
+                    </button>
+                </div>
+                
+                <!-- Set New PIN Tab -->
+                <div id="set-pin" class="pin-tab-content active">
+                    <p class="text-gray-600 mb-6 text-center">Set a new 4-digit PIN for accessing secure tabs</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">New PIN (4 digits)</label>
+                            <input type="password" id="new-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Confirm PIN</label>
+                            <input type="password" id="confirm-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <button onclick="setNewPin()"
+                                class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center">
+                            <i class="fas fa-save mr-2"></i>Save New PIN
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Change PIN Tab -->
+                <div id="change-pin" class="pin-tab-content hidden">
+                    <p class="text-gray-600 mb-6 text-center">Change your existing PIN</p>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Current PIN</label>
+                            <input type="password" id="current-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">New PIN (4 digits)</label>
+                            <input type="password" id="change-new-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Confirm New PIN</label>
+                            <input type="password" id="change-confirm-pin" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="0000" maxlength="4" pattern="\d{4}" required>
+                        </div>
+                        
+                        <button onclick="changeExistingPin()"
+                                class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-4 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center">
+                            <i class="fas fa-exchange-alt mr-2"></i>Change PIN
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="pin-manager-status" class="mt-6 p-4 bg-blue-50 rounded-lg hidden">
+                    <p class="text-sm text-blue-800">
+                        <i class="fas fa-info-circle mr-2"></i>
+                        <span id="pin-manager-status-text"></span>
+                    </p>
+                </div>
+                
+                <button onclick="closePinManager()" 
+                        class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Header -->
+    <header class="bg-gradient-to-r from-primary to-primary-dark text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex flex-col md:flex-row justify-between items-center">
+                <div class="mb-4 md:mb-0">
+                    <h1 class="text-3xl font-bold flex items-center">
+                        <i class="fas fa-car mr-3"></i>CarKenya.Co.Ke 🚘 Financial Dashboard
+                    </h1>
+                    <p class="text-primary-light mt-2">Petty Cash Manager & Financial Report Generator</p>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <div id="firebase-user-info" class="hidden bg-white bg-opacity-20 px-4 py-2 rounded-lg">
+                        <i class="fas fa-user-circle mr-2"></i>
+                        <span id="user-email" class="font-medium"></span>
+                    </div>
+                    
+                    <button id="firebase-login-btn" onclick="toggleFirebaseLogin()"
+                            class="bg-white text-primary hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
+                        <i class="fas fa-cloud mr-2"></i>Connect Firebase
+                    </button>
+                    
+                    <button onclick="openPinManager()"
+                            class="bg-white text-primary hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
+                        <i class="fas fa-key mr-2"></i>Manage PIN
+                    </button>
+                    
+                    <button onclick="toggleDarkMode()"
+                            class="bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-3 rounded-lg transition-all">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container mx-auto px-4 py-8">
+        <div class="flex flex-col lg:flex-row gap-8">
+            
+            <!-- Main Content Area -->
+            <div class="lg:w-2/3">
+                <!-- Tabs Navigation -->
+                <div class="bg-white rounded-2xl shadow-card overflow-hidden mb-8">
+                    <div class="flex border-b border-gray-200">
+                        <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-primary transition-all active"
+                                onclick="openTab(event, 'petty-cash')">
+                            <i class="fas fa-wallet mr-2"></i>💰 Petty Cash Manager
+                        </button>
+                        <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-primary transition-all"
+                                onclick="openTab(event, 'financial-reports')">
+                            <i class="fas fa-chart-line mr-2"></i>📈 Financial Reports
+                        </button>
+                        <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-primary transition-all"
+                                onclick="openTab(event, 'bank-management')">
+                            <i class="fas fa-university mr-2"></i>🏦 Bank Management
+                        </button>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div class="p-6">
+                        <!-- Petty Cash Tab -->
+                        <div id="petty-cash" class="tab-content active">
+                            <!-- Balance Bar -->
+                            <div id="petty-cash-balance-bar" class="bg-gradient-to-r from-green-50 to-blue-50 border border-green-100 rounded-xl p-6 mb-8">
+                                <div class="flex flex-col md:flex-row justify-between items-center gap-6">
+                                    <div class="flex flex-wrap gap-8">
+                                        <div class="text-center">
+                                            <div id="current-balance" class="text-3xl font-bold text-primary mb-2">KSH 0</div>
+                                            <div class="text-sm text-gray-600">Current Petty Cash Balance</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div id="day-expense" class="text-3xl font-bold text-red-500 mb-2">KSH 0</div>
+                                            <div class="text-sm text-gray-600">Today's Total Expense</div>
+                                        </div>
+                                        <div class="text-center">
+                                            <div id="day-income" class="text-3xl font-bold text-green-500 mb-2">KSH 0</div>
+                                            <div class="text-sm text-gray-600">Today's Total Income</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="flex flex-col sm:flex-row gap-3">
+                                        <button onclick="toggleAllBalances()"
+                                                class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg transition-all flex items-center justify-center">
+                                            <i class="fas fa-eye-slash mr-2"></i>Hide All Balances
+                                        </button>
+                                        <button onclick="endDayAndGenerateReport()"
+                                                class="bg-accent hover:bg-blue-500 text-white font-medium py-2 px-4 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                                            <i class="fas fa-calendar-day mr-2"></i>End Day & Report
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Transaction Form -->
+                            <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                    <i class="fas fa-exchange-alt mr-3"></i>Petty Cash Transactions
+                                </h2>
+                                
+                                <form id="petty-cash-form">
+                                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                                        <div class="md:col-span-2">
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                                <i class="fas fa-align-left mr-2"></i>Transaction Description
+                                            </label>
+                                            <input type="text" id="description" 
+                                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                                                   placeholder="e.g., Fuel for delivery car" required>
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                                <i class="fas fa-user mr-2"></i>Recipient/Vendor
+                                            </label>
+                                            <input type="text" id="recipient" 
+                                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                                                   placeholder="e.g., John Doe" required>
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                                <i class="fas fa-money-bill-wave mr-2"></i>Cost (KSH)
+                                            </label>
+                                            <input type="number" id="cost" 
+                                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+                                                   placeholder="1500" required min="0" step="0.01">
+                                        </div>
+                                        
+                                        <div>
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                                <i class="fas fa-tag mr-2"></i>Type
+                                            </label>
+                                            <select id="type" 
+                                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent transition-all appearance-none bg-white">
+                                                <option value="expense">Expense</option>
+                                                <option value="income">Income</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <button type="submit"
+                                            class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center">
+                                        <i class="fas fa-plus-circle mr-2"></i>➕ Add Transaction
+                                    </button>
+                                </form>
+                            </div>
+
+                            <!-- Charts Section -->
+                            <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                                    <i class="fas fa-chart-bar mr-3"></i>📊 Petty Cash Flow Analysis
+                                </h3>
+                                
+                                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <div>
+                                        <h4 class="text-lg font-semibold text-gray-700 mb-4">Summary (Income vs. Expense)</h4>
+                                        <div class="chart-container">
+                                            <canvas id="pettyCashChart"></canvas>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <h4 class="text-lg font-semibold text-gray-700 mb-4">Daily & Monthly Expenditure Trend</h4>
+                                        <div class="chart-container">
+                                            <canvas id="pettyExpenditureLineChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recent Transactions -->
+                            <div class="bg-white rounded-xl shadow-card p-6">
+                                <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                                    <i class="fas fa-history mr-3"></i>📜 Recent Transactions (Last 5)
+                                </h3>
+                                
+                                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                                    <table class="min-w-full divide-y divide-gray-200">
+                                        <thead class="bg-primary text-white">
+                                            <tr>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Date</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Description</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Recipient</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Type</th>
+                                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider">Cost (KSH)</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="transaction-list" class="bg-white divide-y divide-gray-200">
+                                            <!-- Transactions will be inserted here -->
+                                            <tr>
+                                                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                                    <i class="fas fa-exchange-alt text-3xl mb-3"></i>
+                                                    <p>No transactions yet</p>
+                                                    <p class="text-sm mt-2">Add your first transaction above</p>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Financial Reports Tab -->
+                        <div id="financial-reports" class="tab-content hidden">
+                            <!-- Access Gate -->
+                            <div id="access-gate" class="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200 rounded-xl p-8 mb-8">
+                                <div class="text-center">
+                                    <i class="fas fa-lock text-5xl text-red-500 mb-4"></i>
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-3">Access Restricted 🔒</h3>
+                                    <p class="text-gray-600 mb-6">Enter your 4-digit security PIN to access financial reports</p>
+                                    
+                                    <div class="max-w-md mx-auto">
+                                        <input type="password" id="access-code" 
+                                               class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent mb-4"
+                                               placeholder="Enter PIN" maxlength="4" pattern="\d{4}">
+                                        <button onclick="checkAccessCode()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center mx-auto">
+                                            <i class="fas fa-key mr-2"></i>🔑 Unlock Reports
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="mt-4">
+                                        <button onclick="openPinManager()"
+                                                class="text-sm text-primary hover:text-primary-dark font-medium flex items-center justify-center mx-auto">
+                                            <i class="fas fa-cog mr-2"></i>Manage PIN Settings
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Report Input Area -->
+                            <div id="report-input-area" class="hidden">
+                                <!-- Financial Summary Dashboard -->
+                                <div class="bg-gradient-to-r from-primary to-primary-dark text-white rounded-2xl shadow-card p-6 mb-8">
+                                    <h3 class="text-2xl font-bold mb-6 flex items-center">
+                                        <i class="fas fa-chart-pie mr-3"></i>💰 Overall Financial Summary
+                                    </h3>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
+                                            <div id="total-kes-funds" class="text-4xl font-bold mb-2">KSH 0</div>
+                                            <div class="text-sm opacity-90">Total KSH Funds</div>
+                                        </div>
+                                        
+                                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
+                                            <div id="total-usd-funds" class="text-4xl font-bold mb-2">$0</div>
+                                            <div class="text-sm opacity-90">Total USD Funds</div>
+                                        </div>
+                                        
+                                        <div class="bg-white bg-opacity-20 backdrop-blur-sm rounded-xl p-6 text-center">
+                                            <div id="total-outstanding-loans" class="text-4xl font-bold mb-2">KSH 0</div>
+                                            <div class="text-sm opacity-90">Total Outstanding Loans</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Major Transaction Form -->
+                                <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-exchange-alt mr-3"></i>Major Transaction Input
+                                    </h3>
+                                    
+                                    <form id="major-transaction-form">
+                                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                                            <div class="md:col-span-2">
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                                                <input type="text" id="major-description" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="e.g., Vehicle Import Duty" required>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Amount (KSH)</label>
+                                                <input type="number" id="major-cost" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="500000" required min="0">
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Category</label>
+                                                <select id="major-category" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="Sales">Sales (Income)</option>
+                                                    <option value="Payroll">Payroll (Expense)</option>
+                                                    <option value="Assets">Assets (Investment)</option>
+                                                    <option value="Overheads">Overheads (Expense)</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Tied Bank Account</label>
+                                                <select id="transaction-bank-id" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="" disabled selected>Select Bank</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        
+                                        <button type="submit"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                                            <i class="fas fa-save mr-2"></i>💾 Log Major Transaction
+                                        </button>
+                                    </form>
+                                </div>
+
+                                <!-- Loan Management -->
+                                <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-hand-holding-usd mr-3"></i>📈 Loan Management
+                                    </h3>
+                                    
+                                    <form id="loan-form">
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Institution</label>
+                                                <input type="text" id="loan-institution" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="e.g., Equity Bank" required>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Outstanding Balance (KSH)</label>
+                                                <input type="number" id="loan-balance" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="500000" required min="1">
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Deposit to Bank Account</label>
+                                                <select id="loan-bank-account" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="" disabled selected>Select Bank Account</option>
+                                                </select>
+                                                <div id="loan-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Loan Type</label>
+                                                <select id="loan-type" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="business">Business Loan</option>
+                                                    <option value="asset">Asset Financing</option>
+                                                    <option value="overdraft">Overdraft Facility</option>
+                                                    <option value="mortgage">Mortgage</option>
+                                                    <option value="other">Other</option>
+                                                </select>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Interest Rate (%)</label>
+                                                <input type="number" id="loan-interest-rate" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="12.5" step="0.1" min="0">
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Due Date</label>
+                                                <input type="date" id="loan-due-date" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       value="${new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0]}">
+                                            </div>
+                                        </div>
+                                        
+                                        <button type="submit"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                                            <i class="fas fa-plus-circle mr-2"></i>➕ Add New Loan
+                                        </button>
+                                    </form>
+                                </div>
+                                
+
+                                <!-- Loan Institution Cards -->
+                                <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-landmark mr-3"></i>📋 Active Loan Institutions
+                                    </h3>
+                                    
+                                    <div id="loan-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <!-- Loan cards will be dynamically inserted here -->
+                                        <div class="col-span-full text-center py-8 text-gray-500">
+                                            <i class="fas fa-hand-holding-usd text-3xl mb-3"></i>
+                                            <p>No active loans</p>
+                                            <p class="text-sm mt-2">Add loans to see them listed here</p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Report Generation -->
+                                <div class="bg-white rounded-xl shadow-card p-6">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-file-alt mr-3"></i>Report Generation & Auditing
+                                    </h3>
+                                    
+                                    <div class="flex flex-wrap gap-4 mb-8">
+                                        <button onclick="generateReport()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center">
+                                            <i class="fas fa-newspaper mr-2"></i>📰 Major Transactions Report
+                                        </button>
+                                        
+                                        <button onclick="simulateAudit()"
+                                                class="bg-warning hover:bg-yellow-600 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center">
+                                            <i class="fas fa-search mr-2"></i>🔍 Run Audit
+                                        </button>
+                                        
+                                        <button onclick="exportReportToPdf()"
+                                                class="bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center">
+                                            <i class="fas fa-print mr-2"></i>🖨️ Print/PDF Report
+                                        </button>
+                                    </div>
+                                    
+                                    <div id="report-output-area">
+                                        <h4 class="text-xl font-semibold text-gray-800 mb-4">Generated Report Summary</h4>
+                                        <div class="chart-container mb-6">
+                                            <canvas id="majorCategoryChart"></canvas>
+                                        </div>
+                                        <div id="major-summary" class="text-gray-600">
+                                            <p>No major transactions logged yet.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Bank Management Tab -->
+                        <div id="bank-management" class="tab-content hidden">
+                            <!-- Bank Access Gate -->
+                            <div id="bank-access-gate" class="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-8 mb-8">
+                                <div class="text-center">
+                                    <i class="fas fa-shield-alt text-5xl text-blue-500 mb-4"></i>
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-3">Secure Access Required 🔒</h3>
+                                    <p class="text-gray-600 mb-6">Enter your 4-digit security PIN to access bank management</p>
+                                    
+                                    <div class="max-w-md mx-auto">
+                                        <input type="password" id="bank-access-code" 
+                                               class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent mb-4"
+                                               placeholder="Enter PIN" maxlength="4" pattern="\d{4}">
+                                        <button onclick="checkBankAccessCode()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center mx-auto">
+                                            <i class="fas fa-key mr-2"></i>🔑 Unlock Bank Management
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="mt-4">
+                                        <button onclick="openPinManager()"
+                                                class="text-sm text-primary hover:text-primary-dark font-medium flex items-center justify-center mx-auto">
+                                            <i class="fas fa-cog mr-2"></i>Manage PIN Settings
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Bank Management Content (Hidden until PIN is entered) -->
+                            <div id="bank-management-content" class="hidden">
+                                <!-- Sync Status -->
+                                <div id="firebase-sync-status" class="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 hidden">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud text-2xl text-blue-500 mr-4"></i>
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800">Firebase Sync Active</h4>
+                                                <p class="text-sm text-gray-600" id="sync-status-text">Syncing bank data...</p>
+                                            </div>
+                                        </div>
+                                        <button onclick="refreshBankData()"
+                                                class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
+                                            <i class="fas fa-sync-alt mr-2"></i>Refresh
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Bank Transfer Form -->
+                                <div class="bg-white rounded-xl shadow-card p-6 mb-8">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-money-check-alt mr-3"></i>💸 Inter-Bank Transfer
+                                    </h3>
+                                    
+                                    <form id="bank-transfer-form">
+                                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">From Bank</label>
+                                                <select id="transfer-from-bank" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="" disabled selected>Select Source Bank</option>
+                                                </select>
+                                                <div id="from-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">To Bank</label>
+                                                <select id="transfer-to-bank" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="" disabled selected>Select Destination Bank</option>
+                                                </select>
+                                                <div id="to-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Transfer Amount (KSH)</label>
+                                                <input type="number" id="transfer-amount" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="100000" min="0.01" step="0.01" required>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- New Fee Section -->
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Fee (KSH)</label>
+                                                <input type="number" id="transfer-fee-input" 
+                                                       class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                       placeholder="0.00" min="0" step="0.01" value="0" required>
+                                                <p class="text-sm text-gray-500 mt-2">Enter the transaction fee amount</p>
+                                            </div>
+                                            
+                                            <div>
+                                                <label class="block text-sm font-medium text-gray-700 mb-2">Fee Bearer</label>
+                                                <select id="fee-bearer" 
+                                                        class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                                    <option value="sending">Sending Bank Pays Fee</option>
+                                                    <option value="receiving">Receiving Bank Pays Fee</option>
+                                                </select>
+                                                <p class="text-sm text-gray-500 mt-2">Who bears the transaction fee?</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mb-6">
+                                            <label class="block text-sm font-medium text-gray-700 mb-2">Transfer Reason</label>
+                                            <textarea id="transfer-reason" 
+                                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                                      rows="2" placeholder="e.g., Working capital transfer between accounts"></textarea>
+                                        </div>
+                                        
+                                        <button type="submit"
+                                                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                                            <i class="fas fa-paper-plane mr-2"></i>Initiate Transfer
+                                        </button>
+                                    </form>
+                                    
+                                    <div id="transfer-preview" class="mt-6 hidden">
+                                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                                            <h4 class="font-semibold text-gray-800 mb-2">Transfer Preview</h4>
+                                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                                <div>
+                                                    <span class="text-gray-600">From:</span>
+                                                    <span id="preview-from" class="font-medium"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-600">To:</span>
+                                                    <span id="preview-to" class="font-medium"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-600">Amount:</span>
+                                                    <span id="preview-amount" class="font-medium text-green-600"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-600">Fee:</span>
+                                                    <span id="preview-fee" class="font-medium text-red-600"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-600">Fee Bearer:</span>
+                                                    <span id="preview-fee-bearer" class="font-medium"></span>
+                                                </div>
+                                                <div>
+                                                    <span class="text-gray-600">Total Debit:</span>
+                                                    <span id="preview-total-debit" class="font-bold"></span>
+                                                </div>
+                                                <div class="col-span-2">
+                                                    <span class="text-gray-600">Reason:</span>
+                                                    <span id="preview-reason" class="font-medium"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Bank Cards Grid -->
+                                <div class="mb-8">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                                            <i class="fas fa-credit-card mr-3"></i>🏦 Bank Accounts
+                                        </h3>
+                                        <button onclick="openAddBankModal()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
+                                            <i class="fas fa-plus-circle mr-2"></i>Add Bank Account
+                                        </button>
+                                    </div>
+                                    
+                                    <!-- Loading Skeleton -->
+                                    <div id="bank-cards-loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 hidden">
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                    </div>
+                                    
+                                    <!-- Bank Cards Container -->
+                                    <div id="bank-details-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <!-- Bank cards will be dynamically inserted here -->
+                                    </div>
+                                    
+                                    <div id="no-banks-message" class="text-center py-12 hidden">
+                                        <i class="fas fa-university text-4xl text-gray-300 mb-4"></i>
+                                        <h4 class="text-xl font-semibold text-gray-600 mb-2">No Bank Accounts</h4>
+                                        <p class="text-gray-500 mb-6">Add bank accounts to start managing your finances</p>
+                                        <button onclick="openAddBankModal()"
+                                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-6 rounded-lg transition-all">
+                                            Add Your First Bank
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <!-- Recent Transfers -->
+                                <div class="bg-white rounded-xl shadow-card p-6">
+                                    <h3 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                                        <i class="fas fa-history mr-3"></i>Recent Transfers
+                                    </h3>
+                                    
+                                    <div class="overflow-x-auto rounded-lg border border-gray-200">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Date</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">From</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">To</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Amount</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="transfer-history" class="bg-white divide-y divide-gray-200">
+                                                <!-- Transfer history will be inserted here -->
+                                                <tr>
+                                                    <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                                                        <i class="fas fa-exchange-alt text-3xl mb-3"></i>
+                                                        <p>No transfers yet</p>
+                                                        <p class="text-sm mt-2">Make your first inter-bank transfer above</p>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="lg:w-1/3">
+                <!-- Audit Card -->
+                <div id="audit-card" class="bg-white rounded-2xl shadow-card p-6 mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                        <i class="fas fa-shield-alt mr-3"></i>✨ Extra Features & Auditing
+                    </h2>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div class="flex items-start">
+                            <i class="fas fa-exclamation-triangle text-yellow-500 mt-1 mr-3"></i>
+                            <div>
+                                <h4 class="font-semibold text-gray-800">Real-Time Auditing (Client-side)</h4>
+                                <ul class="text-sm text-gray-600 mt-1 space-y-1">
+                                    <li><strong>Anomaly Detection:</strong> Flags petty cash transactions over KSH 5,000</li>
+                                    <li><strong>Balance Integrity:</strong> Alerts on negative bank/petty cash balance</li>
+                                    <li><strong>Major Integrity:</strong> Checks for small transactions logged as Major</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-heartbeat mr-2"></i>Current Audit Status
+                    </h3>
+                    <div id="audit-status" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                        <div class="flex items-center">
+                            <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                            <span class="font-medium text-green-800">System Health: All Clear.</span>
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-link mr-2"></i>CarKenya Quick Links
+                    </h3>
+                    <div class="space-y-3">
+                        <a href="#" class="flex items-center text-primary hover:text-primary-dark transition-all">
+                            <i class="fas fa-file-invoice-dollar mr-3"></i>
+                            <span>View Invoices</span>
+                        </a>
+                        <a href="#" class="flex items-center text-primary hover:text-primary-dark transition-all">
+                            <i class="fas fa-chart-pie mr-3"></i>
+                            <span>Setup Budget</span>
+                        </a>
+                        <a href="#" class="flex items-center text-primary hover:text-primary-dark transition-all">
+                            <i class="fas fa-receipt mr-3"></i>
+                            <span>Staff Expense Claims</span>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="bg-gradient-to-br from-primary to-primary-dark text-white rounded-2xl shadow-card p-6">
+                    <h3 class="text-xl font-bold mb-6 flex items-center">
+                        <i class="fas fa-bolt mr-3"></i>Quick Stats
+                    </h3>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm opacity-90">Total Transactions Today</span>
+                                <span class="font-bold" id="stats-today-transactions">0</span>
+                            </div>
+                            <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
+                                <div id="stats-today-progress" class="bg-white h-2 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm opacity-90">Active Bank Accounts</span>
+                                <span class="font-bold" id="stats-active-banks">0</span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <span class="text-sm opacity-90">Monthly Budget Used</span>
+                                <span class="font-bold" id="stats-budget-used">0%</span>
+                            </div>
+                            <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
+                                <div id="stats-budget-progress" class="bg-accent h-2 rounded-full" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button onclick="refreshAllData()"
+                            class="w-full mt-6 bg-white text-primary hover:bg-gray-100 font-semibold py-3 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh All Data
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Floating Calculator Button -->
+    <button class="floating-btn fixed bottom-8 right-8 w-16 h-16 bg-primary hover:bg-primary-dark text-white rounded-full shadow-floating transition-all transform hover:scale-110 active:scale-95 flex items-center justify-center z-40"
+            onclick="openCalculatorModal('basic')">
+        <i class="fas fa-calculator text-2xl"></i>
+    </button>
+
+    <!-- Calculator Modal -->
+    <div id="calculator-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-calculator mr-3"></i>Financial Calculator
+                    </h2>
+                    <button onclick="closeCalculatorModal()"
+                            class="text-gray-500 hover:text-gray-700 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div id="calculator-tabs" class="flex mb-6 border-b border-gray-200">
+                    <button class="calc-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all active border-primary"
+                            onclick="switchCalcTab(event, 'basic-calc')">
+                        <i class="fas fa-calculator mr-2"></i>Basic Calculator
+                    </button>
+                    <button class="calc-tab-button flex-1 py-3 text-center font-semibold border-b-2 border-transparent text-gray-500 hover:text-primary transition-all"
+                            onclick="switchCalcTab(event, 'financial-calc')">
+                        <i class="fas fa-chart-line mr-2"></i>Financial (EMI)
+                    </button>
+                </div>
+                
+                <div id="basic-calc" class="calc-tab-content active">
+                    <div id="calculator-display" class="bg-gray-800 text-white text-3xl font-mono p-4 rounded-lg mb-4 text-right overflow-x-auto">0</div>
+                    
+                    <div id="calculator-buttons" class="grid grid-cols-4 gap-2">
+                        <button class="clear-btn bg-red-500 hover:bg-red-600 text-white font-bold py-4 rounded-lg transition-all" onclick="clearBasicCalc()">C</button>
+                        <button class="operator bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('/')">÷</button>
+                        <button class="operator bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('*')">×</button>
+                        <button class="operator bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('-')">−</button>
+                        
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('7')">7</button>
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('8')">8</button>
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('9')">9</button>
+                        <button class="operator bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('+')">+</button>
+                        
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('4')">4</button>
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('5')">5</button>
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('6')">6</button>
+                        <button class="equals bg-primary hover:bg-primary-dark text-white font-bold py-4 rounded-lg transition-all col-start-4 col-end-5 row-start-3 row-end-5" onclick="calculateBasicCalc()">=</button>
+                        
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('1')">1</button>
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('2')">2</button>
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('3')">3</button>
+                        
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all col-span-2" onclick="appendToBasicCalc('0')">0</button>
+                        <button class="number-btn bg-gray-100 hover:bg-gray-200 font-bold py-4 rounded-lg transition-all" onclick="appendToBasicCalc('.')">.</button>
+                    </div>
+                </div>
+                
+                <div id="financial-calc" class="calc-tab-content hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Loan Payment (EMI) Calculator</h3>
+                    
+                    <form id="emi-calculator-form" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Loan Principal (KSH)</label>
+                            <input type="number" id="principal" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   value="1000000" required min="1">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Annual Interest Rate (%)</label>
+                            <input type="number" id="rate" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   value="10" step="0.01" required min="0">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Loan Term (Months)</label>
+                            <input type="number" id="months" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   value="36" required min="1">
+                        </div>
+                        
+                        <button type="submit"
+                                class="w-full bg-primary hover:bg-primary-dark text-white font-semibold py-3 px-6 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                            <i class="fas fa-calculator mr-2"></i>Calculate EMI
+                        </button>
+                    </form>
+                    
+                    <div class="mt-6 p-4 bg-green-50 rounded-lg">
+                        <h4 class="font-semibold text-gray-800 mb-2">Result</h4>
+                        <p id="emi-result" class="text-primary font-bold">Enter values and click Calculate.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Bank Modal -->
+    <div id="add-bank-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-university mr-3"></i>Add Bank Account
+                    </h2>
+                    <button onclick="closeAddBankModal()"
+                            class="text-gray-500 hover:text-gray-700 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <!-- Step Indicator -->
+                <div class="flex justify-between items-center mb-8">
+                    <div class="flex flex-col items-center">
+                        <div id="step-1-indicator" class="step-indicator active">1</div>
+                        <span class="text-xs mt-2 font-medium">Select Bank</span>
+                    </div>
+                    <div class="h-1 w-12 bg-gray-200"></div>
+                    <div class="flex flex-col items-center">
+                        <div id="step-2-indicator" class="step-indicator">2</div>
+                        <span class="text-xs mt-2 font-medium">Set Balance</span>
+                    </div>
+                    <div class="h-1 w-12 bg-gray-200"></div>
+                    <div class="flex flex-col items-center">
+                        <div id="step-3-indicator" class="step-indicator">3</div>
+                        <span class="text-xs mt-2 font-medium">Confirm</span>
+                    </div>
+                </div>
+                
+                <!-- Step 1: Select Bank -->
+                <div id="step-1" class="bank-step active">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Select Bank from Firebase</h3>
+                    <p class="text-gray-600 mb-6">Choose a bank from your existing bank details in Firebase</p>
+                    
+                    <div class="space-y-3 max-h-60 overflow-y-auto pr-2">
+                        <!-- Banks from Firebase will be loaded here -->
+                        <div id="firebase-banks-list" class="space-y-3">
+                            <!-- Bank options will be inserted here -->
+                            <div class="text-center py-8 text-gray-500">
+                                <i class="fas fa-university text-3xl mb-3"></i>
+                                <p>No banks found in Firebase</p>
+                                <p class="text-sm mt-2">Connect to Firebase and add banks first</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-between mt-8">
+                        <button onclick="closeAddBankModal()"
+                                class="px-6 py-2 text-gray-600 hover:text-gray-800 font-medium">
+                            Cancel
+                        </button>
+                        <button onclick="nextBankStep()"
+                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-6 rounded-lg transition-all">
+                            Next <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Step 2: Set Initial Balance -->
+                <div id="step-2" class="bank-step hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Set Initial Balance</h3>
+                    <p class="text-gray-600 mb-6">Enter the current balance for <span id="selected-bank-name" class="font-semibold"></span></p>
+                    
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Initial Balance (KSH)</label>
+                        <input type="number" id="bank-initial-balance" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg text-2xl text-center focus:ring-2 focus:ring-primary focus:border-transparent"
+                               placeholder="0.00" min="0" step="0.01" required>
+                        <p class="text-sm text-gray-500 mt-2">This will be the starting balance for your local tracking</p>
+                    </div>
+                    
+                    <div class="flex justify-between mt-8">
+                        <button onclick="prevBankStep()"
+                                class="px-6 py-2 text-gray-600 hover:text-gray-800 font-medium flex items-center">
+                            <i class="fas fa-arrow-left mr-2"></i> Back
+                        </button>
+                        <button onclick="nextBankStep()"
+                                class="bg-primary hover:bg-primary-dark text-white font-semibold py-2 px-6 rounded-lg transition-all">
+                            Next <i class="fas fa-arrow-right ml-2"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Step 3: Confirmation -->
+                <div id="step-3" class="bank-step hidden">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Confirm Details</h3>
+                    
+                    <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-gray-600 text-sm">Bank Name:</span>
+                                <p id="confirm-bank-name" class="font-semibold"></p>
+                            </div>
+                            <div>
+                                <span class="text-gray-600 text-sm">Initial Balance:</span>
+                                <p id="confirm-bank-balance" class="font-semibold text-green-600"></p>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-gray-600 text-sm">Source:</span>
+                                <p class="font-semibold flex items-center">
+                                    <i class="fas fa-fire mr-2 text-orange-500"></i>Firebase Sync
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-start mb-6">
+                        <input type="checkbox" id="confirm-terms" class="mt-1 mr-3">
+                        <label for="confirm-terms" class="text-sm text-gray-600">
+                            I confirm that this balance is accurate and I've verified it against my bank statement
+                        </label>
+                    </div>
+                    
+                    <div class="flex justify-between mt-8">
+                        <button onclick="prevBankStep()"
+                                class="px-6 py-2 text-gray-600 hover:text-gray-800 font-medium flex items-center">
+                            <i class="fas fa-arrow-left mr-2"></i> Back
+                        </button>
+                        <button onclick="submitNewBank()"
+                                class="bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-6 rounded-lg transition-all flex items-center">
+                            <i class="fas fa-check-circle mr-2"></i> Add Bank Account
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Transfer Confirmation Modal -->
+    <div id="transfer-confirm-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
+                <div class="text-center mb-6">
+                    <i class="fas fa-paper-plane text-5xl text-primary mb-4"></i>
+                    <h3 class="text-2xl font-bold text-gray-800 mb-2">Confirm Transfer</h3>
+                    <p class="text-gray-600">Please confirm the bank transfer details</p>
+                </div>
+                
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                    <div class="space-y-3">
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">From:</span>
+                            <span id="confirm-transfer-from" class="font-semibold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">To:</span>
+                            <span id="confirm-transfer-to" class="font-semibold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Amount:</span>
+                            <span id="confirm-transfer-amount" class="font-semibold text-green-600"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Fee:</span>
+                            <span id="confirm-transfer-fee" class="font-semibold text-red-600"></span>
+                        </div>
+                        <!-- ADD THIS LINE -->
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Fee Bearer:</span>
+                            <span id="confirm-transfer-fee-bearer" class="font-semibold"></span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-600">Total Debit:</span>
+                            <span id="confirm-transfer-total" class="font-bold"></span>
+                        </div>
+                        <hr class="my-2">
+                        <div>
+                            <span class="text-gray-600">Reason:</span>
+                            <p id="confirm-transfer-reason" class="font-medium mt-1"></p>
+                        </div>
+                    </div>
+                </div>
+                    
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Security PIN</label>
+                        <input type="password" id="transfer-pin" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest focus:ring-2 focus:ring-primary focus:border-transparent"
+                               placeholder="0000" maxlength="4" required>
+                        <p class="text-xs text-gray-500 mt-2">Enter your 4-digit security PIN to confirm</p>
+                    </div>
+                    
+                    <div class="flex space-x-4">
+                        <button onclick="closeTransferConfirm()"
+                                class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
+                            Cancel
+                        </button>
+                        <button onclick="executeBankTransfer()"
+                                class="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg transition-all">
+                            Confirm Transfer
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loan Repayment Modal -->
+    <div id="loan-repayment-modal" class="fixed inset-0 z-[99999] hidden">
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-auto p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-money-check-alt mr-3"></i>Loan Repayment
+                    </h2>
+                    <button onclick="closeLoanRepaymentModal()"
+                            class="text-gray-500 hover:text-gray-700 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div id="repayment-loan-details" class="bg-gray-50 rounded-lg p-4 mb-6">
+                    <!-- Loan details will be inserted here -->
+                </div>
+                
+                <form id="loan-repayment-form">
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Source Bank Account</label>
+                            <select id="repayment-bank-select" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent">
+                                <option value="" disabled selected>Select Bank for Repayment</option>
+                            </select>
+                            <div id="repayment-bank-balance" class="text-sm text-gray-500 mt-2"></div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Repayment Amount (KSH)</label>
+                            <input type="number" id="repayment-amount" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="10000" min="0.01" step="0.01" required>
+                            <div class="text-sm text-gray-500 mt-2">
+                                <span id="remaining-balance-text">Remaining balance: KSH 0</span>
+                                <button type="button" onclick="fillFullBalance()" class="text-primary hover:text-primary-dark text-xs ml-4">
+                                    <i class="fas fa-money-bill-wave mr-1"></i>Repay Full Amount
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Repayment Date</label>
+                            <input type="date" id="repayment-date" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   value="${new Date().toISOString().split('T')[0]}" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Reference/Receipt No.</label>
+                            <input type="text" id="repayment-reference" 
+                                   class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                   placeholder="e.g., TRX-0012345" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Notes</label>
+                            <textarea id="repayment-notes" 
+                                      class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+                                      rows="2" placeholder="Additional notes about this repayment"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                        <h4 class="font-semibold text-gray-800 mb-2 flex items-center">
+                            <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                            Repayment Preview
+                        </h4>
+                        <div class="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                                <span class="text-gray-600">Loan:</span>
+                                <span id="preview-loan" class="font-medium"></span>
+                            </div>
+                            <div>
+                                <span class="text-gray-600">Amount:</span>
+                                <span id="preview-amount" class="font-medium text-green-600"></span>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-gray-600">Source Bank:</span>
+                                <span id="preview-source-bank" class="font-medium"></span>
+                            </div>
+                            <div class="col-span-2">
+                                <span class="text-gray-600">New Loan Balance:</span>
+                                <span id="preview-new-balance" class="font-medium text-blue-600"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-4">
+                        <button type="button" onclick="closeLoanRepaymentModal()"
+                                class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="flex-1 bg-primary hover:bg-primary-dark text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center">
+                            <i class="fas fa-check-circle mr-2"></i>Confirm Repayment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Section -->
+    <script src="app.js"></script>
+    <!-- Note: You'll need to save the JavaScript code I provided earlier as app.js -->
 </body>
 </html>
