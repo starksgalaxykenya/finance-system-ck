@@ -392,6 +392,7 @@ function updateBankCards() {
 }
 
 // Create individual bank card
+// Create individual bank card
 function createBankCard(bankName, balance) {
     const card = document.createElement('div');
     card.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-card p-6 border border-gray-200 dark:border-gray-700 hover:shadow-card-hover transition-all bank-card';
@@ -421,24 +422,57 @@ function createBankCard(bankName, balance) {
         <div class="grid grid-cols-2 gap-4 text-sm mb-6">
             <div>
                 <div class="text-gray-500 dark:text-gray-400">Opening Balance</div>
-                <div class="font-medium dark:text-white">${currencySymbol}${formatNumber(balance.openingBalance.toFixed(2))}</div>
+                <div class="font-medium dark:text-white">
+                    ${currencySymbol}${formatNumber(balance.openingBalance.toFixed(2))}
+                    ${openingBalanceTimestamps[bankName] ? 
+                        `<span class="text-xs text-green-500 ml-1" title="Opening balance set"><i class="fas fa-check-circle"></i></span>` : 
+                        `<span class="text-xs text-yellow-500 ml-1" title="No opening balance set"><i class="fas fa-exclamation-circle"></i></span>`
+                    }
+                </div>
             </div>
             <div>
                 <div class="text-gray-500 dark:text-gray-400">Total Credits</div>
                 <div class="font-medium text-green-600 dark:text-green-400">${currencySymbol}${formatNumber(balance.totalCredits.toFixed(2))}</div>
             </div>
+            <div>
+                <div class="text-gray-500 dark:text-gray-400">Total Debits</div>
+                <div class="font-medium text-red-600 dark:text-red-400">${currencySymbol}${formatNumber(balance.totalDebits.toFixed(2))}</div>
+            </div>
+            <div>
+                <div class="text-gray-500 dark:text-gray-400">Transactions</div>
+                <div class="font-medium dark:text-white">
+                    ${bankLedger.filter(entry => entry.bankName === bankName).length} entries
+                </div>
+            </div>
         </div>
         
         <div class="flex space-x-2">
             <button onclick="openWithdrawalModal('${bankName}')" 
-                    class="flex-1 bg-primary hover:bg-primary-dark text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
                 <i class="fas fa-money-check-alt mr-1"></i> Withdraw
             </button>
-            <button onclick="openUpdateBalanceModal('${bankName}')" 
-                    class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
-                <i class="fas fa-edit mr-1"></i> Update Balance
+            <button onclick="openOpeningBalanceModal('${bankName}')" 
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
+                <i class="fas fa-balance-scale mr-1"></i> Set Opening Balance
             </button>
         </div>
+        
+        ${openingBalanceTimestamps[bankName] ? `
+            <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div class="text-xs text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center mb-1">
+                        <i class="fas fa-calendar-alt mr-1"></i>
+                        <span>Opening balance set on: ${new Date(openingBalanceTimestamps[bankName].timestamp).toLocaleDateString()}</span>
+                    </div>
+                    ${openingBalanceTimestamps[bankName].notes ? `
+                        <div class="flex items-center">
+                            <i class="fas fa-sticky-note mr-1"></i>
+                            <span class="truncate" title="${openingBalanceTimestamps[bankName].notes}">${openingBalanceTimestamps[bankName].notes}</span>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        ` : ''}
     `;
     
     return card;
@@ -998,9 +1032,320 @@ function toggleFirebaseLogin() {
     modal.classList.toggle('hidden');
 }
 
-// Initialize when DOM is loaded
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initializeFirebase);
-} else {
-    initializeFirebase();
+// Open opening balance modal
+function openOpeningBalanceModal(bankName) {
+    const balance = bankBalances[bankName];
+    if (!balance) return;
+    
+    const modal = document.getElementById('opening-balance-modal');
+    const detailsContainer = document.getElementById('opening-balance-details');
+    
+    const currencySymbol = balance.currency === 'USD' ? '$' : 'KSH ';
+    const currentDate = new Date().toISOString().split('T')[0];
+    
+    detailsContainer.innerHTML = `
+        <div class="space-y-2">
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Bank:</span>
+                <span class="font-semibold dark:text-white">${bankName}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Currency:</span>
+                <span class="font-semibold ${balance.currency === 'USD' ? 'text-blue-600 dark:text-blue-400' : 'text-green-600 dark:text-green-400'}">
+                    ${balance.currency}
+                </span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Current Opening Balance:</span>
+                <span class="font-semibold">${currencySymbol}${formatNumber(balance.openingBalance.toFixed(2))}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600 dark:text-gray-400">Current Balance:</span>
+                <span class="font-semibold ${balance.currentBalance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
+                    ${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}
+                </span>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('opening-currency-symbol').textContent = currencySymbol;
+    document.getElementById('opening-balance-date').value = currentDate;
+    document.getElementById('opening-balance-amount').value = balance.openingBalance || '';
+    
+    modal.dataset.bankName = bankName;
+    modal.classList.remove('hidden');
 }
+
+// Close opening balance modal
+function closeOpeningBalanceModal() {
+    const modal = document.getElementById('opening-balance-modal');
+    modal.classList.add('hidden');
+    document.getElementById('opening-balance-form').reset();
+    delete modal.dataset.bankName;
+}
+
+// Process opening balance submission
+async function processOpeningBalance(formData) {
+    try {
+        const { bankName, amount, date, notes } = formData;
+        
+        if (!bankName || !amount || !date) {
+            throw new Error("Please fill in all required fields");
+        }
+        
+        const balance = parseFloat(amount);
+        if (isNaN(balance) || balance < 0) {
+            throw new Error("Please enter a valid balance amount");
+        }
+        
+        showLoading("Setting opening balance...");
+        
+        // Record opening balance timestamp
+        openingBalanceTimestamps[bankName] = {
+            balance: balance,
+            timestamp: new Date(date),
+            updatedBy: currentUser?.email || 'Anonymous',
+            updatedAt: new Date().toISOString(),
+            notes: notes || ''
+        };
+        
+        // Save to Firebase
+        await saveProcessedTransactions();
+        
+        // Recalculate balances
+        calculateAllBankBalances();
+        updateBankCards();
+        updateTransferDropdowns();
+        
+        hideLoading();
+        closeOpeningBalanceModal();
+        showToast(`Opening balance for ${bankName} set successfully`, "success");
+        
+    } catch (error) {
+        hideLoading();
+        showToast(`Failed to set opening balance: ${error.message}`, "error");
+    }
+}
+
+// Add a function to show all banks summary
+function showAllBanksSummary() {
+    const banks = Object.keys(bankBalances);
+    if (banks.length === 0) {
+        alert('No banks loaded. Please connect to Firebase and refresh data.');
+        return;
+    }
+    
+    let summary = `=== ALL BANKS SUMMARY ===\n\n`;
+    let totalKES = 0;
+    let totalUSD = 0;
+    
+    banks.sort().forEach(bankName => {
+        const balance = bankBalances[bankName];
+        const currencySymbol = balance.currency === 'USD' ? '$' : 'KSH ';
+        
+        summary += `${bankName} (${balance.currency}):\n`;
+        summary += `  Current Balance: ${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}\n`;
+        summary += `  Opening Balance: ${currencySymbol}${formatNumber(balance.openingBalance.toFixed(2))}\n`;
+        summary += `  Total Credits: ${currencySymbol}${formatNumber(balance.totalCredits.toFixed(2))}\n`;
+        summary += `  Total Debits: ${currencySymbol}${formatNumber(balance.totalDebits.toFixed(2))}\n`;
+        
+        if (openingBalanceTimestamps[bankName]) {
+            summary += `  Opening Set: ${new Date(openingBalanceTimestamps[bankName].timestamp).toLocaleDateString()}\n`;
+        } else {
+            summary += `  Opening Set: Not configured\n`;
+        }
+        
+        summary += `\n`;
+        
+        if (balance.currency === 'KES') {
+            totalKES += balance.currentBalance;
+        } else if (balance.currency === 'USD') {
+            totalUSD += balance.currentBalance;
+        }
+    });
+    
+    summary += `=== TOTALS ===\n`;
+    summary += `Total KSH Funds: KSH ${formatNumber(totalKES.toFixed(2))}\n`;
+    summary += `Total USD Funds: $${formatNumber(totalUSD.toFixed(2))}\n`;
+    summary += `Total Banks: ${banks.length}\n`;
+    summary += `Total Transactions Processed: ${processedTransactions.size}\n`;
+    
+    // Create a modal to show the summary
+    const summaryModal = document.createElement('div');
+    summaryModal.className = 'fixed inset-0 z-[99999] flex items-center justify-center';
+    summaryModal.innerHTML = `
+        <div class="modal-backdrop fixed inset-0"></div>
+        <div class="modal-container flex items-center justify-center">
+            <div class="modal-content bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl mx-auto p-6 relative z-[99999]">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 dark:text-white flex items-center">
+                        <i class="fas fa-university mr-3"></i>All Banks Summary
+                    </h2>
+                    <button onclick="this.closest('.fixed').remove()"
+                            class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 text-2xl">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-green-50 dark:bg-green-900 p-4 rounded-lg">
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Total KSH Funds</div>
+                            <div class="text-2xl font-bold text-green-600 dark:text-green-400">KSH ${formatNumber(totalKES.toFixed(2))}</div>
+                        </div>
+                        <div class="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+                            <div class="text-sm text-gray-600 dark:text-gray-400">Total USD Funds</div>
+                            <div class="text-2xl font-bold text-blue-600 dark:text-blue-400">$${formatNumber(totalUSD.toFixed(2))}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="max-h-96 overflow-y-auto">
+                    <pre class="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg text-sm text-gray-800 dark:text-gray-200 whitespace-pre-wrap">${summary}</pre>
+                </div>
+                
+                <div class="mt-6 flex justify-end space-x-4">
+                    <button onclick="this.closest('.fixed').remove()"
+                            class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-semibold py-2 px-6 rounded-lg transition-all">
+                        Close
+                    </button>
+                    <button onclick="printSummary()"
+                            class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-6 rounded-lg transition-all flex items-center">
+                        <i class="fas fa-print mr-2"></i>Print Summary
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(summaryModal);
+}
+
+// Add print function
+function printSummary() {
+    window.print();
+}
+
+// Event Listeners and Modal Functions
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Firebase
+    initializeFirebase();
+    
+    // Bank Transfer Form Submission
+    const transferForm = document.getElementById('bank-transfer-form');
+    if (transferForm) {
+        transferForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fromBank = document.getElementById('transfer-from-bank').value;
+            const toBank = document.getElementById('transfer-to-bank').value;
+            const amount = document.getElementById('transfer-amount').value;
+            const fee = document.getElementById('transfer-fee-input').value || 0;
+            const feeBearer = document.getElementById('fee-bearer').value;
+            const reason = document.getElementById('transfer-reason').value;
+            
+            // Show confirmation modal
+            showTransferConfirmation({
+                fromBank,
+                toBank,
+                amount,
+                fee,
+                feeBearer,
+                reason
+            });
+        });
+    }
+    
+    // Bank Withdrawal Form Submission
+    const withdrawalForm = document.getElementById('bank-withdrawal-form');
+    if (withdrawalForm) {
+        withdrawalForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const bankName = document.getElementById('withdrawal-bank').value;
+            const amount = document.getElementById('withdrawal-amount').value;
+            const category = document.getElementById('withdrawal-category').value;
+            const description = document.getElementById('withdrawal-description').value;
+            const payee = document.getElementById('withdrawal-payee').value;
+            const date = document.getElementById('withdrawal-date').value;
+            const reference = document.getElementById('withdrawal-reference').value;
+            
+            processBankWithdrawal({
+                bankName,
+                amount,
+                category,
+                description,
+                payee,
+                date,
+                reference
+            });
+        });
+    }
+    
+    // Opening Balance Form Submission
+    const openingBalanceForm = document.getElementById('opening-balance-form');
+    if (openingBalanceForm) {
+        openingBalanceForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const modal = document.getElementById('opening-balance-modal');
+            const bankName = modal.dataset.bankName;
+            const amount = document.getElementById('opening-balance-amount').value;
+            const date = document.getElementById('opening-balance-date').value;
+            const notes = document.getElementById('opening-balance-notes').value;
+            const confirmed = document.getElementById('confirm-opening-balance').checked;
+            
+            if (!confirmed) {
+                alert('Please confirm that the opening balance is accurate');
+                return;
+            }
+            
+            if (typeof processOpeningBalance === 'function') {
+                processOpeningBalance({
+                    bankName,
+                    amount,
+                    date,
+                    notes
+                });
+            }
+        });
+    }
+    
+    // Update balance dropdown change listeners
+    const fromBankSelect = document.getElementById('transfer-from-bank');
+    const toBankSelect = document.getElementById('transfer-to-bank');
+    
+    if (fromBankSelect) {
+        fromBankSelect.addEventListener('change', updateBalanceDisplays);
+    }
+    if (toBankSelect) {
+        toBankSelect.addEventListener('change', updateBalanceDisplays);
+    }
+    
+    // Set current date for all date inputs
+    const today = new Date().toISOString().split('T')[0];
+    const dateInputs = document.querySelectorAll('input[type="date"]');
+    dateInputs.forEach(input => {
+        if (!input.value) {
+            input.value = today;
+        }
+    });
+    
+    // Initialize tab functionality
+    const bankTab = document.querySelector('[onclick*="bank-management"]');
+    if (bankTab) {
+        bankTab.classList.add('active');
+    }
+    
+    const bankContent = document.getElementById('bank-management');
+    if (bankContent) {
+        bankContent.classList.add('active');
+    }
+});
+
+// Remove the duplicate initialization
+// if (document.readyState === 'loading') {
+//     document.addEventListener('DOMContentLoaded', initializeFirebase);
+// } else {
+//     initializeFirebase();
+// }
