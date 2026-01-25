@@ -272,7 +272,6 @@ async function addLedgerEntry(entry) {
 // Calculate bank balances from ledger
 function calculateAllBankBalances() {
     const balances = {};
-    const bankDetails = {};
     
     // Get all banks from ledger and details
     bankLedger.forEach(entry => {
@@ -360,24 +359,54 @@ function updateBankCards() {
     
     // Update stats
     document.getElementById('stats-active-banks').textContent = banks.length;
+    
+    // Calculate total funds
+    let totalKES = 0;
+    let totalUSD = 0;
+    
+    banks.forEach(bankName => {
+        const balance = bankBalances[bankName];
+        if (balance.currency === 'KES') {
+            totalKES += balance.currentBalance;
+        } else if (balance.currency === 'USD') {
+            totalUSD += balance.currentBalance;
+        }
+    });
+    
+    document.getElementById('stats-total-kes').textContent = formatNumber(totalKES.toFixed(2));
+    document.getElementById('stats-total-usd').textContent = '$' + formatNumber(totalUSD.toFixed(2));
+    
+    // Update transaction count
+    document.getElementById('transactions-count').textContent = processedTransactions.size + ' transactions';
+    
+    // Update last sync time
+    const now = new Date();
+    document.getElementById('last-sync-time').textContent = now.toLocaleTimeString();
+    
+    // Update Firebase connection status
+    const statusEl = document.getElementById('firebase-connection-status');
+    const statusDot = statusEl.querySelector('.inline-block');
+    if (currentUser) {
+        statusEl.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>Connected as ' + currentUser.email;
+    }
 }
 
 // Create individual bank card
 function createBankCard(bankName, balance) {
     const card = document.createElement('div');
-    card.className = 'bg-white rounded-xl shadow-card p-6 border border-gray-200 hover:shadow-card-hover transition-all';
+    card.className = 'bg-white dark:bg-gray-800 rounded-xl shadow-card p-6 border border-gray-200 dark:border-gray-700 hover:shadow-card-hover transition-all bank-card';
     
     // Determine card color based on balance
-    const balanceClass = balance.currentBalance >= 0 ? 'text-green-600' : 'text-red-600';
+    const balanceClass = balance.currentBalance >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400';
     const currencySymbol = balance.currency === 'USD' ? '$' : 'KSH ';
     
     card.innerHTML = `
         <div class="flex justify-between items-start mb-4">
             <div>
-                <h4 class="text-lg font-bold text-gray-800">${bankName}</h4>
-                <p class="text-sm text-gray-500">${balance.currency} Account</p>
+                <h4 class="text-lg font-bold text-gray-800 dark:text-white">${bankName}</h4>
+                <p class="text-sm text-gray-500 dark:text-gray-400">${balance.currency} Account</p>
             </div>
-            <span class="px-3 py-1 rounded-full text-xs font-semibold ${balance.currency === 'USD' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}">
+            <span class="px-3 py-1 rounded-full text-xs font-semibold ${balance.currency === 'USD' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' : 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'}">
                 ${balance.currency}
             </span>
         </div>
@@ -386,17 +415,17 @@ function createBankCard(bankName, balance) {
             <div class="text-3xl font-bold ${balanceClass} mb-2">
                 ${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}
             </div>
-            <p class="text-sm text-gray-600">Current Balance</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Current Balance</p>
         </div>
         
         <div class="grid grid-cols-2 gap-4 text-sm mb-6">
             <div>
-                <div class="text-gray-500">Opening Balance</div>
-                <div class="font-medium">${currencySymbol}${formatNumber(balance.openingBalance.toFixed(2))}</div>
+                <div class="text-gray-500 dark:text-gray-400">Opening Balance</div>
+                <div class="font-medium dark:text-white">${currencySymbol}${formatNumber(balance.openingBalance.toFixed(2))}</div>
             </div>
             <div>
-                <div class="text-gray-500">Total Credits</div>
-                <div class="font-medium text-green-600">${currencySymbol}${formatNumber(balance.totalCredits.toFixed(2))}</div>
+                <div class="text-gray-500 dark:text-gray-400">Total Credits</div>
+                <div class="font-medium text-green-600 dark:text-green-400">${currencySymbol}${formatNumber(balance.totalCredits.toFixed(2))}</div>
             </div>
         </div>
         
@@ -406,7 +435,7 @@ function createBankCard(bankName, balance) {
                 <i class="fas fa-money-check-alt mr-1"></i> Withdraw
             </button>
             <button onclick="openUpdateBalanceModal('${bankName}')" 
-                    class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium py-2 px-3 rounded-lg transition-all">
+                    class="flex-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
                 <i class="fas fa-edit mr-1"></i> Update Balance
             </button>
         </div>
@@ -462,7 +491,7 @@ function updateBalanceDisplays() {
         const fromBankSelect = document.getElementById('transfer-from-bank');
         if (fromBankSelect && fromBankSelect.value === bankName) {
             document.getElementById('from-bank-balance').innerHTML = `
-                Available: <span class="font-semibold">${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}</span>
+                Available: <span class="font-semibold dark:text-white">${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}</span>
             `;
         }
         
@@ -470,7 +499,7 @@ function updateBalanceDisplays() {
         const toBankSelect = document.getElementById('transfer-to-bank');
         if (toBankSelect && toBankSelect.value === bankName) {
             document.getElementById('to-bank-balance').innerHTML = `
-                Current: <span class="font-semibold">${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}</span>
+                Current: <span class="font-semibold dark:text-white">${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}</span>
             `;
         }
         
@@ -478,7 +507,7 @@ function updateBalanceDisplays() {
         const withdrawalBankSelect = document.getElementById('withdrawal-bank');
         if (withdrawalBankSelect && withdrawalBankSelect.value === bankName) {
             document.getElementById('withdrawal-bank-balance').innerHTML = `
-                Available: <span class="font-semibold">${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}</span>
+                Available: <span class="font-semibold dark:text-white">${currencySymbol}${formatNumber(balance.currentBalance.toFixed(2))}</span>
             `;
         }
     });
@@ -678,24 +707,34 @@ function addTransferToHistory(transfer) {
     }
     
     const row = document.createElement('tr');
-    const currencySymbol = bankBalances[transfer.from]?.currency === 'USD' ? '$' : 'KSH ';
+    const fromBalance = bankBalances[transfer.from];
+    const currencySymbol = fromBalance?.currency === 'USD' ? '$' : 'KSH ';
     const dateStr = transfer.date.toLocaleDateString();
     
     row.innerHTML = `
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${dateStr}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${transfer.from}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${transfer.to}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">${dateStr}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">${transfer.from}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">${transfer.to}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300 font-semibold">
             ${currencySymbol}${formatNumber(transfer.amount)}
         </td>
         <td class="px-6 py-4 whitespace-nowrap">
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                 ${transfer.status}
             </span>
         </td>
     `;
     
     historyContainer.prepend(row);
+    
+    // Update today's transfers count
+    const today = new Date().toDateString();
+    const todayTransfers = Array.from(document.querySelectorAll('#transfer-history tr')).filter(row => {
+        const dateCell = row.querySelector('td:first-child');
+        return dateCell && new Date(dateCell.textContent).toDateString() === today;
+    }).length;
+    
+    document.getElementById('stats-today-transfers').textContent = todayTransfers;
 }
 
 // Format number with commas
@@ -746,73 +785,6 @@ function showToast(message, type = "info") {
         }, 300);
     }, 5000);
 }
-
-// Event Listeners and Modal Functions
-document.addEventListener('DOMContentLoaded', function() {
-    initializeFirebase();
-    
-    // Bank Transfer Form Submission
-    const transferForm = document.getElementById('bank-transfer-form');
-    if (transferForm) {
-        transferForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const fromBank = document.getElementById('transfer-from-bank').value;
-            const toBank = document.getElementById('transfer-to-bank').value;
-            const amount = document.getElementById('transfer-amount').value;
-            const fee = document.getElementById('transfer-fee-input').value || 0;
-            const feeBearer = document.getElementById('fee-bearer').value;
-            const reason = document.getElementById('transfer-reason').value;
-            
-            // Show confirmation modal
-            showTransferConfirmation({
-                fromBank,
-                toBank,
-                amount,
-                fee,
-                feeBearer,
-                reason
-            });
-        });
-    });
-    
-    // Bank Withdrawal Form Submission
-    const withdrawalForm = document.getElementById('bank-withdrawal-form');
-    if (withdrawalForm) {
-        withdrawalForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const bankName = document.getElementById('withdrawal-bank').value;
-            const amount = document.getElementById('withdrawal-amount').value;
-            const category = document.getElementById('withdrawal-category').value;
-            const description = document.getElementById('withdrawal-description').value;
-            const payee = document.getElementById('withdrawal-payee').value;
-            const date = document.getElementById('withdrawal-date').value;
-            const reference = document.getElementById('withdrawal-reference').value;
-            
-            processBankWithdrawal({
-                bankName,
-                amount,
-                category,
-                description,
-                payee,
-                date,
-                reference
-            });
-        });
-    }
-    
-    // Update balance dropdown change listeners
-    const fromBankSelect = document.getElementById('transfer-from-bank');
-    const toBankSelect = document.getElementById('transfer-to-bank');
-    
-    if (fromBankSelect) {
-        fromBankSelect.addEventListener('change', updateBalanceDisplays);
-    }
-    if (toBankSelect) {
-        toBankSelect.addEventListener('change', updateBalanceDisplays);
-    }
-});
 
 // Modal Functions
 function openWithdrawalModal(bankName) {
@@ -980,8 +952,17 @@ function updateUIForLoggedInUser() {
     
     if (currentUser) {
         if (userInfo) userInfo.classList.remove('hidden');
-        if (loginBtn) loginBtn.textContent = "Connected";
+        if (loginBtn) {
+            loginBtn.textContent = "Connected";
+            loginBtn.innerHTML = '<i class="fas fa-cloud mr-2"></i>Connected';
+        }
         if (userEmail) userEmail.textContent = currentUser.email;
+        
+        // Update connection status
+        const statusEl = document.getElementById('firebase-connection-status');
+        if (statusEl) {
+            statusEl.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>Connected as ' + currentUser.email;
+        }
     }
 }
 
