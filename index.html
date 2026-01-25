@@ -91,10 +91,12 @@
 
         /* Modal backdrop */
         .modal-backdrop {
-            background: rgba(0, 0, 0, 0.5);
-            backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
-        }
+    background: rgba(0, 0, 0, 0.7); /* Darker without blur */
+    /* Remove or comment out these lines: */
+    /* backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px); */
+    z-index: 99998;
+}
 
         /* Shimmer loading effect */
         .shimmer {
