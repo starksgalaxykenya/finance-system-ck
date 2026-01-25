@@ -55,11 +55,43 @@ async function initializeBankSystem() {
         await loadProcessedTransactions();
         
         // Load bank details and transactions
-        await Promise.all([
+        const [banksFromDetails, receiptTransactions, ledgerData] = await Promise.all([
             loadBankDetails(),
             loadReceiptPayments(),
             loadBankLedger()
         ]);
+        
+        // Initialize bankBalances with banks from bankDetails
+        bankBalances = {};
+        
+        // First, add all banks from bankDetails
+        banksFromDetails.forEach(bank => {
+            if (!bankBalances[bank.name]) {
+                bankBalances[bank.name] = {
+                    openingBalance: bank.openingBalance || 0,
+                    totalCredits: 0,
+                    totalDebits: 0,
+                    currentBalance: 0,
+                    currency: bank.currency || 'KES'
+                };
+            }
+        });
+        
+        // Add banks from receipt transactions (if they're not already in bankDetails)
+        receiptTransactions.forEach(transaction => {
+            if (!bankBalances[transaction.bankName]) {
+                bankBalances[transaction.bankName] = {
+                    openingBalance: 0,
+                    totalCredits: 0,
+                    totalDebits: 0,
+                    currentBalance: 0,
+                    currency: transaction.currency || 'KES'
+                };
+            }
+        });
+        
+        // Now add ledger data
+        bankLedger = ledgerData;
         
         // Calculate current balances
         calculateAllBankBalances();
@@ -112,15 +144,17 @@ async function saveProcessedTransactions() {
 }
 
 // Load bank details from Firebase
+let bankDetails = []; // Add this global variable near the top with other globals
+
 async function loadBankDetails() {
     try {
         const db = firebase.firestore();
         const snapshot = await db.collection('bankDetails').get();
         
-        const banks = [];
+        bankDetails = []; // Clear existing
         snapshot.forEach(doc => {
             const bank = doc.data();
-            banks.push({
+            bankDetails.push({
                 id: doc.id,
                 name: bank.name,
                 currency: bank.currency || 'KES',
@@ -129,7 +163,8 @@ async function loadBankDetails() {
             });
         });
         
-        return banks;
+        console.log(`Loaded ${bankDetails.length} bank details from Firebase`);
+        return bankDetails;
     } catch (error) {
         console.error("Error loading bank details:", error);
         return [];
@@ -271,12 +306,18 @@ async function addLedgerEntry(entry) {
 
 // Calculate bank balances from ledger
 function calculateAllBankBalances() {
-    const balances = {};
+    // Reset all balances first
+    Object.keys(bankBalances).forEach(bankName => {
+        bankBalances[bankName].totalCredits = 0;
+        bankBalances[bankName].totalDebits = 0;
+        bankBalances[bankName].currentBalance = 0;
+    });
     
-    // Get all banks from ledger and details
+    // Process ledger entries
     bankLedger.forEach(entry => {
-        if (!balances[entry.bankName]) {
-            balances[entry.bankName] = {
+        if (!bankBalances[entry.bankName]) {
+            // Create bank entry if it doesn't exist
+            bankBalances[entry.bankName] = {
                 openingBalance: 0,
                 totalCredits: 0,
                 totalDebits: 0,
@@ -284,53 +325,50 @@ function calculateAllBankBalances() {
                 currency: entry.currency || 'KES'
             };
         }
-    });
-    
-    // Apply opening balances
-    Object.keys(openingBalanceTimestamps).forEach(bankName => {
-        if (balances[bankName]) {
-            balances[bankName].openingBalance = openingBalanceTimestamps[bankName].balance;
-        }
-    });
-    
-    // Process ledger entries
-    bankLedger.forEach(entry => {
-        if (!balances[entry.bankName]) return;
         
         const bankOpeningTime = openingBalanceTimestamps[entry.bankName]?.timestamp;
         
         // Skip transactions before opening balance if exists
-        if (bankOpeningTime && entry.timestamp < bankOpeningTime) {
+        if (bankOpeningTime && entry.timestamp && entry.timestamp < bankOpeningTime) {
             return;
         }
         
-        if (entry.type === 'credit' || entry.type === 'receipt') {
-            balances[entry.bankName].totalCredits += entry.amount;
-        } else if (entry.type === 'debit') {
-            balances[entry.bankName].totalDebits += entry.amount;
-        } else if (entry.type === 'transfer_out') {
-            balances[entry.bankName].totalDebits += entry.amount;
-            if (entry.fee && entry.feeBearer === 'sending') {
-                balances[entry.bankName].totalDebits += entry.fee;
-            }
-        } else if (entry.type === 'transfer_in') {
-            balances[entry.bankName].totalCredits += entry.amount;
-            if (entry.fee && entry.feeBearer === 'receiving') {
-                balances[entry.bankName].totalDebits += entry.fee;
+        if (entry.type === 'credit' || entry.type === 'receipt' || entry.type === 'transfer_in') {
+            bankBalances[entry.bankName].totalCredits += parseFloat(entry.amount) || 0;
+        } else if (entry.type === 'debit' || entry.type === 'transfer_out') {
+            bankBalances[entry.bankName].totalDebits += parseFloat(entry.amount) || 0;
+        }
+        
+        // Handle fees
+        if (entry.fee && entry.feeBearer) {
+            if ((entry.type === 'transfer_out' && entry.feeBearer === 'sending') ||
+                (entry.type === 'transfer_in' && entry.feeBearer === 'receiving')) {
+                bankBalances[entry.bankName].totalDebits += parseFloat(entry.fee) || 0;
             }
         }
     });
     
     // Calculate current balances
-    Object.keys(balances).forEach(bankName => {
-        balances[bankName].currentBalance = 
-            balances[bankName].openingBalance +
-            balances[bankName].totalCredits -
-            balances[bankName].totalDebits;
+    Object.keys(bankBalances).forEach(bankName => {
+        // Apply opening balance from timestamps if exists, otherwise from bank details
+        if (openingBalanceTimestamps[bankName]) {
+            bankBalances[bankName].openingBalance = openingBalanceTimestamps[bankName].balance;
+        } else {
+            // Try to find bank in bankDetails
+            const bankDetail = bankDetails.find(b => b.name === bankName);
+            if (bankDetail) {
+                bankBalances[bankName].openingBalance = bankDetail.openingBalance || 0;
+            }
+        }
+        
+        bankBalances[bankName].currentBalance = 
+            bankBalances[bankName].openingBalance +
+            bankBalances[bankName].totalCredits -
+            bankBalances[bankName].totalDebits;
     });
     
-    bankBalances = balances;
-    return balances;
+    console.log("Bank balances calculated:", Object.keys(bankBalances).length, "banks");
+    return bankBalances;
 }
 
 // Update bank cards in UI
@@ -1130,6 +1168,28 @@ async function processOpeningBalance(formData) {
 // Add a function to show all banks summary
 function showAllBanksSummary() {
     const banks = Object.keys(bankBalances);
+    
+    if (banks.length === 0) {
+        // Check if we have bank details loaded
+        if (bankDetails && bankDetails.length > 0) {
+            // Initialize bankBalances from bankDetails
+            bankDetails.forEach(bank => {
+                if (!bankBalances[bank.name]) {
+                    bankBalances[bank.name] = {
+                        openingBalance: bank.openingBalance || 0,
+                        totalCredits: 0,
+                        totalDebits: 0,
+                        currentBalance: bank.openingBalance || 0,
+                        currency: bank.currency || 'KES'
+                    };
+                }
+            });
+            
+            // Recalculate
+            banks = Object.keys(bankBalances);
+        }
+    }
+    
     if (banks.length === 0) {
         alert('No banks loaded. Please connect to Firebase and refresh data.');
         return;
