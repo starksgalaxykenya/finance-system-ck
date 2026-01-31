@@ -2391,7 +2391,7 @@ document.addEventListener('DOMContentLoaded', function() {
         firebase.initializeApp(firebaseConfig);
     }
     
-    // Add event listeners for recipient type switching
+       // Add event listeners for recipient type switching
     const recipientTypeSelect = document.getElementById('credit-recipient-type');
     if (recipientTypeSelect) {
         recipientTypeSelect.addEventListener('change', function() {
@@ -2405,15 +2405,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (categorySection) categorySection.classList.add('hidden');
                 if (customSection) customSection.classList.remove('hidden');
             }
-             const oldForms = ['transfer-form', 'withdrawal-form', 'opening-form'];
-    oldForms.forEach(formId => {
-        const oldForm = document.getElementById(formId);
-        if (oldForm) {
-            const newForm = oldForm.cloneNode(true);
-            oldForm.parentNode.replaceChild(newForm, oldForm);
-        }
+        }); // <-- Added closing bracket and semicolon here
+        
+        const oldForms = ['transfer-form', 'withdrawal-form', 'opening-form'];
+        oldForms.forEach(formId => {
+            const oldForm = document.getElementById(formId);
+            if (oldForm) {
+                const newForm = oldForm.cloneNode(true);
+                oldForm.parentNode.replaceChild(newForm, oldForm);
+            }
         });
-});
+    }
 
 // Expose functions to global scope for HTML onclick handlers
 window.toggleLoginModal = toggleLoginModal;
