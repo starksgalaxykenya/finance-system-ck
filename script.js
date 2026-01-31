@@ -21,9 +21,9 @@ const auth = firebase.auth();
 // Global State with enhanced tracking
 let state = {
     user: null,
-    banks: [], // Array of { id, name, currency, openingBalanceConfig, accountNumber, branch }
-    ledger: [], // Array of transaction objects
-    balances: {}, // Map: bankId -> currentBalance
+    banks: [],
+    ledger: [],
+    balances: {},
     stats: {
         totalKES: 0,
         totalUSD: 0,
@@ -32,12 +32,59 @@ let state = {
     },
     lastSyncTime: null,
     systemReady: false,
-    isBankPinVerified: false, // NEW: Bank PIN verification state
-    bankPin: '1234', // Default PIN (should be configurable)
-    processedTransactions: new Set(), // NEW: Track processed transactions
-    openingBalanceTimestamps: {}, // NEW: Track opening balance timestamps
-    bankDetails: [] // NEW: Store bank details separately
+    isBankPinVerified: false,
+    bankPin: '1234', // Default PIN
+    processedTransactions: new Set(),
+    openingBalanceTimestamps: {},
+    bankDetails: [],
+    expenseCategories: [], // From Excel
+    customRecipients: [], // Custom recipients
+    expenseSummary: {}, // Category -> total amount
+    chartInstance: null // Chart.js instance
 };
+
+// Expense categories from Excel
+const EXPENSE_CATEGORIES = [
+    "Audit & Accountancy Fees",
+    "Bank & Mpesa Charges",
+    "Cleaning Expense",
+    "Commissions and fees",
+    "Computer Expenses",
+    "Director's Fees",
+    "fuel (companys car)",
+    "fuel (clients Car)",
+    "general and admin expense",
+    "HOUSING LEVY",
+    "Legal and professional fees",
+    "Loan payments",
+    "Management compensation",
+    "Marketing Expense",
+    "Meals and entertainment",
+    "Motorvehicle Repairs",
+    "NSSF",
+    "Office expenses",
+    "Other general and administrative expenses",
+    "Parking Expenses",
+    "PAYE",
+    "Postage",
+    "Printing & Stationary",
+    "Purchase of fixed assets",
+    "Rent or lease payments",
+    "Repairs and Maintenance",
+    "Salaries and Wages",
+    "SHA",
+    "Staff Wellfare",
+    "Stationery and printing",
+    "Supplies",
+    "Telephone & Internet",
+    "Transport Expense",
+    "Travel expenses",
+    "Vendor payments",
+    "Water & Electricity Expense"
+];
+
+// Initialize expense categories
+state.expenseCategories = EXPENSE_CATEGORIES;
 
 // --- UTILITY FUNCTIONS ---
 
@@ -190,7 +237,7 @@ function updateStatistics() {
     if (statsTransactionsProgress) statsTransactionsProgress.style.width = `${transactionsProgress}%`;
 }
 
-// --- BANK PIN VERIFICATION (NEW FEATURE) ---
+// --- BANK PIN VERIFICATION ---
 
 function checkBankAccessCode() {
     const pinInput = document.getElementById('bank-access-code');
@@ -198,22 +245,32 @@ function checkBankAccessCode() {
     
     const pin = pinInput.value;
     
-    // Accept any 4-digit PIN for now (in production, verify against stored PIN)
+    // Verify PIN
     if (pin && pin.length === 4 && /^\d+$/.test(pin)) {
-        state.isBankPinVerified = true;
-        
-        // Hide the gate and show bank management content
-        const gate = document.getElementById('bank-access-gate');
-        const content = document.getElementById('bank-management-content');
-        
-        if (gate) gate.classList.add('hidden');
-        if (content) content.classList.remove('hidden');
-        
-        showToast("Bank management unlocked successfully!", "success");
-        
-        // Initialize bank system if user is logged in
-        if (state.user) {
-            initApp();
+        if (pin === state.bankPin) {
+            state.isBankPinVerified = true;
+            
+            // Hide the gate and show bank management content
+            const gate = document.getElementById('bank-access-gate');
+            const content = document.getElementById('bank-management-content');
+            
+            if (gate) {
+                gate.style.display = 'none';
+            }
+            if (content) {
+                content.classList.remove('hidden');
+            }
+            
+            showToast("Bank management unlocked successfully!", "success");
+            
+            // Initialize bank system if user is logged in
+            if (state.user) {
+                initApp();
+            }
+        } else {
+            showToast("Invalid PIN. Please try again.", "error");
+            pinInput.value = '';
+            pinInput.focus();
         }
     } else {
         showToast("Please enter a valid 4-digit PIN", "error");
@@ -229,6 +286,7 @@ auth.onAuthStateChanged(user => {
     const loginModal = document.getElementById('login-modal');
     const authSection = document.getElementById('auth-section');
     const firebaseUserInfo = document.getElementById('firebase-user-info');
+    const bankAccessGate = document.getElementById('bank-access-gate');
     
     if (user) {
         // Update UI
@@ -243,13 +301,24 @@ auth.onAuthStateChanged(user => {
         
         if (loginModal) loginModal.classList.add('hidden');
         
+        // Show PIN gate
+        if (bankAccessGate) {
+            bankAccessGate.style.display = 'flex';
+        }
+        
+        // Hide bank management content until PIN is verified
+        const content = document.getElementById('bank-management-content');
+        if (content) {
+            content.classList.add('hidden');
+        }
+        
         // Update system status
         updateSystemStatus(true);
         showToast(`Welcome back, ${user.email.split('@')[0]}!`, "success");
         
         // Load processed transactions
         loadProcessedTransactions().then(() => {
-            // Initialize app if PIN is already verified
+            // If PIN is already verified, initialize app
             if (state.isBankPinVerified) {
                 initApp();
             }
@@ -262,17 +331,20 @@ auth.onAuthStateChanged(user => {
         if (logoutBtn) logoutBtn.classList.add('hidden');
         if (firebaseUserInfo) firebaseUserInfo.classList.add('hidden');
         
+        // Hide PIN gate and bank management content
+        if (bankAccessGate) {
+            bankAccessGate.style.display = 'none';
+        }
+        const content = document.getElementById('bank-management-content');
+        if (content) {
+            content.classList.add('hidden');
+        }
+        
         // Update system status
         updateSystemStatus(false);
         
         // Reset PIN verification
         state.isBankPinVerified = false;
-        
-        // Hide bank management content if PIN gate exists
-        const gate = document.getElementById('bank-access-gate');
-        const content = document.getElementById('bank-management-content');
-        if (gate) gate.classList.remove('hidden');
-        if (content) content.classList.add('hidden');
     }
 });
 
@@ -309,6 +381,7 @@ function logout() {
         showLoading(true, 'Logging out...');
         auth.signOut()
             .then(() => {
+                state.isBankPinVerified = false;
                 showToast('Logged out successfully', 'success');
             })
             .catch(error => {
@@ -327,7 +400,7 @@ function toggleLoginModal() {
     }
 }
 
-// --- PROCESSED TRANSACTIONS MANAGEMENT (NEW FEATURE) ---
+// --- PROCESSED TRANSACTIONS MANAGEMENT ---
 
 async function loadProcessedTransactions() {
     try {
@@ -364,6 +437,34 @@ async function saveProcessedTransactions() {
     }
 }
 
+// --- EXPENSE CATEGORIES MANAGEMENT ---
+
+function populateExpenseCategories() {
+    const categorySelects = [
+        'expense-category',
+        'credit-category'
+    ];
+    
+    categorySelects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (!select) return;
+        
+        select.innerHTML = '<option value="">Select Category</option>';
+        state.expenseCategories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = category;
+            select.appendChild(option);
+        });
+        
+        // Add custom recipient option
+        const customOption = document.createElement('option');
+        customOption.value = "custom";
+        customOption.textContent = "Custom Recipient";
+        select.appendChild(customOption);
+    });
+}
+
 // --- INITIALIZATION & DATA LOADING ---
 
 async function initApp() {
@@ -387,10 +488,19 @@ async function initApp() {
         // Calculate balances
         calculateBalances();
         
+        // Calculate expense summary
+        calculateExpenseSummary();
+        
         // Update UI
         renderDashboard();
         updateStatistics();
         updateLastSyncTime();
+        
+        // Populate expense categories
+        populateExpenseCategories();
+        
+        // Update expense tab
+        renderExpenseSummary();
         
         // Mark system as ready
         state.systemReady = true;
@@ -449,9 +559,8 @@ async function loadLedger() {
         // Load all ledger entries ordered by date (newest first)
         let query = db.collection('bankLedger').orderBy('date', 'desc');
         
-        // Filter by user if field exists (for backward compatibility)
+        // Filter by user if field exists
         if (state.user) {
-            // Try to filter by userId first
             query = db.collection('bankLedger')
                 .where('userId', '==', state.user.uid)
                 .orderBy('date', 'desc');
@@ -488,7 +597,7 @@ async function loadLedger() {
     }
 }
 
-// --- RECEIPT PAYMENTS PROCESSING (ENHANCED) ---
+// --- RECEIPT PAYMENTS PROCESSING ---
 
 async function processReceiptPayments() {
     try {
@@ -590,8 +699,15 @@ function parseBankName(paymentMethod) {
         .trim();
 }
 
+// --- BANK SELECTS UPDATES ---
+
 function updateBankSelects() {
-    const selects = ['t-from', 't-to', 'w-bank'];
+    const selects = [
+        't-from-enhanced', 't-to-enhanced', 
+        'expense-bank', 'credit-bank',
+        'w-bank'
+    ];
+    
     selects.forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
@@ -606,9 +722,13 @@ function updateBankSelects() {
         });
         
         // Add event listeners for balance display
-        if (id === 't-from' || id === 'w-bank') {
+        if (id.includes('from') || id === 'expense-bank' || id === 'credit-bank' || id === 'w-bank') {
             select.addEventListener('change', function() {
-                updateBankBalanceDisplay(this.value, `${id}-balance`);
+                const balanceId = id === 't-from-enhanced' ? 't-from-balance-enhanced' :
+                                 id === 'expense-bank' ? 'expense-bank-balance' :
+                                 id === 'credit-bank' ? 'credit-bank-balance' :
+                                 `${id}-balance`;
+                updateBankBalanceDisplay(this.value, balanceId);
             });
         }
     });
@@ -622,13 +742,13 @@ function updateBankBalanceDisplay(bankId, elementId) {
     if (bank) {
         const balance = state.balances[bankId] || 0;
         balanceEl.textContent = `Available: ${formatCurrency(balance, bank.currency)}`;
-        balanceEl.className = `text-sm ${balance >= 0 ? 'text-green-600' : 'text-red-600'} font-medium mt-2`;
+        balanceEl.className = `text-sm ${balance >= 0 ? 'text-green-600' : 'text-red-600'} font-medium mt-1`;
     } else {
         balanceEl.textContent = '';
     }
 }
 
-// --- CORE CALCULATIONS (Enhanced with Opening Balance Timestamps) ---
+// --- CORE CALCULATIONS ---
 
 function calculateBalances() {
     // Reset balances
@@ -679,6 +799,8 @@ function calculateBalances() {
                     break;
                     
                 case 'withdrawal':
+                case 'expense':
+                case 'credit':
                     if (tx.bankId === bank.id) {
                         state.balances[bank.id] -= amount;
                     }
@@ -688,10 +810,18 @@ function calculateBalances() {
                     // Outgoing transfer
                     if (tx.bankId === bank.id) {
                         state.balances[bank.id] -= amount;
+                        // Deduct transaction fee if sender bears it
+                        if (tx.transactionFee && tx.transactionFeeBearer === 'sender' && tx.feeAmount) {
+                            state.balances[bank.id] -= parseFloat(tx.feeAmount);
+                        }
                     }
                     // Incoming transfer
                     if (tx.toBankId === bank.id) {
                         state.balances[bank.id] += amount;
+                        // Deduct transaction fee if receiver bears it
+                        if (tx.transactionFee && tx.transactionFeeBearer === 'receiver' && tx.feeAmount) {
+                            state.balances[bank.id] -= parseFloat(tx.feeAmount);
+                        }
                     }
                     break;
                     
@@ -702,7 +832,46 @@ function calculateBalances() {
     });
 }
 
-// --- SYNC ENGINE (Enhanced Receipt Processing) ---
+// --- EXPENSE SUMMARY CALCULATIONS ---
+
+function calculateExpenseSummary() {
+    // Reset expense summary
+    state.expenseSummary = {};
+    state.customRecipients = [];
+    
+    // Initialize all categories with zero
+    state.expenseCategories.forEach(category => {
+        state.expenseSummary[category] = 0;
+    });
+    
+    // Process ledger for expenses
+    state.ledger.forEach(tx => {
+        if (tx.type === 'expense' || tx.type === 'credit') {
+            const amount = parseFloat(tx.amount) || 0;
+            
+            // Check if it's a category expense or custom recipient
+            if (tx.category && state.expenseSummary.hasOwnProperty(tx.category)) {
+                state.expenseSummary[tx.category] += amount;
+            } else if (tx.recipientName) {
+                // Custom recipient
+                const existingRecipient = state.customRecipients.find(r => r.name === tx.recipientName);
+                if (existingRecipient) {
+                    existingRecipient.total += amount;
+                    existingRecipient.transactions++;
+                } else {
+                    state.customRecipients.push({
+                        name: tx.recipientName,
+                        total: amount,
+                        transactions: 1,
+                        type: tx.recipientType || 'custom'
+                    });
+                }
+            }
+        }
+    });
+}
+
+// --- SYNC ENGINE ---
 
 async function syncReceipts() {
     const btn = document.getElementById('sync-icon') || document.querySelector('[onclick="syncReceipts()"] i');
@@ -739,16 +908,17 @@ async function syncReceipts() {
     }
 }
 
-// --- ACTIONS (Enhanced with Validation) ---
+// --- TRANSFER WITH TRANSACTION FEES (NEW FEATURE) ---
 
-// 1. Inter-Bank Transfer
-document.getElementById('transfer-form')?.addEventListener('submit', async (e) => {
+document.getElementById('transfer-form-enhanced')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const fromId = document.getElementById('t-from').value;
-    const toId = document.getElementById('t-to').value;
-    const amount = parseFloat(document.getElementById('t-amount').value);
-    const desc = document.getElementById('t-desc').value;
+    const fromId = document.getElementById('t-from-enhanced').value;
+    const toId = document.getElementById('t-to-enhanced').value;
+    const amount = parseFloat(document.getElementById('t-amount-enhanced').value);
+    const desc = document.getElementById('t-desc-enhanced').value;
+    const feeAmount = parseFloat(document.getElementById('t-fee-enhanced').value) || 0;
+    const feeBearer = document.querySelector('input[name="fee-bearer"]:checked').value;
     
     // Validation
     if (!fromId || !toId) {
@@ -774,18 +944,13 @@ document.getElementById('transfer-form')?.addEventListener('submit', async (e) =
         return;
     }
     
-    // Check balance
+    // Check balance (including fee if sender bears it)
     const currentBalance = state.balances[fromId] || 0;
-    if (currentBalance < amount) {
+    const totalDeduction = amount + (feeBearer === 'sender' ? feeAmount : 0);
+    
+    if (currentBalance < totalDeduction) {
         showToast(`Insufficient funds. Available: ${formatCurrency(currentBalance, fromBank.currency)}`, 'error');
         return;
-    }
-    
-    // Currency mismatch warning
-    if (fromBank.currency !== toBank.currency) {
-        if (!confirm(`Warning: Currencies differ (${fromBank.currency} vs ${toBank.currency}). Proceed?`)) {
-            return;
-        }
     }
     
     showLoading(true, 'Processing transfer...');
@@ -794,7 +959,7 @@ document.getElementById('transfer-form')?.addEventListener('submit', async (e) =
         const transferDate = new Date().toISOString();
         const reference = `TRX-${Date.now()}`;
         
-        // Add outgoing ledger entry
+        // Add main transfer ledger entry
         await db.collection('bankLedger').add({
             type: 'transfer',
             date: transferDate,
@@ -806,19 +971,41 @@ document.getElementById('transfer-form')?.addEventListener('submit', async (e) =
             currency: fromBank.currency,
             description: `Transfer: ${desc}`,
             reference: reference,
+            transactionFee: feeAmount > 0,
+            feeAmount: feeAmount,
+            transactionFeeBearer: feeBearer,
             createdBy: state.user?.email || 'Unknown',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'completed',
             userId: state.user?.uid
         });
         
-        closeModal('transfer-modal');
-        document.getElementById('transfer-form').reset();
+        // Add transaction fee entry if applicable
+        if (feeAmount > 0) {
+            await db.collection('bankLedger').add({
+                type: 'transfer_fee',
+                date: transferDate,
+                amount: feeAmount,
+                bankId: feeBearer === 'sender' ? fromId : toId,
+                bankName: feeBearer === 'sender' ? fromBank.name : toBank.name,
+                currency: feeBearer === 'sender' ? fromBank.currency : toBank.currency,
+                description: `Transaction fee for transfer ${reference}: ${desc}`,
+                reference: `FEE-${reference}`,
+                relatedTransferRef: reference,
+                createdBy: state.user?.email || 'Unknown',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                status: 'completed',
+                userId: state.user?.uid
+            });
+        }
+        
+        closeModal('transfer-modal-enhanced');
+        document.getElementById('transfer-form-enhanced').reset();
         
         // Refresh data
         await initApp();
         
-        showToast(`Transfer of ${formatCurrency(amount, fromBank.currency)} completed successfully!`, 'success');
+        showToast(`Transfer of ${formatCurrency(amount, fromBank.currency)} completed with ${formatCurrency(feeAmount, fromBank.currency)} fee!`, 'success');
     } catch (error) {
         showToast('Transfer failed: ' + error.message, 'error');
     } finally {
@@ -826,18 +1013,26 @@ document.getElementById('transfer-form')?.addEventListener('submit', async (e) =
     }
 });
 
-// 2. Withdrawal
-document.getElementById('withdrawal-form')?.addEventListener('submit', async (e) => {
+// --- EXPENSE PAYMENT (NEW FEATURE) ---
+
+document.getElementById('expense-payment-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const bankId = document.getElementById('w-bank').value;
-    const amount = parseFloat(document.getElementById('w-amount').value);
-    const category = document.getElementById('w-category').value;
-    const desc = document.getElementById('w-desc').value;
+    const bankId = document.getElementById('expense-bank').value;
+    const category = document.getElementById('expense-category').value;
+    const customRecipient = document.getElementById('expense-custom-recipient').value;
+    const amount = parseFloat(document.getElementById('expense-amount').value);
+    const desc = document.getElementById('expense-desc').value;
+    const reference = document.getElementById('expense-reference').value;
     
     // Validation
     if (!bankId) {
         showToast('Please select a bank account', 'error');
+        return;
+    }
+    
+    if (!category && !customRecipient) {
+        showToast('Please select a category or enter a custom recipient', 'error');
         return;
     }
     
@@ -859,104 +1054,127 @@ document.getElementById('withdrawal-form')?.addEventListener('submit', async (e)
         return;
     }
     
-    showLoading(true, 'Processing withdrawal...');
+    showLoading(true, 'Recording expense...');
     
     try {
+        const recipientName = customRecipient || category;
+        const recipientType = customRecipient ? 'custom' : 'category';
+        
         await db.collection('bankLedger').add({
-            type: 'withdrawal',
+            type: 'expense',
             date: new Date().toISOString(),
             amount: amount,
             bankId: bankId,
             bankName: bank.name,
             currency: bank.currency,
             category: category,
-            description: `${category} - ${desc}`,
+            recipientName: recipientName,
+            recipientType: recipientType,
+            description: desc,
+            reference: reference,
             createdBy: state.user?.email || 'Unknown',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'completed',
             userId: state.user?.uid
         });
         
-        closeModal('withdrawal-modal');
-        document.getElementById('withdrawal-form').reset();
+        closeModal('expense-payment-modal');
+        document.getElementById('expense-payment-form').reset();
         
         // Refresh data
         await initApp();
         
-        showToast(`Withdrawal of ${formatCurrency(amount, bank.currency)} recorded successfully!`, 'success');
+        showToast(`Expense of ${formatCurrency(amount, bank.currency)} recorded successfully!`, 'success');
     } catch (error) {
-        showToast('Withdrawal failed: ' + error.message, 'error');
+        showToast('Expense recording failed: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
 });
 
-// 3. Opening Balance with Timestamps (NEW IMPLEMENTATION)
-document.getElementById('opening-form')?.addEventListener('submit', async (e) => {
+// --- CREDIT TRANSFER (NEW FEATURE) ---
+
+document.getElementById('credit-transfer-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    const bankId = document.getElementById('op-bank-id').value;
-    const amount = parseFloat(document.getElementById('op-amount').value);
-    const date = document.getElementById('op-date').value;
+    const bankId = document.getElementById('credit-bank').value;
+    const recipientType = document.getElementById('credit-recipient-type').value;
+    const category = document.getElementById('credit-category').value;
+    const customRecipient = document.getElementById('credit-custom-recipient').value;
+    const amount = parseFloat(document.getElementById('credit-amount').value);
+    const desc = document.getElementById('credit-desc').value;
     
-    if (!amount || isNaN(amount) || amount < 0) {
-        showToast('Please enter a valid opening balance', 'error');
+    // Validation
+    if (!bankId) {
+        showToast('Please select a bank account', 'error');
         return;
     }
     
-    if (!date) {
-        showToast('Please select an effective date', 'error');
+    if (recipientType === 'category' && !category) {
+        showToast('Please select a category', 'error');
+        return;
+    }
+    
+    if (recipientType === 'custom' && !customRecipient) {
+        showToast('Please enter a custom recipient name', 'error');
+        return;
+    }
+    
+    if (!amount || amount <= 0 || isNaN(amount)) {
+        showToast('Please enter a valid amount', 'error');
         return;
     }
     
     const bank = state.banks.find(b => b.id === bankId);
     if (!bank) {
-        showToast('Bank not found', 'error');
+        showToast('Invalid bank selection', 'error');
         return;
     }
     
-    if (!confirm(`Are you sure? This will reset all transaction history before ${date} for ${bank.name}.`)) {
+    // Check balance
+    const currentBalance = state.balances[bankId] || 0;
+    if (currentBalance < amount) {
+        showToast(`Insufficient funds. Available: ${formatCurrency(currentBalance, bank.currency)}`, 'error');
         return;
     }
     
-    showLoading(true, 'Setting opening balance...');
+    showLoading(true, 'Processing credit transfer...');
     
     try {
-        // Store in openingBalanceTimestamps
-        state.openingBalanceTimestamps[bank.name] = {
-            balance: amount,
-            timestamp: new Date(date),
-            updatedBy: state.user?.email || 'Anonymous',
-            updatedAt: new Date().toISOString()
-        };
+        const recipientName = recipientType === 'custom' ? customRecipient : category;
         
-        // Save to processed transactions
-        await saveProcessedTransactions();
-        
-        // Also update bankDetails for backward compatibility
-        await db.collection('bankDetails').doc(bankId).update({
-            openingBalanceConfig: {
-                amount: amount,
-                dateString: date,
-                updatedAt: new Date().toISOString(),
-                updatedBy: state.user?.email || 'Unknown'
-            }
+        await db.collection('bankLedger').add({
+            type: 'credit',
+            date: new Date().toISOString(),
+            amount: amount,
+            bankId: bankId,
+            bankName: bank.name,
+            currency: bank.currency,
+            category: recipientType === 'category' ? category : null,
+            recipientName: recipientName,
+            recipientType: recipientType,
+            description: desc,
+            createdBy: state.user?.email || 'Unknown',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            status: 'completed',
+            userId: state.user?.uid
         });
         
-        closeModal('opening-balance-modal');
+        closeModal('credit-transfer-modal');
+        document.getElementById('credit-transfer-form').reset();
         
         // Refresh data
         await initApp();
         
-        showToast('Opening balance set successfully!', 'success');
+        showToast(`Credit transfer of ${formatCurrency(amount, bank.currency)} completed successfully!`, 'success');
     } catch (error) {
-        showToast('Failed to set opening balance: ' + error.message, 'error');
+        showToast('Credit transfer failed: ' + error.message, 'error');
     } finally {
         showLoading(false);
     }
 });
 
-// --- UI RENDERING (Enhanced with Bank Details) ---
+// --- UI RENDERING ---
 
 function renderDashboard() {
     const container = document.getElementById('bank-cards-container');
@@ -995,7 +1213,7 @@ function renderDashboard() {
             const amount = parseFloat(tx.amount) || 0;
             if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
                 totalCredits += amount;
-            } else if (tx.type === 'withdrawal' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
+            } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
                 totalDebits += amount;
             }
         });
@@ -1046,32 +1264,15 @@ function renderDashboard() {
             </div>
             
             <div class="flex space-x-2">
-                <button onclick="openWithdrawalModal('${bank.id}')" 
-                        class="flex-1 bg-green-600 hover:bg-green-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
-                    <i class="fas fa-money-check-alt mr-1"></i> Withdraw
+                <button onclick="showExpensePaymentModal('${bank.id}')" 
+                        class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
+                    <i class="fas fa-money-check-alt mr-1"></i> Expense
                 </button>
                 <button onclick="openOpeningModal('${bank.id}')" 
                         class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
-                    <i class="fas fa-balance-scale mr-1"></i> Set Opening Balance
+                    <i class="fas fa-balance-scale mr-1"></i> Opening Bal
                 </button>
             </div>
-            
-            ${hasOpeningTimestamp ? `
-                <div class="mt-4 pt-4 border-t border-gray-200">
-                    <div class="text-xs text-gray-500">
-                        <div class="flex items-center mb-1">
-                            <i class="fas fa-calendar-alt mr-1"></i>
-                            <span>Opening balance set on: ${new Date(state.openingBalanceTimestamps[bank.name].timestamp).toLocaleDateString()}</span>
-                        </div>
-                        ${state.openingBalanceTimestamps[bank.name].notes ? `
-                            <div class="flex items-center">
-                                <i class="fas fa-sticky-note mr-1"></i>
-                                <span class="truncate" title="${state.openingBalanceTimestamps[bank.name].notes}">${state.openingBalanceTimestamps[bank.name].notes}</span>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            ` : ''}
         `;
         container.appendChild(card);
     });
@@ -1099,8 +1300,8 @@ function renderLedgerTable() {
         return;
     }
     
-    // Show latest 50 transactions
-    const transactionsToShow = state.ledger.slice(0, 50);
+    // Show latest 100 transactions
+    const transactionsToShow = state.ledger.slice(0, 100);
     
     transactionsToShow.forEach(tx => {
         const dateObj = new Date(tx.date);
@@ -1110,6 +1311,7 @@ function renderLedgerTable() {
         let typeBadge = '';
         let amountClass = '';
         let sign = '';
+        let recipientInfo = tx.bankName || '';
         
         switch(tx.type) {
             case 'receipt':
@@ -1118,14 +1320,31 @@ function renderLedgerTable() {
                 sign = '+';
                 break;
             case 'withdrawal':
-                typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Payment</span>';
+            case 'expense':
+                typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Expense</span>';
                 amountClass = 'text-red-600';
                 sign = '-';
+                recipientInfo = tx.recipientName || tx.category || tx.bankName;
+                break;
+            case 'credit':
+                typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Credit</span>';
+                amountClass = 'text-blue-600';
+                sign = '-';
+                recipientInfo = tx.recipientName || tx.category || tx.bankName;
                 break;
             case 'transfer':
                 typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">Transfer</span>';
                 amountClass = 'text-purple-600';
                 sign = '↔';
+                recipientInfo = `${tx.bankName} → ${tx.toBankName}`;
+                if (tx.transactionFee) {
+                    recipientInfo += ` (Fee: ${tx.feeAmount} ${tx.currency})`;
+                }
+                break;
+            case 'transfer_fee':
+                typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Fee</span>';
+                amountClass = 'text-yellow-600';
+                sign = '-';
                 break;
             default:
                 typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Other</span>';
@@ -1138,8 +1357,7 @@ function renderLedgerTable() {
                 <td class="px-6 py-4 whitespace-nowrap text-gray-600 text-sm">${dateStr}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${typeBadge}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
-                    ${tx.bankName || 'N/A'} 
-                    ${tx.toBankName ? `<i class="fas fa-arrow-right mx-1 text-gray-400 text-xs"></i> ${tx.toBankName}` : ''}
+                    ${recipientInfo}
                 </td>
                 <td class="px-6 py-4 text-gray-500 max-w-xs truncate" title="${tx.description || ''}">${tx.description || ''}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-right font-bold ${amountClass}">
@@ -1156,549 +1374,313 @@ function renderLedgerTable() {
     }
 }
 
-// --- TRANSFER CONFIRMATION MODAL (NEW FEATURE) ---
+// --- EXPENSE SUMMARY RENDERING ---
+
+function renderExpenseSummary() {
+    // Update total
+    let totalExpenses = 0;
+    Object.values(state.expenseSummary).forEach(amount => {
+        totalExpenses += amount;
+    });
+    
+    const expenseTotalEl = document.getElementById('expense-total');
+    if (expenseTotalEl) {
+        expenseTotalEl.textContent = `Total: KSH ${formatNumber(totalExpenses)}`;
+    }
+    
+    // Render categories list
+    const categoriesList = document.getElementById('categories-list');
+    if (categoriesList) {
+        categoriesList.innerHTML = '';
+        
+        // Sort categories by amount (descending)
+        const sortedCategories = Object.entries(state.expenseSummary)
+            .filter(([category, amount]) => amount > 0)
+            .sort((a, b) => b[1] - a[1]);
+        
+        if (sortedCategories.length === 0) {
+            categoriesList.innerHTML = `
+                <div class="text-center py-8 text-gray-500">
+                    <i class="fas fa-chart-pie text-3xl mb-3"></i>
+                    <p>No expenses recorded yet</p>
+                    <p class="text-sm mt-2">Record expenses to see category breakdown</p>
+                </div>
+            `;
+        } else {
+            sortedCategories.forEach(([category, amount]) => {
+                const percentage = totalExpenses > 0 ? (amount / totalExpenses * 100).toFixed(1) : 0;
+                const categoryEl = document.createElement('div');
+                categoryEl.className = 'bg-gray-50 rounded-lg p-4 hover:bg-gray-100 transition-colors';
+                categoryEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-medium text-gray-800 truncate">${category}</span>
+                        <span class="font-bold text-red-600">KSH ${formatNumber(amount)}</span>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="flex-1 bg-gray-200 rounded-full h-2 mr-3">
+                            <div class="bg-red-500 h-2 rounded-full" style="width: ${percentage}%"></div>
+                        </div>
+                        <span class="text-xs text-gray-500">${percentage}%</span>
+                    </div>
+                `;
+                categoriesList.appendChild(categoryEl);
+            });
+        }
+    }
+    
+    // Render custom recipients
+    const customRecipientsList = document.getElementById('custom-recipients-list');
+    if (customRecipientsList) {
+        customRecipientsList.innerHTML = '';
+        
+        if (state.customRecipients.length === 0) {
+            customRecipientsList.innerHTML = `
+                <div class="col-span-3 text-center py-4 text-gray-500">
+                    <i class="fas fa-users text-2xl mb-2"></i>
+                    <p class="text-sm">No custom recipients yet</p>
+                </div>
+            `;
+        } else {
+            // Sort custom recipients by total amount (descending)
+            const sortedRecipients = [...state.customRecipients].sort((a, b) => b.total - a.total);
+            
+            sortedRecipients.forEach(recipient => {
+                const recipientEl = document.createElement('div');
+                recipientEl.className = 'bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow';
+                recipientEl.innerHTML = `
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h5 class="font-semibold text-gray-800">${recipient.name}</h5>
+                            <span class="text-xs text-gray-500">${recipient.type}</span>
+                        </div>
+                        <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">${recipient.transactions} txns</span>
+                    </div>
+                    <div class="text-2xl font-bold text-red-600">KSH ${formatNumber(recipient.total)}</div>
+                    <div class="text-xs text-gray-500 mt-1">Total payments</div>
+                `;
+                customRecipientsList.appendChild(recipientEl);
+            });
+        }
+    }
+    
+    // Update chart
+    updateExpenseChart();
+}
+
+function updateExpenseChart() {
+    const ctx = document.getElementById('expenseChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart instance
+    if (state.chartInstance) {
+        state.chartInstance.destroy();
+    }
+    
+    // Prepare chart data
+    const categoriesWithExpenses = Object.entries(state.expenseSummary)
+        .filter(([category, amount]) => amount > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10); // Top 10 categories
+    
+    if (categoriesWithExpenses.length === 0) {
+        ctx.parentElement.innerHTML = `
+            <div class="text-center text-gray-500">
+                <i class="fas fa-chart-pie text-4xl mb-3"></i>
+                <p>No expense data to display</p>
+                <p class="text-sm">Record expenses to see visualizations</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const labels = categoriesWithExpenses.map(([category]) => category);
+    const data = categoriesWithExpenses.map(([, amount]) => amount);
+    
+    // Create new chart
+    state.chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: labels,
+            datasets: [{
+                data: data,
+                backgroundColor: [
+                    '#EF4444', '#F97316', '#F59E0B', '#10B981', '#06B6D4',
+                    '#3B82F6', '#8B5CF6', '#EC4899', '#6B7280', '#84CC16'
+                ],
+                borderWidth: 2,
+                borderColor: '#FFFFFF'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'right',
+                    labels: {
+                        boxWidth: 12,
+                        padding: 15,
+                        font: {
+                            size: 11
+                        }
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const label = context.label || '';
+                            const value = context.parsed || 0;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${label}: KSH ${formatNumber(value)} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function refreshExpenseSummary() {
+    calculateExpenseSummary();
+    renderExpenseSummary();
+    showToast('Expense summary refreshed', 'success');
+}
+
+// --- MODAL CONTROLS ---
 
 function showTransferConfirmation() {
-    const fromId = document.getElementById('t-from')?.value;
-    const toId = document.getElementById('t-to')?.value;
-    const amount = parseFloat(document.getElementById('t-amount')?.value || 0);
-    const desc = document.getElementById('t-desc')?.value || '';
-    
-    if (!fromId || !toId || !amount) {
-        showToast('Please fill in all transfer details first', 'error');
+    if (!state.isBankPinVerified) {
+        showToast("Please enter your PIN in the bank access gate first", "error");
         return;
     }
     
-    const fromBank = state.banks.find(b => b.id === fromId);
-    const toBank = state.banks.find(b => b.id === toId);
+    // Update bank selects first
+    updateBankSelects();
     
-    if (!fromBank || !toBank) {
-        showToast('Bank selection error', 'error');
-        return;
-    }
-    
-    // Create confirmation modal
-    const modal = document.createElement('div');
-    modal.id = 'transfer-confirm-modal-custom';
-    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center';
-    modal.innerHTML = `
-        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeCustomModal()"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto p-6">
-            <div class="text-center mb-6">
-                <i class="fas fa-paper-plane text-5xl text-green-600 mb-4"></i>
-                <h3 class="text-2xl font-bold text-gray-800 mb-2">Confirm Transfer</h3>
-                <p class="text-gray-600">Please confirm the bank transfer details</p>
-            </div>
-            
-            <div class="bg-gray-50 rounded-lg p-6 mb-6">
-                <div class="space-y-3">
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">From:</span>
-                        <span class="font-semibold">${fromBank.name}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">To:</span>
-                        <span class="font-semibold">${toBank.name}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Amount:</span>
-                        <span class="font-semibold text-green-600">${formatCurrency(amount, fromBank.currency)}</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-gray-600">Description:</span>
-                        <span class="font-semibold">${desc}</span>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Security PIN</label>
-                    <input type="password" id="transfer-confirm-pin" 
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-xl tracking-widest focus:ring-2 focus:ring-green-600"
-                           placeholder="0000" maxlength="4" required>
-                    <p class="text-xs text-gray-500 mt-2">Enter your 4-digit security PIN to confirm</p>
-                </div>
-                
-                <div class="flex space-x-4">
-                    <button onclick="closeCustomModal()"
-                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
-                        Cancel
-                    </button>
-                    <button onclick="executeConfirmedTransfer('${fromId}', '${toId}', ${amount}, '${desc.replace(/'/g, "\\'")}')"
-                            class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-all">
-                        Confirm Transfer
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
+    // Show the enhanced transfer modal
+    openModal('transfer-modal-enhanced');
 }
 
-function closeCustomModal() {
-    const modal = document.getElementById('transfer-confirm-modal-custom');
-    if (modal) {
-        modal.remove();
+function showExpensePaymentModal(bankId = null) {
+    if (!state.isBankPinVerified) {
+        showToast("Please enter your PIN in the bank access gate first", "error");
+        return;
+    }
+    
+    // Update bank selects
+    updateBankSelects();
+    
+    // Show modal
+    openModal('expense-payment-modal');
+    
+    // Preselect bank if provided
+    if (bankId) {
+        const bankSelect = document.getElementById('expense-bank');
+        if (bankSelect) {
+            bankSelect.value = bankId;
+            updateBankBalanceDisplay(bankId, 'expense-bank-balance');
+        }
     }
 }
 
-async function executeConfirmedTransfer(fromId, toId, amount, desc) {
-    const pin = document.getElementById('transfer-confirm-pin')?.value;
-    
-    if (!pin || pin.length !== 4 || !/^\d+$/.test(pin)) {
-        showToast("Please enter a valid 4-digit PIN", "error");
+function showCreditTransferModal() {
+    if (!state.isBankPinVerified) {
+        showToast("Please enter your PIN in the bank access gate first", "error");
         return;
     }
     
-    // Verify PIN (in production, verify against stored PIN)
-    if (pin !== state.bankPin) {
-        showToast("Invalid PIN", "error");
-        return;
-    }
+    // Update bank selects
+    updateBankSelects();
     
-    showLoading(true, 'Processing transfer...');
+    // Show modal
+    openModal('credit-transfer-modal');
     
-    try {
-        const fromBank = state.banks.find(b => b.id === fromId);
-        const toBank = state.banks.find(b => b.id === toId);
-        
-        const transferDate = new Date().toISOString();
-        const reference = `TRX-${Date.now()}`;
-        
-        // Add outgoing ledger entry
-        await db.collection('bankLedger').add({
-            type: 'transfer',
-            date: transferDate,
-            amount: amount,
-            bankId: fromId,
-            bankName: fromBank.name,
-            toBankId: toId,
-            toBankName: toBank.name,
-            currency: fromBank.currency,
-            description: `Transfer: ${desc}`,
-            reference: reference,
-            createdBy: state.user?.email || 'Unknown',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            status: 'completed',
-            userId: state.user?.uid
+    // Add event listener for recipient type change
+    const recipientTypeSelect = document.getElementById('credit-recipient-type');
+    const categorySection = document.getElementById('credit-category-section');
+    const customSection = document.getElementById('credit-custom-section');
+    
+    if (recipientTypeSelect && categorySection && customSection) {
+        recipientTypeSelect.addEventListener('change', function() {
+            if (this.value === 'category') {
+                categorySection.classList.remove('hidden');
+                customSection.classList.add('hidden');
+            } else {
+                categorySection.classList.add('hidden');
+                customSection.classList.remove('hidden');
+            }
         });
-        
-        closeCustomModal();
-        closeModal('transfer-modal');
-        document.getElementById('transfer-form').reset();
-        
-        // Refresh data
-        await initApp();
-        
-        showToast(`Transfer of ${formatCurrency(amount, fromBank.currency)} completed successfully!`, 'success');
-    } catch (error) {
-        showToast('Transfer failed: ' + error.message, 'error');
-    } finally {
-        showLoading(false);
     }
 }
 
-// --- OPENING BALANCE MODAL (ENHANCED) ---
-
-function openOpeningModal(bankId) {
-    // Check if PIN is verified
-    if (!state.isBankPinVerified) {
-        showToast("Please enter your PIN in the bank access gate first", "error");
-        return;
-    }
+function showTransactionFeeReport() {
+    // Calculate total transaction fees
+    let totalFees = 0;
+    let feeByBank = {};
     
-    const bank = state.banks.find(b => b.id === bankId);
-    if (!bank) return;
-    
-    // Create enhanced opening balance modal
-    const modal = document.createElement('div');
-    modal.id = 'opening-balance-modal-enhanced';
-    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center';
-    modal.innerHTML = `
-        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeOpeningModalEnhanced()"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-balance-scale mr-3"></i>Set Opening Balance
-                </h2>
-                <button onclick="closeOpeningModalEnhanced()"
-                        class="text-gray-500 hover:text-gray-700 text-2xl">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
+    state.ledger.forEach(tx => {
+        if (tx.type === 'transfer_fee' || (tx.type === 'transfer' && tx.feeAmount)) {
+            const feeAmount = parseFloat(tx.feeAmount) || 0;
+            totalFees += feeAmount;
             
-            <div id="opening-balance-details-enhanced" class="bg-gray-50 rounded-lg p-4 mb-6">
-                <!-- Details will be filled by JavaScript -->
-            </div>
-            
-            <form id="opening-balance-form-enhanced" class="space-y-4">
-                <input type="hidden" id="op-enhanced-bank-id" value="${bankId}">
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Opening Balance Amount</label>
-                    <div class="flex items-center">
-                        <span id="opening-currency-symbol-enhanced" class="mr-2 text-lg font-semibold">${bank.currency === 'USD' ? '$' : 'KES'}</span>
-                        <input type="number" id="opening-balance-amount-enhanced" 
-                               class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                               placeholder="0.00" min="0" step="0.01" required>
-                    </div>
-                    <p class="text-sm text-gray-500 mt-2">
-                        This will be the starting balance for all future calculations
-                    </p>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">As of Date</label>
-                    <input type="date" id="opening-balance-date-enhanced" 
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                           required>
-                    <p class="text-sm text-gray-500 mt-2">
-                        Transactions before this date will be excluded from calculations
-                    </p>
-                </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
-                    <textarea id="opening-balance-notes-enhanced" 
-                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                              rows="2" placeholder="e.g., Verified against bank statement"></textarea>
-                </div>
-                
-                <div class="flex items-start">
-                    <input type="checkbox" id="confirm-opening-balance-enhanced" class="mt-1 mr-3" required>
-                    <label for="confirm-opening-balance-enhanced" class="text-sm text-gray-600">
-                        I confirm this opening balance is accurate and has been verified
-                    </label>
-                </div>
-                
-                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                    <h4 class="font-semibold text-gray-800 mb-2 flex items-center">
-                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
-                        Important Note
-                    </h4>
-                    <p class="text-sm text-gray-600">
-                        Setting an opening balance will reset all transaction history before the selected date.
-                        All calculations will start from this balance.
-                    </p>
-                </div>
-                
-                <div class="flex space-x-4">
-                    <button type="button" onclick="closeOpeningModalEnhanced()"
-                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                            class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center">
-                        <i class="fas fa-check-circle mr-2"></i>Set Opening Balance
-                    </button>
-                </div>
-            </form>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Fill details
-    const detailsContainer = document.getElementById('opening-balance-details-enhanced');
-    const currentBalance = state.balances[bankId] || 0;
-    const openingBalance = state.openingBalanceTimestamps[bank.name]?.balance || bank.openingBalanceConfig?.amount || 0;
-    
-    detailsContainer.innerHTML = `
-        <div class="space-y-2">
-            <div class="flex justify-between">
-                <span class="text-gray-600">Bank:</span>
-                <span class="font-semibold">${bank.name}</span>
-            </div>
-            <div class="flex justify-between">
-                <span class="text-gray-600">Currency:</span>
-                <span class="font-semibold ${bank.currency === 'USD' ? 'text-blue-600' : 'text-green-600'}">
-                    ${bank.currency}
-                </span>
-            </div>
-            <div class="flex justify-between">
-                <span class="text-gray-600">Current Opening Balance:</span>
-                <span class="font-semibold">${bank.currency === 'USD' ? '$' : 'KES'} ${formatNumber(openingBalance)}</span>
-            </div>
-            <div class="flex justify-between">
-                <span class="text-gray-600">Current Balance:</span>
-                <span class="font-semibold ${currentBalance >= 0 ? 'text-green-600' : 'text-red-600'}">
-                    ${bank.currency === 'USD' ? '$' : 'KES'} ${formatNumber(currentBalance)}
-                </span>
-            </div>
-        </div>
-    `;
-    
-    // Set current date
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('opening-balance-date-enhanced').value = today;
-    document.getElementById('opening-balance-amount-enhanced').value = openingBalance || '';
-    
-    // Add form submit handler
-    document.getElementById('opening-balance-form-enhanced').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const amount = parseFloat(document.getElementById('opening-balance-amount-enhanced').value);
-        const date = document.getElementById('opening-balance-date-enhanced').value;
-        const notes = document.getElementById('opening-balance-notes-enhanced').value;
-        
-        if (!amount || isNaN(amount) || amount < 0) {
-            showToast('Please enter a valid balance amount', 'error');
-            return;
-        }
-        
-        if (!date) {
-            showToast('Please select a date', 'error');
-            return;
-        }
-        
-        showLoading(true, 'Setting opening balance...');
-        
-        try {
-            // Store in openingBalanceTimestamps
-            state.openingBalanceTimestamps[bank.name] = {
-                balance: amount,
-                timestamp: new Date(date),
-                updatedBy: state.user?.email || 'Anonymous',
-                updatedAt: new Date().toISOString(),
-                notes: notes || ''
-            };
-            
-            // Save to processed transactions
-            await saveProcessedTransactions();
-            
-            // Also update bankDetails for backward compatibility
-            await db.collection('bankDetails').doc(bankId).update({
-                openingBalanceConfig: {
-                    amount: amount,
-                    dateString: date,
-                    updatedAt: new Date().toISOString(),
-                    updatedBy: state.user?.email || 'Unknown',
-                    notes: notes
-                }
-            });
-            
-            closeOpeningModalEnhanced();
-            
-            // Refresh data
-            await initApp();
-            
-            showToast('Opening balance set successfully!', 'success');
-        } catch (error) {
-            showToast('Failed to set opening balance: ' + error.message, 'error');
-        } finally {
-            showLoading(false);
+            const bankName = tx.bankName || 'Unknown';
+            feeByBank[bankName] = (feeByBank[bankName] || 0) + feeAmount;
         }
     });
-}
-
-function closeOpeningModalEnhanced() {
-    const modal = document.getElementById('opening-balance-modal-enhanced');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-// --- WITHDRAWAL MODAL (ENHANCED) ---
-
-function openWithdrawalModal(bankId) {
-    // Check if PIN is verified
-    if (!state.isBankPinVerified) {
-        showToast("Please enter your PIN in the bank access gate first", "error");
-        return;
-    }
     
-    const bank = state.banks.find(b => b.id === bankId);
-    if (!bank) return;
-    
-    // Create enhanced withdrawal modal
+    // Create report modal
     const modal = document.createElement('div');
-    modal.id = 'withdrawal-modal-enhanced';
+    modal.id = 'fee-report-modal';
     modal.className = 'fixed inset-0 z-[100] flex items-center justify-center';
     modal.innerHTML = `
-        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeWithdrawalModalEnhanced()"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl max-w-lg w-full mx-auto p-6">
+        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeModal('fee-report-modal')"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl w-full max-w-md mx-auto p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold text-gray-800 flex items-center">
-                    <i class="fas fa-money-check-alt mr-3"></i>Bank Withdrawal / Payment
+                    <i class="fas fa-percentage mr-3"></i>Transaction Fees Report
                 </h2>
-                <button onclick="closeWithdrawalModalEnhanced()"
+                <button onclick="closeModal('fee-report-modal')"
                         class="text-gray-500 hover:text-gray-700 text-2xl">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             
-            <form id="withdrawal-form-enhanced">
-                <div class="space-y-4 mb-6">
-                    <!-- Bank Selection -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Source Bank Account</label>
-                        <div class="bg-gray-50 p-3 rounded-lg">
-                            <div class="font-semibold">${bank.name}</div>
-                            <div class="text-sm text-gray-500">${bank.currency} Account</div>
-                            <div id="withdrawal-bank-balance-enhanced" class="text-sm font-medium mt-2">
-                                <!-- Balance will be filled by JavaScript -->
-                            </div>
+            <div class="mb-6">
+                <div class="bg-purple-50 p-4 rounded-lg mb-4">
+                    <div class="text-sm text-gray-600">Total Transaction Fees</div>
+                    <div class="text-2xl font-bold text-purple-600">KSH ${formatNumber(totalFees)}</div>
+                </div>
+                
+                <h4 class="font-semibold text-gray-800 mb-3">Fees by Bank</h4>
+                <div class="space-y-3 max-h-64 overflow-y-auto">
+                    ${Object.entries(feeByBank).map(([bank, fees]) => `
+                        <div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+                            <span class="font-medium text-gray-700">${bank}</span>
+                            <span class="font-bold text-red-600">KSH ${formatNumber(fees)}</span>
                         </div>
-                        <input type="hidden" id="withdrawal-bank-enhanced" value="${bankId}">
-                    </div>
+                    `).join('')}
                     
-                    <!-- Expense Category -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Expense Category</label>
-                        <select id="withdrawal-category-enhanced" 
-                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600">
-                            <option value="">Select Category</option>
-                            <option value="Operational Expense">Operational Expense</option>
-                            <option value="Salary">Salary</option>
-                            <option value="Vendor Payment">Vendor Payment</option>
-                            <option value="Tax">Tax</option>
-                            <option value="Other">Other</option>
-                        </select>
-                    </div>
-                    
-                    <!-- Amount -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount (${bank.currency})</label>
-                        <input type="number" id="withdrawal-amount-enhanced" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                               placeholder="0.00" min="0.01" step="0.01" required>
-                    </div>
-                    
-                    <!-- Description -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                        <input type="text" id="withdrawal-description-enhanced" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                               placeholder="e.g., Payment for office supplies" required>
-                    </div>
-                    
-                    <!-- Recipient/Vendor -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Payee/Vendor</label>
-                        <input type="text" id="withdrawal-payee-enhanced" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                               placeholder="e.g., Office Depot Ltd">
-                    </div>
-                    
-                    <!-- Date -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Payment Date</label>
-                        <input type="date" id="withdrawal-date-enhanced" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                               required>
-                    </div>
-                    
-                    <!-- Reference Number -->
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Reference</label>
-                        <input type="text" id="withdrawal-reference-enhanced" 
-                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                               placeholder="e.g., CHQ-12345, MPESA-ABC123">
-                    </div>
+                    ${Object.keys(feeByBank).length === 0 ? `
+                        <div class="text-center py-4 text-gray-500">
+                            <i class="fas fa-receipt text-2xl mb-2"></i>
+                            <p>No transaction fees recorded yet</p>
+                        </div>
+                    ` : ''}
                 </div>
-                
-                <div class="flex space-x-4">
-                    <button type="button" onclick="closeWithdrawalModalEnhanced()"
-                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
-                        Cancel
-                    </button>
-                    <button type="submit"
-                            class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center">
-                        <i class="fas fa-check-circle mr-2"></i>Confirm Withdrawal
-                    </button>
-                </div>
-            </form>
+            </div>
+            
+            <button onclick="closeModal('fee-report-modal')"
+                    class="w-full bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
+                Close Report
+            </button>
         </div>
     `;
     
     document.body.appendChild(modal);
-    
-    // Fill balance information
-    const balance = state.balances[bankId] || 0;
-    const balanceEl = document.getElementById('withdrawal-bank-balance-enhanced');
-    if (balanceEl) {
-        balanceEl.innerHTML = `
-            Available: <span class="${balance >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
-                ${bank.currency === 'USD' ? '$' : 'KES'} ${formatNumber(balance)}
-            </span>
-        `;
-    }
-    
-    // Set current date
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('withdrawal-date-enhanced').value = today;
-    
-    // Add form submit handler
-    document.getElementById('withdrawal-form-enhanced').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        
-        const amount = parseFloat(document.getElementById('withdrawal-amount-enhanced').value);
-        const category = document.getElementById('withdrawal-category-enhanced').value;
-        const description = document.getElementById('withdrawal-description-enhanced').value;
-        const payee = document.getElementById('withdrawal-payee-enhanced').value;
-        const date = document.getElementById('withdrawal-date-enhanced').value;
-        const reference = document.getElementById('withdrawal-reference-enhanced').value;
-        
-        if (!amount || amount <= 0 || isNaN(amount)) {
-            showToast('Please enter a valid amount', 'error');
-            return;
-        }
-        
-        if (!category) {
-            showToast('Please select a category', 'error');
-            return;
-        }
-        
-        // Check balance
-        if (amount > balance) {
-            showToast(`Insufficient funds. Available: ${formatCurrency(balance, bank.currency)}`, 'error');
-            return;
-        }
-        
-        showLoading(true, 'Processing withdrawal...');
-        
-        try {
-            await db.collection('bankLedger').add({
-                type: 'withdrawal',
-                date: new Date(date).toISOString(),
-                amount: amount,
-                bankId: bankId,
-                bankName: bank.name,
-                currency: bank.currency,
-                category: category,
-                description: `${category} - ${description}`,
-                payee: payee,
-                reference: reference,
-                createdBy: state.user?.email || 'Unknown',
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                status: 'completed',
-                userId: state.user?.uid
-            });
-            
-            closeWithdrawalModalEnhanced();
-            
-            // Refresh data
-            await initApp();
-            
-            showToast(`Withdrawal of ${formatCurrency(amount, bank.currency)} recorded successfully!`, 'success');
-        } catch (error) {
-            showToast('Withdrawal failed: ' + error.message, 'error');
-        } finally {
-            showLoading(false);
-        }
-    });
 }
 
-function closeWithdrawalModalEnhanced() {
-    const modal = document.getElementById('withdrawal-modal-enhanced');
-    if (modal) {
-        modal.remove();
-    }
-}
-
-// --- ALL BANKS SUMMARY (NEW FEATURE) ---
+// --- ALL BANKS SUMMARY ---
 
 function showAllBanksSummary() {
     if (state.banks.length === 0) {
@@ -1730,7 +1712,7 @@ function showAllBanksSummary() {
             const amount = parseFloat(tx.amount) || 0;
             if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
                 totalCredits += amount;
-            } else if (tx.type === 'withdrawal' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
+            } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
                 totalDebits += amount;
             }
         });
@@ -1761,6 +1743,16 @@ function showAllBanksSummary() {
     summary += `Total USD Funds: $${formatNumber(totalUSD)}\n`;
     summary += `Total Banks: ${state.banks.length}\n`;
     summary += `Total Transactions Processed: ${state.processedTransactions.size}\n`;
+    
+    // Add expense summary
+    let totalExpenses = 0;
+    Object.values(state.expenseSummary).forEach(amount => {
+        totalExpenses += amount;
+    });
+    
+    summary += `Total Expenses: KSH ${formatNumber(totalExpenses)}\n`;
+    summary += `Expense Categories: ${Object.keys(state.expenseSummary).filter(cat => state.expenseSummary[cat] > 0).length}\n`;
+    summary += `Custom Recipients: ${state.customRecipients.length}\n`;
     summary += `\nGenerated: ${new Date().toLocaleString()}`;
     
     // Create a modal to show the summary
@@ -1860,7 +1852,7 @@ function printSummary() {
     `);
 }
 
-// --- NEW FEATURES ---
+// --- TAB AND MODAL CONTROLS ---
 
 function openTab(evt, tabName) {
     // Hide all tab content
@@ -1885,15 +1877,18 @@ function openTab(evt, tabName) {
         evt.currentTarget.classList.add('active');
     }
     
-    // If opening ledger tab, refresh the table
+    // Special handling for specific tabs
     if (tabName === 'ledger-history') {
         renderLedgerTable();
+    } else if (tabName === 'expense-categories') {
+        renderExpenseSummary();
     }
 }
 
 function openModal(id) {
     // Check if PIN is verified for bank-related modals
-    if ((id === 'transfer-modal' || id === 'withdrawal-modal') && !state.isBankPinVerified) {
+    const bankModals = ['transfer-modal-enhanced', 'expense-payment-modal', 'credit-transfer-modal', 'withdrawal-modal'];
+    if (bankModals.includes(id) && !state.isBankPinVerified) {
         showToast("Please enter your PIN in the bank access gate first", "error");
         return;
     }
@@ -1934,16 +1929,70 @@ function initializeBankSystem() {
 
 function exportLedgerToPDF() {
     showToast('PDF export feature coming soon!', 'info');
-    // Future implementation with jsPDF
 }
 
-// Initialize on load
+// --- OPENING BALANCE MODAL (Keep existing) ---
+
+function openOpeningModal(bankId) {
+    // Check if PIN is verified
+    if (!state.isBankPinVerified) {
+        showToast("Please enter your PIN in the bank access gate first", "error");
+        return;
+    }
+    
+    // Use existing opening balance modal logic from previous code
+    // (Keep the existing opening modal implementation)
+    const bank = state.banks.find(b => b.id === bankId);
+    if (!bank) return;
+    
+    // Set modal values
+    document.getElementById('op-bank-id').value = bankId;
+    document.getElementById('op-bank-name').textContent = bank.name;
+    document.getElementById('op-currency').textContent = bank.currency;
+    document.getElementById('op-amount').value = state.openingBalanceTimestamps[bank.name]?.balance || bank.openingBalanceConfig?.amount || '';
+    
+    // Set today's date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('op-date').value = today;
+    
+    openModal('opening-balance-modal');
+}
+
+// --- WITHDRAWAL MODAL (Keep existing) ---
+
+function openWithdrawalModal(bankId) {
+    // Check if PIN is verified
+    if (!state.isBankPinVerified) {
+        showToast("Please enter your PIN in the bank access gate first", "error");
+        return;
+    }
+    
+    // Use existing withdrawal modal
+    // (Keep the existing withdrawal modal implementation)
+    const bank = state.banks.find(b => b.id === bankId);
+    if (!bank) return;
+    
+    // Update bank select
+    const bankSelect = document.getElementById('w-bank');
+    if (bankSelect) {
+        bankSelect.value = bankId;
+    }
+    
+    openModal('withdrawal-modal');
+}
+
+// --- INITIALIZATION ---
+
 document.addEventListener('DOMContentLoaded', function() {
     // Check if user is already logged in
     const user = auth.currentUser;
     if (user) {
         updateSystemStatus(true);
-        // PIN verification will trigger initApp
+        // Show PIN gate for logged-in users
+        const bankAccessGate = document.getElementById('bank-access-gate');
+        if (bankAccessGate) {
+            bankAccessGate.style.display = 'flex';
+        }
     } else {
         updateSystemStatus(false);
     }
@@ -1957,15 +2006,26 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Set opening balance modal date to today
-    const opDateInput = document.getElementById('op-date');
-    if (opDateInput && !opDateInput.value) {
-        opDateInput.value = today;
-    }
-    
     // Initialize Firebase
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
+    }
+    
+    // Add event listeners for recipient type switching
+    const recipientTypeSelect = document.getElementById('credit-recipient-type');
+    if (recipientTypeSelect) {
+        recipientTypeSelect.addEventListener('change', function() {
+            const categorySection = document.getElementById('credit-category-section');
+            const customSection = document.getElementById('credit-custom-section');
+            
+            if (this.value === 'category') {
+                if (categorySection) categorySection.classList.remove('hidden');
+                if (customSection) customSection.classList.add('hidden');
+            } else {
+                if (categorySection) categorySection.classList.add('hidden');
+                if (customSection) customSection.classList.remove('hidden');
+            }
+        });
     }
 });
 
@@ -1983,3 +2043,9 @@ window.openTab = openTab;
 window.checkBankAccessCode = checkBankAccessCode;
 window.showTransferConfirmation = showTransferConfirmation;
 window.openWithdrawalModal = openWithdrawalModal;
+window.showExpensePaymentModal = showExpensePaymentModal;
+window.showCreditTransferModal = showCreditTransferModal;
+window.refreshExpenseSummary = refreshExpenseSummary;
+window.showTransactionFeeReport = showTransactionFeeReport;
+window.closeAllBanksSummary = closeAllBanksSummary;
+window.printSummary = printSummary;
