@@ -2413,7 +2413,6 @@ document.addEventListener('DOMContentLoaded', function() {
             oldForm.parentNode.replaceChild(newForm, oldForm);
         }
         });
-    }
 });
 
 // Expose functions to global scope for HTML onclick handlers
