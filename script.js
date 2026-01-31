@@ -1264,15 +1264,15 @@ function renderDashboard() {
             </div>
             
             <div class="flex space-x-2">
-                <button onclick="showExpensePaymentModal('${bank.id}')" 
-                        class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
-                    <i class="fas fa-money-check-alt mr-1"></i> Expense
-                </button>
-                <button onclick="openOpeningModal('${bank.id}')" 
-                        class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
-                    <i class="fas fa-balance-scale mr-1"></i> Opening Bal
-                </button>
-            </div>
+    <button onclick="showExpensePaymentModal('${bank.id}')" 
+            class="flex-1 bg-red-600 hover:bg-red-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
+        <i class="fas fa-money-check-alt mr-1"></i> Expense
+    </button>
+    <button onclick="openOpeningModal('${bank.id}')" 
+            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-3 rounded-lg transition-all">
+        <i class="fas fa-balance-scale mr-1"></i> Opening Bal
+    </button>
+</div>
         `;
         container.appendChild(card);
     });
@@ -1931,7 +1931,9 @@ function exportLedgerToPDF() {
     showToast('PDF export feature coming soon!', 'info');
 }
 
-// --- OPENING BALANCE MODAL (Keep existing) ---
+
+
+// --- OPENING BALANCE MODAL (Updated to work with new HTML structure) ---
 
 function openOpeningModal(bankId) {
     // Check if PIN is verified
@@ -1940,23 +1942,401 @@ function openOpeningModal(bankId) {
         return;
     }
     
-    // Use existing opening balance modal logic from previous code
-    // (Keep the existing opening modal implementation)
     const bank = state.banks.find(b => b.id === bankId);
-    if (!bank) return;
+    if (!bank) {
+        showToast("Bank not found", "error");
+        return;
+    }
     
-    // Set modal values
-    document.getElementById('op-bank-id').value = bankId;
-    document.getElementById('op-bank-name').textContent = bank.name;
-    document.getElementById('op-currency').textContent = bank.currency;
-    document.getElementById('op-amount').value = state.openingBalanceTimestamps[bank.name]?.balance || bank.openingBalanceConfig?.amount || '';
+    // Create enhanced opening balance modal (same as in original code)
+    const modal = document.createElement('div');
+    modal.id = 'opening-balance-modal-enhanced';
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+    modal.innerHTML = `
+        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeOpeningModalEnhanced()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-balance-scale mr-3"></i>Set Opening Balance
+                </h2>
+                <button onclick="closeOpeningModalEnhanced()"
+                        class="text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div id="opening-balance-details-enhanced" class="bg-gray-50 rounded-lg p-4 mb-6">
+                <!-- Details will be filled by JavaScript -->
+            </div>
+            
+            <form id="opening-balance-form-enhanced" class="space-y-4">
+                <input type="hidden" id="op-enhanced-bank-id" value="${bankId}">
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Opening Balance Amount</label>
+                    <div class="flex items-center">
+                        <span id="opening-currency-symbol-enhanced" class="mr-2 text-lg font-semibold">${bank.currency === 'USD' ? '$' : 'KES'}</span>
+                        <input type="number" id="opening-balance-amount-enhanced" 
+                               class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               placeholder="0.00" min="0" step="0.01" required>
+                    </div>
+                    <p class="text-sm text-gray-500 mt-2">
+                        This will be the starting balance for all future calculations
+                    </p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">As of Date</label>
+                    <input type="date" id="opening-balance-date-enhanced" 
+                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                           required>
+                    <p class="text-sm text-gray-500 mt-2">
+                        Transactions before this date will be excluded from calculations
+                    </p>
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Notes (Optional)</label>
+                    <textarea id="opening-balance-notes-enhanced" 
+                              class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                              rows="2" placeholder="e.g., Verified against bank statement"></textarea>
+                </div>
+                
+                <div class="flex items-start">
+                    <input type="checkbox" id="confirm-opening-balance-enhanced" class="mt-1 mr-3" required>
+                    <label for="confirm-opening-balance-enhanced" class="text-sm text-gray-600">
+                        I confirm this opening balance is accurate and has been verified
+                    </label>
+                </div>
+                
+                <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                    <h4 class="font-semibold text-gray-800 mb-2 flex items-center">
+                        <i class="fas fa-exclamation-triangle text-yellow-500 mr-2"></i>
+                        Important Note
+                    </h4>
+                    <p class="text-sm text-gray-600">
+                        Setting an opening balance will reset all transaction history before the selected date.
+                        All calculations will start from this balance.
+                    </p>
+                </div>
+                
+                <div class="flex space-x-4">
+                    <button type="button" onclick="closeOpeningModalEnhanced()"
+                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center">
+                        <i class="fas fa-check-circle mr-2"></i>Set Opening Balance
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
     
-    // Set today's date
+    document.body.appendChild(modal);
+    
+    // Fill details
+    const detailsContainer = document.getElementById('opening-balance-details-enhanced');
+    const currentBalance = state.balances[bankId] || 0;
+    const openingBalance = state.openingBalanceTimestamps[bank.name]?.balance || bank.openingBalanceConfig?.amount || 0;
+    
+    detailsContainer.innerHTML = `
+        <div class="space-y-2">
+            <div class="flex justify-between">
+                <span class="text-gray-600">Bank:</span>
+                <span class="font-semibold">${bank.name}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Currency:</span>
+                <span class="font-semibold ${bank.currency === 'USD' ? 'text-blue-600' : 'text-green-600'}">
+                    ${bank.currency}
+                </span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Current Opening Balance:</span>
+                <span class="font-semibold">${bank.currency === 'USD' ? '$' : 'KES'} ${formatNumber(openingBalance)}</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="text-gray-600">Current Balance:</span>
+                <span class="font-semibold ${currentBalance >= 0 ? 'text-green-600' : 'text-red-600'}">
+                    ${bank.currency === 'USD' ? '$' : 'KES'} ${formatNumber(currentBalance)}
+                </span>
+            </div>
+        </div>
+    `;
+    
+    // Set current date
     const today = new Date().toISOString().split('T')[0];
-    document.getElementById('op-date').value = today;
+    document.getElementById('opening-balance-date-enhanced').value = today;
+    document.getElementById('opening-balance-amount-enhanced').value = openingBalance || '';
     
-    openModal('opening-balance-modal');
+    // Add form submit handler
+    document.getElementById('opening-balance-form-enhanced').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const amount = parseFloat(document.getElementById('opening-balance-amount-enhanced').value);
+        const date = document.getElementById('opening-balance-date-enhanced').value;
+        const notes = document.getElementById('opening-balance-notes-enhanced').value;
+        
+        if (!amount || isNaN(amount) || amount < 0) {
+            showToast('Please enter a valid balance amount', 'error');
+            return;
+        }
+        
+        if (!date) {
+            showToast('Please select a date', 'error');
+            return;
+        }
+        
+        showLoading(true, 'Setting opening balance...');
+        
+        try {
+            // Store in openingBalanceTimestamps
+            state.openingBalanceTimestamps[bank.name] = {
+                balance: amount,
+                timestamp: new Date(date),
+                updatedBy: state.user?.email || 'Anonymous',
+                updatedAt: new Date().toISOString(),
+                notes: notes || ''
+            };
+            
+            // Save to processed transactions
+            await saveProcessedTransactions();
+            
+            // Also update bankDetails for backward compatibility
+            await db.collection('bankDetails').doc(bankId).update({
+                openingBalanceConfig: {
+                    amount: amount,
+                    dateString: date,
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: state.user?.email || 'Unknown',
+                    notes: notes
+                }
+            });
+            
+            closeOpeningModalEnhanced();
+            
+            // Refresh data
+            await initApp();
+            
+            showToast('Opening balance set successfully!', 'success');
+        } catch (error) {
+            showToast('Failed to set opening balance: ' + error.message, 'error');
+        } finally {
+            showLoading(false);
+        }
+    });
 }
+
+function closeOpeningModalEnhanced() {
+    const modal = document.getElementById('opening-balance-modal-enhanced');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// --- WITHDRAWAL MODAL (Updated) ---
+
+function openWithdrawalModal(bankId) {
+    // Check if PIN is verified
+    if (!state.isBankPinVerified) {
+        showToast("Please enter your PIN in the bank access gate first", "error");
+        return;
+    }
+    
+    const bank = state.banks.find(b => b.id === bankId);
+    if (!bank) {
+        showToast("Bank not found", "error");
+        return;
+    }
+    
+    // Create enhanced withdrawal modal
+    const modal = document.createElement('div');
+    modal.id = 'withdrawal-modal-enhanced';
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+    modal.innerHTML = `
+        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="closeWithdrawalModalEnhanced()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-lg w-full mx-auto p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-money-check-alt mr-3"></i>Bank Withdrawal / Payment
+                </h2>
+                <button onclick="closeWithdrawalModalEnhanced()"
+                        class="text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <form id="withdrawal-form-enhanced">
+                <div class="space-y-4 mb-6">
+                    <!-- Bank Selection -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Source Bank Account</label>
+                        <div class="bg-gray-50 p-3 rounded-lg">
+                            <div class="font-semibold">${bank.name}</div>
+                            <div class="text-sm text-gray-500">${bank.currency} Account</div>
+                            <div id="withdrawal-bank-balance-enhanced" class="text-sm font-medium mt-2">
+                                <!-- Balance will be filled by JavaScript -->
+                            </div>
+                        </div>
+                        <input type="hidden" id="withdrawal-bank-enhanced" value="${bankId}">
+                    </div>
+                    
+                    <!-- Expense Category -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Expense Category</label>
+                        <select id="withdrawal-category-enhanced" 
+                                class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600">
+                            <option value="">Select Category</option>
+                            <option value="Operational Expense">Operational Expense</option>
+                            <option value="Salary">Salary</option>
+                            <option value="Vendor Payment">Vendor Payment</option>
+                            <option value="Tax">Tax</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Amount -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Amount (${bank.currency})</label>
+                        <input type="number" id="withdrawal-amount-enhanced" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               placeholder="0.00" min="0.01" step="0.01" required>
+                    </div>
+                    
+                    <!-- Description -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
+                        <input type="text" id="withdrawal-description-enhanced" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               placeholder="e.g., Payment for office supplies" required>
+                    </div>
+                    
+                    <!-- Recipient/Vendor -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Payee/Vendor</label>
+                        <input type="text" id="withdrawal-payee-enhanced" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               placeholder="e.g., Office Depot Ltd">
+                    </div>
+                    
+                    <!-- Date -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Payment Date</label>
+                        <input type="date" id="withdrawal-date-enhanced" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               required>
+                    </div>
+                    
+                    <!-- Reference Number -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Transaction Reference</label>
+                        <input type="text" id="withdrawal-reference-enhanced" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               placeholder="e.g., CHQ-12345, MPESA-ABC123">
+                    </div>
+                </div>
+                
+                <div class="flex space-x-4">
+                    <button type="button" onclick="closeWithdrawalModalEnhanced()"
+                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-3 rounded-lg transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold py-3 rounded-lg transition-all flex items-center justify-center">
+                        <i class="fas fa-check-circle mr-2"></i>Confirm Withdrawal
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Fill balance information
+    const balance = state.balances[bankId] || 0;
+    const balanceEl = document.getElementById('withdrawal-bank-balance-enhanced');
+    if (balanceEl) {
+        balanceEl.innerHTML = `
+            Available: <span class="${balance >= 0 ? 'text-green-600' : 'text-red-600'} font-bold">
+                ${bank.currency === 'USD' ? '$' : 'KES'} ${formatNumber(balance)}
+            </span>
+        `;
+    }
+    
+    // Set current date
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('withdrawal-date-enhanced').value = today;
+    
+    // Add form submit handler
+    document.getElementById('withdrawal-form-enhanced').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const amount = parseFloat(document.getElementById('withdrawal-amount-enhanced').value);
+        const category = document.getElementById('withdrawal-category-enhanced').value;
+        const description = document.getElementById('withdrawal-description-enhanced').value;
+        const payee = document.getElementById('withdrawal-payee-enhanced').value;
+        const date = document.getElementById('withdrawal-date-enhanced').value;
+        const reference = document.getElementById('withdrawal-reference-enhanced').value;
+        
+        if (!amount || amount <= 0 || isNaN(amount)) {
+            showToast('Please enter a valid amount', 'error');
+            return;
+        }
+        
+        if (!category) {
+            showToast('Please select a category', 'error');
+            return;
+        }
+        
+        // Check balance
+        if (amount > balance) {
+            showToast(`Insufficient funds. Available: ${formatCurrency(balance, bank.currency)}`, 'error');
+            return;
+        }
+        
+        showLoading(true, 'Processing withdrawal...');
+        
+        try {
+            await db.collection('bankLedger').add({
+                type: 'withdrawal',
+                date: new Date(date).toISOString(),
+                amount: amount,
+                bankId: bankId,
+                bankName: bank.name,
+                currency: bank.currency,
+                category: category,
+                description: `${category} - ${description}`,
+                payee: payee,
+                reference: reference,
+                createdBy: state.user?.email || 'Unknown',
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                status: 'completed',
+                userId: state.user?.uid
+            });
+            
+            closeWithdrawalModalEnhanced();
+            
+            // Refresh data
+            await initApp();
+            
+            showToast(`Withdrawal of ${formatCurrency(amount, bank.currency)} recorded successfully!`, 'success');
+        } catch (error) {
+            showToast('Withdrawal failed: ' + error.message, 'error');
+        } finally {
+            showLoading(false);
+        }
+    });
+}
+
+function closeWithdrawalModalEnhanced() {
+    const modal = document.getElementById('withdrawal-modal-enhanced');
+    if (modal) {
+        modal.remove();
+    }
+}
+
 
 // --- WITHDRAWAL MODAL (Keep existing) ---
 
@@ -2025,6 +2405,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (categorySection) categorySection.classList.add('hidden');
                 if (customSection) customSection.classList.remove('hidden');
             }
+             const oldForms = ['transfer-form', 'withdrawal-form', 'opening-form'];
+    oldForms.forEach(formId => {
+        const oldForm = document.getElementById(formId);
+        if (oldForm) {
+            const newForm = oldForm.cloneNode(true);
+            oldForm.parentNode.replaceChild(newForm, oldForm);
+        }
         });
     }
 });
@@ -2049,3 +2436,5 @@ window.refreshExpenseSummary = refreshExpenseSummary;
 window.showTransactionFeeReport = showTransactionFeeReport;
 window.closeAllBanksSummary = closeAllBanksSummary;
 window.printSummary = printSummary;
+window.closeOpeningModalEnhanced = closeOpeningModalEnhanced;
+window.closeWithdrawalModalEnhanced = closeWithdrawalModalEnhanced;
