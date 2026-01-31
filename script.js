@@ -501,6 +501,15 @@ async function initApp() {
         
         // Update expense tab
         renderExpenseSummary();
+
+        // Initialize reports if reports tab is active
+if (document.getElementById('reports')) {
+    const reportsTab = document.getElementById('reports');
+    if (reportsTab.classList.contains('active')) {
+        initializeReports();
+    }
+}
+
         
         // Mark system as ready
         state.systemReady = true;
@@ -1467,6 +1476,8 @@ function renderExpenseSummary() {
     updateExpenseChart();
 }
 
+
+
 function updateExpenseChart() {
     const ctx = document.getElementById('expenseChart');
     if (!ctx) return;
@@ -1546,6 +1557,511 @@ function refreshExpenseSummary() {
     renderExpenseSummary();
     showToast('Expense summary refreshed', 'success');
 }
+
+// --- PDF EXPORT FUNCTIONALITY ---
+
+async function exportLedgerToPDF() {
+    showLoading(true, "Generating PDF...");
+    
+    try {
+        // Create a temporary div for the PDF content
+        const pdfContent = document.createElement('div');
+        pdfContent.style.position = 'absolute';
+        pdfContent.style.left = '-9999px';
+        pdfContent.style.top = '-9999px';
+        pdfContent.style.width = '210mm';
+        pdfContent.style.backgroundColor = 'white';
+        pdfContent.style.padding = '20px';
+        pdfContent.style.fontFamily = 'Arial, sans-serif';
+        
+        // Get current date
+        const now = new Date();
+        const dateStr = now.toLocaleDateString();
+        const timeStr = now.toLocaleTimeString();
+        
+        // Build PDF content
+        pdfContent.innerHTML = `
+            <div style="border-bottom: 2px solid #267921; padding-bottom: 15px; margin-bottom: 20px;">
+                <h1 style="color: #267921; margin: 0; font-size: 24px;">CarKenya Bank Ledger Report</h1>
+                <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                    Generated on ${dateStr} at ${timeStr} by ${state.user?.email || 'System'}
+                </div>
+                <div style="color: #666; font-size: 14px; margin-top: 5px;">
+                    Total Banks: ${state.banks.length} | Total Transactions: ${state.ledger.length}
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+                <h2 style="color: #333; font-size: 18px; margin-bottom: 10px;">Summary</h2>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px;">
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                        <div style="font-size: 12px; color: #666;">Total KES</div>
+                        <div style="font-weight: bold; color: #267921;">KES ${formatNumber(state.stats.totalKES)}</div>
+                    </div>
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                        <div style="font-size: 12px; color: #666;">Total USD</div>
+                        <div style="font-weight: bold; color: #267921;">$${formatNumber(state.stats.totalUSD)}</div>
+                    </div>
+                    <div style="background: #f5f5f5; padding: 10px; border-radius: 5px;">
+                        <div style="font-size: 12px; color: #666;">Today's Transactions</div>
+                        <div style="font-weight: bold; color: #267921;">${state.stats.todayTransactions}</div>
+                    </div>
+                </div>
+            </div>
+            
+            <h2 style="color: #333; font-size: 18px; margin-bottom: 10px;">Bank Balances</h2>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 12px;">
+                <thead>
+                    <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                        <th style="text-align: left; padding: 8px; border: 1px solid #dee2e6;">Bank Name</th>
+                        <th style="text-align: left; padding: 8px; border: 1px solid #dee2e6;">Account Number</th>
+                        <th style="text-align: left; padding: 8px; border: 1px solid #dee2e6;">Currency</th>
+                        <th style="text-align: right; padding: 8px; border: 1px solid #dee2e6;">Balance</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${state.banks.map(bank => {
+                        const balance = state.balances[bank.id] || 0;
+                        return `
+                            <tr style="border-bottom: 1px solid #dee2e6;">
+                                <td style="padding: 8px; border: 1px solid #dee2e6;">${bank.name}</td>
+                                <td style="padding: 8px; border: 1px solid #dee2e6;">${bank.accountNumber || 'N/A'}</td>
+                                <td style="padding: 8px; border: 1px solid #dee2e6;">${bank.currency}</td>
+                                <td style="text-align: right; padding: 8px; border: 1px solid #dee2e6; font-weight: bold; color: ${balance >= 0 ? '#267921' : '#dc3545'}">
+                                    ${bank.currency === 'USD' ? '$' : 'KES'} ${formatNumber(balance)}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+            
+            <h2 style="color: #333; font-size: 18px; margin-bottom: 10px;">Recent Transactions (Last 50)</h2>
+            <table style="width: 100%; border-collapse: collapse; font-size: 11px;">
+                <thead>
+                    <tr style="background: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                        <th style="text-align: left; padding: 6px; border: 1px solid #dee2e6;">Date</th>
+                        <th style="text-align: left; padding: 6px; border: 1px solid #dee2e6;">Type</th>
+                        <th style="text-align: left; padding: 6px; border: 1px solid #dee2e6;">Bank/Recipient</th>
+                        <th style="text-align: left; padding: 6px; border: 1px solid #dee2e6;">Description</th>
+                        <th style="text-align: right; padding: 6px; border: 1px solid #dee2e6;">Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${state.ledger.slice(0, 50).map(tx => {
+                        const date = new Date(tx.date);
+                        const dateStr = date.toLocaleDateString();
+                        const timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                        const amount = parseFloat(tx.amount) || 0;
+                        const sign = tx.type === 'receipt' ? '+' : '-';
+                        const color = tx.type === 'receipt' ? '#267921' : '#dc3545';
+                        
+                        let typeBadge = '';
+                        switch(tx.type) {
+                            case 'receipt': typeBadge = 'Receipt'; break;
+                            case 'expense': typeBadge = 'Expense'; break;
+                            case 'credit': typeBadge = 'Credit'; break;
+                            case 'transfer': typeBadge = 'Transfer'; break;
+                            case 'withdrawal': typeBadge = 'Withdrawal'; break;
+                            default: typeBadge = tx.type;
+                        }
+                        
+                        return `
+                            <tr style="border-bottom: 1px solid #dee2e6;">
+                                <td style="padding: 6px; border: 1px solid #dee2e6;">${dateStr} ${timeStr}</td>
+                                <td style="padding: 6px; border: 1px solid #dee2e6;">${typeBadge}</td>
+                                <td style="padding: 6px; border: 1px solid #dee2e6;">${tx.bankName || ''}</td>
+                                <td style="padding: 6px; border: 1px solid #dee2e6;">${tx.description || ''}</td>
+                                <td style="text-align: right; padding: 6px; border: 1px solid #dee2e6; color: ${color}; font-weight: bold;">
+                                    ${sign}${formatNumber(amount)} ${tx.currency || 'KES'}
+                                </td>
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #dee2e6; color: #666; font-size: 12px;">
+                <div>Report generated by CarKenya Financial Manager v2.0</div>
+                <div>Total pages: 1</div>
+            </div>
+        `;
+        
+        document.body.appendChild(pdfContent);
+        
+        // Use html2pdf library (you need to include it in your HTML)
+        if (typeof html2pdf !== 'undefined') {
+            const element = pdfContent;
+            const opt = {
+                margin: 0.5,
+                filename: `CarKenya-Ledger-Report-${dateStr.replace(/\//g, '-')}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2, useCORS: true },
+                jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+            };
+            
+            await html2pdf().set(opt).from(element).save();
+        } else {
+            // Fallback to print if html2pdf is not available
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(`
+                <html>
+                    <head>
+                        <title>CarKenya Ledger Report</title>
+                        <style>
+                            body { font-family: Arial, sans-serif; margin: 20px; }
+                            @media print { body { margin: 0; } }
+                        </style>
+                    </head>
+                    <body>
+                        ${pdfContent.innerHTML}
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+        }
+        
+        // Clean up
+        document.body.removeChild(pdfContent);
+        
+        showToast('PDF exported successfully!', 'success');
+    } catch (error) {
+        console.error('PDF Export Error:', error);
+        showToast('Failed to generate PDF: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// --- REPORTS FUNCTIONALITY ---
+
+function initializeReports() {
+    // Set default date filters
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const startDateInput = document.getElementById('report-start-date');
+    const endDateInput = document.getElementById('report-end-date');
+    
+    if (startDateInput) {
+        startDateInput.value = firstDay.toISOString().split('T')[0];
+    }
+    if (endDateInput) {
+        endDateInput.value = now.toISOString().split('T')[0];
+    }
+    
+    // Populate bank filter
+    const bankFilter = document.getElementById('report-bank-filter');
+    if (bankFilter) {
+        bankFilter.innerHTML = '<option value="all">All Banks</option>';
+        state.banks.forEach(bank => {
+            const option = document.createElement('option');
+            option.value = bank.id;
+            option.textContent = bank.name;
+            bankFilter.appendChild(option);
+        });
+    }
+    
+    // Add event listeners for filter changes
+    const filterInputs = ['report-start-date', 'report-end-date', 'report-bank-filter', 'report-type-filter'];
+    filterInputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            input.addEventListener('change', generateFinancialReport);
+        }
+    });
+    
+    // Generate initial report
+    generateFinancialReport();
+}
+
+function generateFinancialReport() {
+    // Get filter values
+    const startDate = document.getElementById('report-start-date')?.value;
+    const endDate = document.getElementById('report-end-date')?.value;
+    const bankId = document.getElementById('report-bank-filter')?.value;
+    const typeFilter = document.getElementById('report-type-filter')?.value;
+    
+    // Filter transactions
+    let filteredTransactions = state.ledger.filter(tx => {
+        // Date filter
+        if (startDate && endDate) {
+            const txDate = new Date(tx.date).toISOString().split('T')[0];
+            if (txDate < startDate || txDate > endDate) return false;
+        }
+        
+        // Bank filter
+        if (bankId && bankId !== 'all') {
+            if (tx.bankId !== bankId && tx.toBankId !== bankId) return false;
+        }
+        
+        // Type filter
+        if (typeFilter && typeFilter !== 'all') {
+            if (tx.type !== typeFilter) return false;
+        }
+        
+        return true;
+    });
+    
+    // Calculate totals
+    let totalIncome = 0;
+    let totalExpenses = 0;
+    
+    filteredTransactions.forEach(tx => {
+        const amount = parseFloat(tx.amount) || 0;
+        if (tx.type === 'receipt') {
+            totalIncome += amount;
+        } else if (['expense', 'credit', 'withdrawal'].includes(tx.type)) {
+            totalExpenses += amount;
+        } else if (tx.type === 'transfer') {
+            if (tx.bankId === bankId) {
+                totalExpenses += amount;
+            } else if (tx.toBankId === bankId) {
+                totalIncome += amount;
+            }
+        }
+    });
+    
+    const netBalance = totalIncome - totalExpenses;
+    
+    // Update summary cards
+    const incomeEl = document.getElementById('report-income');
+    const expensesEl = document.getElementById('report-expenses');
+    const netEl = document.getElementById('report-net');
+    const transactionsEl = document.getElementById('report-transactions');
+    
+    if (incomeEl) incomeEl.textContent = `KES ${formatNumber(totalIncome)}`;
+    if (expensesEl) expensesEl.textContent = `KES ${formatNumber(totalExpenses)}`;
+    if (netEl) netEl.textContent = `KES ${formatNumber(netBalance)}`;
+    if (transactionsEl) transactionsEl.textContent = filteredTransactions.length;
+    
+    // Render transactions table
+    renderReportTransactions(filteredTransactions);
+    
+    // Generate charts
+    generateReportCharts(filteredTransactions);
+}
+
+function renderReportTransactions(transactions) {
+    const tbody = document.getElementById('report-transactions-body');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (transactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+                    <i class="fas fa-search text-2xl mb-3"></i>
+                    <p>No transactions found for the selected filters</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    transactions.forEach(tx => {
+        const dateObj = new Date(tx.date);
+        const dateStr = dateObj.toLocaleDateString() + ' ' + dateObj.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
+        // Determine badge style
+        let typeBadge = '';
+        let amountClass = '';
+        let sign = '';
+        
+        switch(tx.type) {
+            case 'receipt':
+                typeBadge = '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Receipt</span>';
+                amountClass = 'text-green-600';
+                sign = '+';
+                break;
+            case 'withdrawal':
+            case 'expense':
+                typeBadge = '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Expense</span>';
+                amountClass = 'text-red-600';
+                sign = '-';
+                break;
+            case 'credit':
+                typeBadge = '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Credit</span>';
+                amountClass = 'text-blue-600';
+                sign = '-';
+                break;
+            case 'transfer':
+                typeBadge = '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-purple-100 text-purple-800">Transfer</span>';
+                amountClass = 'text-purple-600';
+                sign = '↔';
+                break;
+            default:
+                typeBadge = '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800">Other</span>';
+                amountClass = 'text-gray-600';
+                sign = '';
+        }
+        
+        const row = `
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${dateStr}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${typeBadge}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${tx.bankName || ''}</td>
+                <td class="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">${tx.description || ''}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-bold ${amountClass}">
+                    ${sign}${formatNumber(tx.amount || 0)} 
+                    <span class="text-xs text-gray-400 font-normal ml-1">${tx.currency || 'KES'}</span>
+                </td>
+            </tr>
+        `;
+        tbody.innerHTML += row;
+    });
+}
+
+function generateReportCharts(transactions) {
+    // Income vs Expense Chart
+    const incomeExpenseCtx = document.getElementById('incomeExpenseChart');
+    if (incomeExpenseCtx) {
+        // Destroy existing chart
+        if (window.incomeExpenseChart) {
+            window.incomeExpenseChart.destroy();
+        }
+        
+        // Group by day
+        const dailyData = {};
+        transactions.forEach(tx => {
+            const date = new Date(tx.date).toDateString();
+            if (!dailyData[date]) {
+                dailyData[date] = { income: 0, expense: 0 };
+            }
+            
+            const amount = parseFloat(tx.amount) || 0;
+            if (tx.type === 'receipt') {
+                dailyData[date].income += amount;
+            } else if (['expense', 'credit', 'withdrawal'].includes(tx.type)) {
+                dailyData[date].expense += amount;
+            }
+        });
+        
+        const dates = Object.keys(dailyData).sort();
+        const incomeData = dates.map(date => dailyData[date].income);
+        const expenseData = dates.map(date => dailyData[date].expense);
+        
+        window.incomeExpenseChart = new Chart(incomeExpenseCtx, {
+            type: 'line',
+            data: {
+                labels: dates.map(date => new Date(date).toLocaleDateString()),
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: incomeData,
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Expenses',
+                        data: expenseData,
+                        borderColor: '#EF4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'KES ' + formatNumber(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Bank Balance Chart
+    const bankBalanceCtx = document.getElementById('bankBalanceChart');
+    if (bankBalanceCtx) {
+        // Destroy existing chart
+        if (window.bankBalanceChart) {
+            window.bankBalanceChart.destroy();
+        }
+        
+        const bankNames = state.banks.map(bank => bank.name);
+        const bankBalances = state.banks.map(bank => state.balances[bank.id] || 0);
+        
+        window.bankBalanceChart = new Chart(bankBalanceCtx, {
+            type: 'bar',
+            data: {
+                labels: bankNames,
+                datasets: [{
+                    label: 'Current Balance',
+                    data: bankBalances,
+                    backgroundColor: bankBalances.map(balance => 
+                        balance >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'
+                    ),
+                    borderColor: bankBalances.map(balance => 
+                        balance >= 0 ? '#10B981' : '#EF4444'
+                    ),
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const bank = state.banks[context.dataIndex];
+                                return `${bank.name}: ${bank.currency} ${formatNumber(context.raw)}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return formatNumber(value);
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+}
+
 
 // --- MODAL CONTROLS ---
 
@@ -1882,7 +2398,10 @@ function openTab(evt, tabName) {
         renderLedgerTable();
     } else if (tabName === 'expense-categories') {
         renderExpenseSummary();
+    } else if (tabName === 'reports') {
+        initializeReports();
     }
+    
 }
 
 function openModal(id) {
@@ -2419,6 +2938,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Expose functions to global scope for HTML onclick handlers
+window.generateFinancialReport = generateFinancialReport;
+window.initializeReports = initializeReports;
 window.toggleLoginModal = toggleLoginModal;
 window.logout = logout;
 window.syncReceipts = syncReceipts;
