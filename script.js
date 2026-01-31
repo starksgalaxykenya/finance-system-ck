@@ -1841,8 +1841,13 @@ function generateFinancialReport() {
     // Render transactions table
     renderReportTransactions(filteredTransactions);
     
-    // Generate charts
-    generateReportCharts(filteredTransactions);
+    // Generate charts only if we have chart containers
+    const incomeExpenseCtx = document.getElementById('incomeExpenseChart');
+    const bankBalanceCtx = document.getElementById('bankBalanceChart');
+    
+    if (incomeExpenseCtx && bankBalanceCtx) {
+        generateReportCharts(filteredTransactions);
+    }
 }
 
 function renderReportTransactions(transactions) {
@@ -1920,8 +1925,8 @@ function generateReportCharts(transactions) {
     // Income vs Expense Chart
     const incomeExpenseCtx = document.getElementById('incomeExpenseChart');
     if (incomeExpenseCtx) {
-        // Destroy existing chart
-        if (window.incomeExpenseChart) {
+        // Destroy existing chart if it exists
+        if (window.incomeExpenseChart && typeof window.incomeExpenseChart.destroy === 'function') {
             window.incomeExpenseChart.destroy();
         }
         
@@ -1945,123 +1950,142 @@ function generateReportCharts(transactions) {
         const incomeData = dates.map(date => dailyData[date].income);
         const expenseData = dates.map(date => dailyData[date].expense);
         
-        window.incomeExpenseChart = new Chart(incomeExpenseCtx, {
-            type: 'line',
-            data: {
-                labels: dates.map(date => new Date(date).toLocaleDateString()),
-                datasets: [
-                    {
-                        label: 'Income',
-                        data: incomeData,
-                        borderColor: '#10B981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    },
-                    {
-                        label: 'Expenses',
-                        data: expenseData,
-                        borderColor: '#EF4444',
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                    },
-                    tooltip: {
-                        mode: 'index',
-                        intersect: false
-                    }
+        // Check if we have data to display
+        if (dates.length === 0) {
+            incomeExpenseCtx.parentElement.innerHTML = `
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-chart-line text-3xl mb-3"></i>
+                    <p>No transaction data for selected filters</p>
+                </div>
+            `;
+        } else {
+            window.incomeExpenseChart = new Chart(incomeExpenseCtx, {
+                type: 'line',
+                data: {
+                    labels: dates.map(date => new Date(date).toLocaleDateString()),
+                    datasets: [
+                        {
+                            label: 'Income',
+                            data: incomeData,
+                            borderColor: '#10B981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        },
+                        {
+                            label: 'Expenses',
+                            data: expenseData,
+                            borderColor: '#EF4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }
+                    ]
                 },
-                scales: {
-                    x: {
-                        grid: {
-                            display: false
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
                         }
                     },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return 'KES ' + formatNumber(value);
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'KES ' + formatNumber(value);
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
     
     // Bank Balance Chart
     const bankBalanceCtx = document.getElementById('bankBalanceChart');
     if (bankBalanceCtx) {
-        // Destroy existing chart
-        if (window.bankBalanceChart) {
+        // Destroy existing chart if it exists
+        if (window.bankBalanceChart && typeof window.bankBalanceChart.destroy === 'function') {
             window.bankBalanceChart.destroy();
         }
         
         const bankNames = state.banks.map(bank => bank.name);
         const bankBalances = state.banks.map(bank => state.balances[bank.id] || 0);
         
-        window.bankBalanceChart = new Chart(bankBalanceCtx, {
-            type: 'bar',
-            data: {
-                labels: bankNames,
-                datasets: [{
-                    label: 'Current Balance',
-                    data: bankBalances,
-                    backgroundColor: bankBalances.map(balance => 
-                        balance >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'
-                    ),
-                    borderColor: bankBalances.map(balance => 
-                        balance >= 0 ? '#10B981' : '#EF4444'
-                    ),
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const bank = state.banks[context.dataIndex];
-                                return `${bank.name}: ${bank.currency} ${formatNumber(context.raw)}`;
+        // Check if we have data to display
+        if (bankNames.length === 0) {
+            bankBalanceCtx.parentElement.innerHTML = `
+                <div class="text-center text-gray-500 py-8">
+                    <i class="fas fa-university text-3xl mb-3"></i>
+                    <p>No bank data available</p>
+                </div>
+            `;
+        } else {
+            window.bankBalanceChart = new Chart(bankBalanceCtx, {
+                type: 'bar',
+                data: {
+                    labels: bankNames,
+                    datasets: [{
+                        label: 'Current Balance',
+                        data: bankBalances,
+                        backgroundColor: bankBalances.map(balance => 
+                            balance >= 0 ? 'rgba(16, 185, 129, 0.8)' : 'rgba(239, 68, 68, 0.8)'
+                        ),
+                        borderColor: bankBalances.map(balance => 
+                            balance >= 0 ? '#10B981' : '#EF4444'
+                        ),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const bank = state.banks[context.dataIndex];
+                                    return `${bank.name}: ${bank.currency} ${formatNumber(context.raw)}`;
+                                }
                             }
                         }
-                    }
-                },
-                scales: {
-                    x: {
-                        grid: {
-                            display: false
-                        }
                     },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return formatNumber(value);
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return formatNumber(value);
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 }
-
 
 // --- MODAL CONTROLS ---
 
