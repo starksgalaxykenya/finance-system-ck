@@ -2416,6 +2416,8 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+});
+    
 
 // Expose functions to global scope for HTML onclick handlers
 window.toggleLoginModal = toggleLoginModal;
