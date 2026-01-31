@@ -165,396 +165,567 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-green-600 to-green-800 text-white shadow-lg">
-        <div class="container mx-auto px-4 py-4">
-            <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-4 md:mb-0">
-                    <h1 class="text-2xl font-bold flex items-center">
-                        <i class="fas fa-car mr-3"></i>CarKenya.Co.Ke 🚘 Bank Ledger
-                    </h1>
-                    <p class="text-green-200 text-sm mt-1">Real-time Bank Management & Financial Dashboard</p>
+    <!-- Bank Access Gate (PIN Required) -->
+    <div id="bank-access-gate" class="fixed inset-0 z-[100000] bg-white flex items-center justify-center" style="display: none;">
+        <div class="max-w-md w-full mx-4">
+            <div class="bg-white rounded-2xl shadow-2xl p-8 text-center">
+                <div class="mb-8">
+                    <i class="fas fa-lock text-6xl text-green-600 mb-4"></i>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Bank Access Required</h2>
+                    <p class="text-gray-600">Enter your 4-digit PIN to access bank management</p>
                 </div>
                 
-                <div class="flex items-center space-x-4">
-                    <div id="firebase-user-info" class="hidden bg-white bg-opacity-20 px-4 py-2 rounded-lg">
-                        <i class="fas fa-user-circle mr-2"></i>
-                        <span id="user-email" class="font-medium text-sm"></span>
-                    </div>
-                    
-                    <div id="auth-section" class="flex items-center space-x-3">
-                        <button onclick="toggleLoginModal()" id="login-btn" 
-                                class="bg-white text-green-600 hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
-                            <i class="fas fa-cloud mr-2"></i>Connect Firebase
-                        </button>
-                        <button onclick="logout()" id="logout-btn" 
-                                class="hidden text-white hover:text-red-200 transition-colors p-2">
-                            <i class="fas fa-sign-out-alt text-lg"></i>
-                        </button>
-                    </div>
+                <div class="mb-6">
+                    <input type="password" id="bank-access-code" 
+                           class="w-full text-center text-4xl tracking-widest font-bold border-2 border-gray-300 rounded-xl py-4 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
+                           maxlength="4" placeholder="0000" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,4)">
+                    <p class="text-sm text-gray-500 mt-2">Enter 4-digit security PIN</p>
+                </div>
+                
+                <button onclick="checkBankAccessCode()" 
+                        class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] text-lg">
+                    <i class="fas fa-unlock mr-2"></i>Access Bank Management
+                </button>
+                
+                <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p class="text-sm text-gray-600">
+                        <i class="fas fa-shield-alt text-yellow-500 mr-1"></i>
+                        Secure access required for financial operations
+                    </p>
                 </div>
             </div>
         </div>
-    </header>
+    </div>
 
-    <!-- Main Container -->
-    <main class="flex-grow container mx-auto px-4 py-8">
-        <div class="flex flex-col lg:flex-row gap-8">
-            
-            <!-- Main Content Area -->
-            <div class="lg:w-2/3">
-                <!-- Tabs Navigation -->
-                <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
-                    <div class="flex border-b border-gray-200">
-                        <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all active"
-                                onclick="openTab(event, 'dashboard')">
-                            <i class="fas fa-university mr-2"></i>🏦 Bank Dashboard
-                        </button>
-                        <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
-                                onclick="openTab(event, 'ledger-history')">
-                            <i class="fas fa-history mr-2"></i>📋 Ledger History
-                        </button>
-                        <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
-                                onclick="openTab(event, 'reports')">
-                            <i class="fas fa-chart-line mr-2"></i>📈 Reports
-                        </button>
+    <!-- Main Content (Hidden until PIN verified) -->
+    <div id="bank-management-content" class="hidden">
+        <!-- Header -->
+        <header class="bg-gradient-to-r from-green-600 to-green-800 text-white shadow-lg">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="mb-4 md:mb-0">
+                        <h1 class="text-2xl font-bold flex items-center">
+                            <i class="fas fa-car mr-3"></i>CarKenya.Co.Ke 🚘 Bank Ledger
+                        </h1>
+                        <p class="text-green-200 text-sm mt-1">Real-time Bank Management & Financial Dashboard</p>
                     </div>
+                    
+                    <div class="flex items-center space-x-4">
+                        <div id="firebase-user-info" class="hidden bg-white bg-opacity-20 px-4 py-2 rounded-lg">
+                            <i class="fas fa-user-circle mr-2"></i>
+                            <span id="user-email" class="font-medium text-sm"></span>
+                        </div>
+                        
+                        <div id="auth-section" class="flex items-center space-x-3">
+                            <button onclick="toggleLoginModal()" id="login-btn" 
+                                    class="bg-white text-green-600 hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
+                                <i class="fas fa-cloud mr-2"></i>Connect Firebase
+                            </button>
+                            <button onclick="logout()" id="logout-btn" 
+                                    class="hidden text-white hover:text-red-200 transition-colors p-2">
+                                <i class="fas fa-sign-out-alt text-lg"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-                    <!-- Tab Content -->
-                    <div class="p-6">
-                        <!-- Dashboard Tab -->
-                        <div id="dashboard" class="tab-content active">
-                            <!-- Sync Status -->
-                            <div id="firebase-sync-status" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center">
-                                        <i class="fas fa-cloud text-xl text-blue-500 mr-3"></i>
-                                        <div>
-                                            <h4 class="font-semibold text-gray-800">Firebase Sync Status</h4>
-                                            <p class="text-sm text-gray-600" id="sync-status-text">Loading...</p>
-                                        </div>
-                                    </div>
-                                    <button onclick="syncReceipts()"
-                                            class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
-                                        <i class="fas fa-sync-alt mr-2"></i>Sync Receipts
-                                    </button>
-                                </div>
-                            </div>
-
-                            <!-- Action Buttons -->
-                            <div class="flex flex-wrap gap-3 mb-8">
-                                <button onclick="openModal('transfer-modal')" 
-                                        class="flex items-center bg-purple-600 text-white hover:bg-purple-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
-                                    <i class="fas fa-exchange-alt mr-2"></i> Inter-Bank Transfer
-                                </button>
-                                <button onclick="openModal('withdrawal-modal')" 
-                                        class="flex items-center bg-red-600 text-white hover:bg-red-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
-                                    <i class="fas fa-minus-circle mr-2"></i> Record Withdrawal
-                                </button>
-                                <button onclick="refreshBankData()" 
-                                        class="flex items-center bg-green-600 text-white hover:bg-green-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
-                                    <i class="fas fa-sync-alt mr-2"></i> Refresh Data
-                                </button>
-                            </div>
-
-                            <!-- Bank Cards Grid -->
-                            <div class="mb-8">
-                                <div class="flex justify-between items-center mb-6">
-                                    <h3 class="text-2xl font-bold text-gray-800 flex items-center">
-                                        <i class="fas fa-credit-card mr-3"></i>Bank Accounts Dashboard
-                                    </h3>
-                                    <div class="text-sm text-gray-500" id="last-updated">
-                                        Last updated: Just now
-                                    </div>
-                                </div>
-                                
-                                <!-- Loading Skeleton -->
-                                <div id="bank-cards-loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
-                                    <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
-                                    <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
-                                </div>
-                                
-                                <!-- Bank Cards Container -->
-                                <div id="bank-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                    <!-- Bank cards will be dynamically inserted here -->
-                                </div>
-                                
-                                <div id="no-banks-message" class="text-center py-12 hidden">
-                                    <i class="fas fa-university text-4xl text-gray-300 mb-4"></i>
-                                    <h4 class="text-xl font-semibold text-gray-600 mb-2">No Bank Accounts Found</h4>
-                                    <p class="text-gray-500 mb-6">Connect to Firebase to load bank accounts</p>
-                                </div>
-                            </div>
+        <!-- Main Container -->
+        <main class="flex-grow container mx-auto px-4 py-8">
+            <div class="flex flex-col lg:flex-row gap-8">
+                
+                <!-- Main Content Area -->
+                <div class="lg:w-2/3">
+                    <!-- Tabs Navigation -->
+                    <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
+                        <div class="flex border-b border-gray-200">
+                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all active"
+                                    onclick="openTab(event, 'dashboard')">
+                                <i class="fas fa-university mr-2"></i>🏦 Bank Dashboard
+                            </button>
+                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
+                                    onclick="openTab(event, 'ledger-history')">
+                                <i class="fas fa-history mr-2"></i>📋 Ledger History
+                            </button>
+                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
+                                    onclick="openTab(event, 'expense-categories')">
+                                <i class="fas fa-chart-pie mr-2"></i>💰 Expense Categories
+                            </button>
+                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
+                                    onclick="openTab(event, 'reports')">
+                                <i class="fas fa-chart-line mr-2"></i>📈 Reports
+                            </button>
                         </div>
 
-                        <!-- Ledger History Tab -->
-                        <div id="ledger-history" class="tab-content">
-                            <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                                <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                                    <h3 class="font-semibold text-gray-800 text-lg flex items-center">
-                                        <i class="fas fa-history mr-2"></i>Global Ledger History
-                                    </h3>
-                                    <div class="flex items-center space-x-4">
-                                        <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full" id="ledger-count">0 Records</span>
-                                        <button onclick="exportLedgerToPDF()" 
-                                                class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg transition-all">
-                                            <i class="fas fa-download mr-1"></i> Export PDF
+                        <!-- Tab Content -->
+                        <div class="p-6">
+                            <!-- Dashboard Tab -->
+                            <div id="dashboard" class="tab-content active">
+                                <!-- Sync Status -->
+                                <div id="firebase-sync-status" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-cloud text-xl text-blue-500 mr-3"></i>
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800">Firebase Sync Status</h4>
+                                                <p class="text-sm text-gray-600" id="sync-status-text">Loading...</p>
+                                            </div>
+                                        </div>
+                                        <button onclick="syncReceipts()"
+                                                class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
+                                            <i class="fas fa-sync-alt mr-2"></i>Sync Receipts
                                         </button>
                                     </div>
                                 </div>
-                                <div class="overflow-x-auto">
-                                    <table class="min-w-full divide-y divide-gray-200">
-                                        <thead class="bg-gray-50">
-                                            <tr>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank</th>
-                                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="ledger-body" class="bg-white divide-y divide-gray-200 text-sm">
-                                            <!-- Ledger rows will be inserted here -->
-                                        </tbody>
-                                    </table>
+
+                                <!-- Action Buttons -->
+                                <div class="flex flex-wrap gap-3 mb-8">
+                                    <button onclick="showTransferConfirmation()" 
+                                            class="flex items-center bg-purple-600 text-white hover:bg-purple-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
+                                        <i class="fas fa-exchange-alt mr-2"></i> Inter-Bank Transfer
+                                    </button>
+                                    <button onclick="showExpensePaymentModal()" 
+                                            class="flex items-center bg-red-600 text-white hover:bg-red-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
+                                        <i class="fas fa-money-check-alt mr-2"></i> Record Expense
+                                    </button>
+                                    <button onclick="refreshBankData()" 
+                                            class="flex items-center bg-green-600 text-white hover:bg-green-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
+                                        <i class="fas fa-sync-alt mr-2"></i> Refresh Data
+                                    </button>
+                                    <button onclick="showCreditTransferModal()" 
+                                            class="flex items-center bg-blue-600 text-white hover:bg-blue-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
+                                        <i class="fas fa-hand-holding-usd mr-2"></i> Credit Transfer
+                                    </button>
                                 </div>
-                                <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 text-center">
-                                    <p class="text-sm text-gray-500">Showing latest 50 transactions</p>
+
+                                <!-- Bank Cards Grid -->
+                                <div class="mb-8">
+                                    <div class="flex justify-between items-center mb-6">
+                                        <h3 class="text-2xl font-bold text-gray-800 flex items-center">
+                                            <i class="fas fa-credit-card mr-3"></i>Bank Accounts Dashboard
+                                        </h3>
+                                        <div class="text-sm text-gray-500" id="last-updated">
+                                            Last updated: Just now
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Loading Skeleton -->
+                                    <div id="bank-cards-loading" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                        <div class="bg-gray-100 rounded-xl p-6 shimmer h-40"></div>
+                                    </div>
+                                    
+                                    <!-- Bank Cards Container -->
+                                    <div id="bank-cards-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        <!-- Bank cards will be dynamically inserted here -->
+                                    </div>
+                                    
+                                    <div id="no-banks-message" class="text-center py-12 hidden">
+                                        <i class="fas fa-university text-4xl text-gray-300 mb-4"></i>
+                                        <h4 class="text-xl font-semibold text-gray-600 mb-2">No Bank Accounts Found</h4>
+                                        <p class="text-gray-500 mb-6">Connect to Firebase to load bank accounts</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Ledger History Tab -->
+                            <div id="ledger-history" class="tab-content">
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                        <h3 class="font-semibold text-gray-800 text-lg flex items-center">
+                                            <i class="fas fa-history mr-2"></i>Global Ledger History
+                                        </h3>
+                                        <div class="flex items-center space-x-4">
+                                            <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full" id="ledger-count">0 Records</span>
+                                            <button onclick="exportLedgerToPDF()" 
+                                                    class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg transition-all">
+                                                <i class="fas fa-download mr-1"></i> Export PDF
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="overflow-x-auto">
+                                        <table class="min-w-full divide-y divide-gray-200">
+                                            <thead class="bg-gray-50">
+                                                <tr>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank/Recipient</th>
+                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="ledger-body" class="bg-white divide-y divide-gray-200 text-sm">
+                                                <!-- Ledger rows will be inserted here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 text-center">
+                                        <p class="text-sm text-gray-500">Showing latest 100 transactions</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Expense Categories Tab -->
+                            <div id="expense-categories" class="tab-content">
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                        <h3 class="font-semibold text-gray-800 text-lg flex items-center">
+                                            <i class="fas fa-chart-pie mr-2"></i>Expense Categories Summary
+                                        </h3>
+                                        <div class="flex items-center space-x-4">
+                                            <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full" id="expense-total">Total: KSH 0</span>
+                                            <button onclick="refreshExpenseSummary()" 
+                                                    class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg transition-all">
+                                                <i class="fas fa-sync-alt mr-1"></i> Refresh
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="p-6">
+                                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                            <!-- Category List -->
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                                    <i class="fas fa-list mr-2"></i>Expense Categories
+                                                </h4>
+                                                <div class="space-y-4 max-h-96 overflow-y-auto pr-2">
+                                                    <!-- Categories will be populated by JavaScript -->
+                                                    <div id="categories-list"></div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Chart Visualization -->
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                                    <i class="fas fa-chart-bar mr-2"></i>Expense Distribution
+                                                </h4>
+                                                <div class="bg-gray-50 rounded-lg p-4 h-96 flex items-center justify-center">
+                                                    <div id="expense-chart-container" class="w-full h-full">
+                                                        <canvas id="expenseChart"></canvas>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Custom Recipients Section -->
+                                        <div class="mt-8">
+                                            <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                                <i class="fas fa-users mr-2"></i>Custom Recipients Summary
+                                            </h4>
+                                            <div id="custom-recipients-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                <!-- Custom recipients will be populated here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Reports Tab -->
+                            <div id="reports" class="tab-content">
+                                <div class="text-center py-12 text-gray-500">
+                                    <i class="fas fa-chart-line text-4xl mb-4"></i>
+                                    <h3 class="text-2xl font-bold mb-2">Financial Reports</h3>
+                                    <p>Detailed financial reports and analytics coming soon</p>
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
 
-                        <!-- Reports Tab -->
-                        <div id="reports" class="tab-content">
-                            <div class="text-center py-12 text-gray-500">
-                                <i class="fas fa-chart-line text-4xl mb-4"></i>
-                                <h3 class="text-2xl font-bold mb-2">Financial Reports</h3>
-                                <p>Detailed financial reports and analytics coming soon</p>
+                <!-- Sidebar -->
+                <div class="lg:w-1/3">
+                    <!-- System Status Card -->
+                    <div id="system-status-card" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                            <i class="fas fa-shield-alt mr-3"></i>✨ System Status
+                        </h2>
+                        
+                        <div class="space-y-4 mb-6">
+                            <div class="flex items-start">
+                                <i class="fas fa-database text-blue-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Firebase Connection</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="firebase-connection-status">
+                                        <span class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                        Not Connected
+                                    </p>
+                                </div>
                             </div>
+                            
+                            <div class="flex items-start">
+                                <i class="fas fa-sync-alt text-green-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Last Sync</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="last-sync-time">
+                                        Never
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <i class="fas fa-file-invoice-dollar text-purple-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Transactions Processed</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="transactions-count">
+                                        0 transactions
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-heartbeat mr-2"></i>System Health
+                        </h3>
+                        <div id="system-health-status" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <div class="flex items-center">
+                                <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                                <span class="font-medium text-green-800">System Ready</span>
+                            </div>
+                        </div>
+                        
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-bolt mr-2"></i>Quick Actions
+                        </h3>
+                        <div class="space-y-3">
+                            <button onclick="showAllBanksSummary()" 
+                                    class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-list-alt mr-3"></i>
+                                <span>View All Banks Summary</span>
+                            </button>
+                            <button onclick="toggleLoginModal()" 
+                                    class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-cloud mr-3"></i>
+                                <span>Firebase Settings</span>
+                            </button>
+                            <button onclick="showTransactionFeeReport()" 
+                                    class="w-full flex items-center text-purple-600 hover:text-purple-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-percentage mr-3"></i>
+                                <span>Transaction Fees Report</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Quick Stats -->
+                    <div class="bg-gradient-to-br from-green-600 to-green-800 text-white rounded-2xl shadow-lg p-6">
+                        <h3 class="text-xl font-bold mb-6 flex items-center">
+                            <i class="fas fa-chart-bar mr-3"></i>Bank Statistics
+                        </h3>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm opacity-90">Total Bank Accounts</span>
+                                    <span class="font-bold" id="stats-active-banks">0</span>
+                                </div>
+                                <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
+                                    <div id="stats-banks-progress" class="bg-white h-2 rounded-full" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm opacity-90">Total Funds (KSH)</span>
+                                    <span class="font-bold" id="stats-total-kes">0</span>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm opacity-90">Total Funds (USD)</span>
+                                    <span class="font-bold" id="stats-total-usd">$0</span>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="text-sm opacity-90">Today's Transactions</span>
+                                    <span class="font-bold" id="stats-today-transactions">0</span>
+                                </div>
+                                <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
+                                    <div id="stats-transactions-progress" class="bg-cyan-400 h-2 rounded-full" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-8">
+                            <button onclick="initializeBankSystem()"
+                                    class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
+                                <i class="fas fa-redo mr-2"></i>Reinitialize System
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
+        </main>
 
-            <!-- Sidebar -->
-            <div class="lg:w-1/3">
-                <!-- System Status Card -->
-                <div id="system-status-card" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
-                    <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                        <i class="fas fa-shield-alt mr-3"></i>✨ System Status
-                    </h2>
-                    
-                    <div class="space-y-4 mb-6">
-                        <div class="flex items-start">
-                            <i class="fas fa-database text-blue-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold text-gray-800">Firebase Connection</h4>
-                                <p class="text-sm text-gray-600 mt-1" id="firebase-connection-status">
-                                    <span class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
-                                    Not Connected
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <div class="flex items-start">
-                            <i class="fas fa-sync-alt text-green-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold text-gray-800">Last Sync</h4>
-                                <p class="text-sm text-gray-600 mt-1" id="last-sync-time">
-                                    Never
-                                </p>
-                            </div>
-                        </div>
-                        
-                        <div class="flex items-start">
-                            <i class="fas fa-file-invoice-dollar text-purple-500 mt-1 mr-3"></i>
-                            <div>
-                                <h4 class="font-semibold text-gray-800">Transactions Processed</h4>
-                                <p class="text-sm text-gray-600 mt-1" id="transactions-count">
-                                    0 transactions
-                                </p>
-                            </div>
-                        </div>
+        <!-- Footer -->
+        <footer class="bg-gray-800 text-white py-6 mt-8">
+            <div class="container mx-auto px-4">
+                <div class="flex flex-col md:flex-row justify-between items-center">
+                    <div class="mb-4 md:mb-0">
+                        <h3 class="text-xl font-bold">CarKenya.Co.Ke</h3>
+                        <p class="text-gray-400">Bank Management System v2.0</p>
                     </div>
-                    
-                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-heartbeat mr-2"></i>System Health
-                    </h3>
-                    <div id="system-health-status" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                        <div class="flex items-center">
-                            <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                            <span class="font-medium text-green-800">System Ready</span>
-                        </div>
-                    </div>
-                    
-                    <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                        <i class="fas fa-bolt mr-2"></i>Quick Actions
-                    </h3>
-                    <div class="space-y-3">
-                        <button onclick="showAllBanksSummary()" 
-                                class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                            <i class="fas fa-list-alt mr-3"></i>
-                            <span>View All Banks Summary</span>
-                        </button>
-                        <button onclick="toggleLoginModal()" 
-                                class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                            <i class="fas fa-cloud mr-3"></i>
-                            <span>Firebase Settings</span>
-                        </button>
+                    <div class="flex space-x-6">
+                        <span class="text-gray-400">
+                            <i class="fas fa-shield-alt"></i> Secure Bank Management
+                        </span>
                     </div>
                 </div>
-
-                <!-- Quick Stats -->
-                <div class="bg-gradient-to-br from-green-600 to-green-800 text-white rounded-2xl shadow-lg p-6">
-                    <h3 class="text-xl font-bold mb-6 flex items-center">
-                        <i class="fas fa-chart-bar mr-3"></i>Bank Statistics
-                    </h3>
-                    
-                    <div class="space-y-4">
-                        <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-sm opacity-90">Total Bank Accounts</span>
-                                <span class="font-bold" id="stats-active-banks">0</span>
-                            </div>
-                            <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
-                                <div id="stats-banks-progress" class="bg-white h-2 rounded-full" style="width: 0%"></div>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-sm opacity-90">Total Funds (KSH)</span>
-                                <span class="font-bold" id="stats-total-kes">0</span>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-sm opacity-90">Total Funds (USD)</span>
-                                <span class="font-bold" id="stats-total-usd">$0</span>
-                            </div>
-                        </div>
-                        
-                        <div>
-                            <div class="flex justify-between items-center mb-1">
-                                <span class="text-sm opacity-90">Today's Transactions</span>
-                                <span class="font-bold" id="stats-today-transactions">0</span>
-                            </div>
-                            <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
-                                <div id="stats-transactions-progress" class="bg-cyan-400 h-2 rounded-full" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="mt-8">
-                        <button onclick="initializeBankSystem()"
-                                class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
-                            <i class="fas fa-redo mr-2"></i>Reinitialize System
-                        </button>
-                    </div>
+                <div class="text-center mt-6 text-gray-500 text-sm">
+                    <p>© 2024 CarKenya Financial Manager. For authorized use only.</p>
                 </div>
             </div>
-        </div>
-    </main>
+        </footer>
+    </div>
 
-    <!-- Modals (Keep existing modals but update styling) -->
-    <div id="transfer-modal" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('transfer-modal')"></div>
+    <!-- Modals -->
+    
+    <!-- Transfer Modal with Transaction Cost -->
+    <div id="transfer-modal-enhanced" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('transfer-modal-enhanced')"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6 transform transition-all">
             <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <div class="bg-purple-100 p-2 rounded-full mr-3"><i class="fas fa-exchange-alt text-purple-600"></i></div>
-                Inter-Bank Transfer
+                Inter-Bank Transfer with Fees
             </h3>
-            <form id="transfer-form" class="space-y-4">
+            <form id="transfer-form-enhanced" class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">From (Sender)</label>
-                        <select id="t-from" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
+                        <select id="t-from-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
+                        <div id="t-from-balance-enhanced" class="text-xs text-gray-500 mt-1"></div>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">To (Receiver)</label>
-                        <select id="t-to" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
+                        <select id="t-to-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
-                    <input type="number" id="t-amount" step="0.01" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
+                    <input type="number" id="t-amount-enhanced" step="0.01" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Description / Ref</label>
-                    <input type="text" id="t-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="Reason for transfer" required>
+                    <input type="text" id="t-desc-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="Reason for transfer" required>
                 </div>
+                
+                <!-- Transaction Fee Section -->
+                <div class="border-t border-gray-200 pt-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-3">Transaction Fees</h4>
+                    <div class="space-y-3">
+                        <div class="flex items-center">
+                            <input type="radio" id="fee-sender" name="fee-bearer" value="sender" checked class="mr-2">
+                            <label for="fee-sender" class="text-sm text-gray-700">Sender bears transaction fee</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="radio" id="fee-receiver" name="fee-bearer" value="receiver" class="mr-2">
+                            <label for="fee-receiver" class="text-sm text-gray-700">Receiver bears transaction fee</label>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1">Transaction Fee Amount</label>
+                            <input type="number" id="t-fee-enhanced" step="0.01" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" value="0.00" required>
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            <i class="fas fa-info-circle mr-1"></i> This fee will be deducted from the selected party
+                        </div>
+                    </div>
+                </div>
+                
                 <button type="submit" class="w-full bg-purple-600 text-white py-2.5 rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200">Confirm Transfer</button>
             </form>
         </div>
     </div>
 
-    <div id="withdrawal-modal" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('withdrawal-modal')"></div>
+    <!-- Expense Payment Modal -->
+    <div id="expense-payment-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('expense-payment-modal')"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                <div class="bg-red-100 p-2 rounded-full mr-3"><i class="fas fa-minus text-red-600"></i></div>
-                Record Payment / Withdrawal
+                <div class="bg-red-100 p-2 rounded-full mr-3"><i class="fas fa-money-check-alt text-red-600"></i></div>
+                Record Expense Payment
             </h3>
-            <form id="withdrawal-form" class="space-y-4">
+            <form id="expense-payment-form" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Bank Account</label>
-                    <select id="w-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Source Bank Account</label>
+                    <select id="expense-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
+                    <div id="expense-bank-balance" class="text-xs text-gray-500 mt-1"></div>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
-                    <input type="number" id="w-amount" step="0.01" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Category</label>
-                    <select id="w-category" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50">
-                        <option>Operational Expense</option>
-                        <option>Salary</option>
-                        <option>Vendor Payment</option>
-                        <option>Tax</option>
-                        <option>Other</option>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Expense Category</label>
+                    <select id="expense-category" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50">
+                        <option value="">Select Category</option>
+                        <!-- Categories will be populated from Excel -->
                     </select>
                 </div>
                 <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Custom Recipient (Optional)</label>
+                    <input type="text" id="expense-custom-recipient" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="Enter custom recipient name">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
+                    <input type="number" id="expense-amount" step="0.01" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
+                </div>
+                <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                    <input type="text" id="w-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g. Office Rent Jan" required>
+                    <input type="text" id="expense-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Office Rent Jan" required>
                 </div>
-                <button type="submit" class="w-full bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Process Withdrawal</button>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Transaction Reference</label>
+                    <input type="text" id="expense-reference" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., CHQ-12345, MPESA-ABC123">
+                </div>
+                <button type="submit" class="w-full bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Record Expense</button>
             </form>
         </div>
     </div>
 
-    <div id="opening-balance-modal" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('opening-balance-modal')"></div>
+    <!-- Credit Transfer Modal -->
+    <div id="credit-transfer-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('credit-transfer-modal')"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-2 flex items-center">
-                <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-sliders-h text-blue-600"></i></div>
-                Set Opening Balance
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-hand-holding-usd text-blue-600"></i></div>
+                Credit Transfer to Recipient
             </h3>
-            <p class="text-xs text-gray-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-200">
-                <i class="fas fa-exclamation-triangle text-yellow-600 mr-1"></i> 
-                Warning: This resets the bank's calculation timeline. All transactions before the selected date will be ignored.
-            </p>
-            <form id="opening-form" class="space-y-4">
-                <input type="hidden" id="op-bank-id">
-                <div class="text-center mb-4">
-                    <h4 id="op-bank-name" class="font-bold text-gray-800 text-xl">Bank Name</h4>
-                    <span id="op-currency" class="text-xs font-bold px-2 py-1 bg-gray-200 rounded text-gray-600">KES</span>
+            <form id="credit-transfer-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Source Bank Account</label>
+                    <select id="credit-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
+                    <div id="credit-bank-balance" class="text-xs text-gray-500 mt-1"></div>
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Balance Amount</label>
-                    <input type="number" id="op-amount" step="0.01" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2.5 border" required>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Recipient Type</label>
+                    <select id="credit-recipient-type" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50">
+                        <option value="category">Expense Category</option>
+                        <option value="custom">Custom Recipient</option>
+                    </select>
+                </div>
+                <div id="credit-category-section">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Expense Category</label>
+                    <select id="credit-category" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50">
+                        <option value="">Select Category</option>
+                        <!-- Categories will be populated from Excel -->
+                    </select>
+                </div>
+                <div id="credit-custom-section" class="hidden">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Custom Recipient</label>
+                    <input type="text" id="credit-custom-recipient" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="Enter recipient name">
                 </div>
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 mb-1">Effective Date (Cutoff)</label>
-                    <input type="date" id="op-date" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-2.5 border" required>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
+                    <input type="number" id="credit-amount" step="0.01" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
                 </div>
-                <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Commit Opening Balance</button>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                    <input type="text" id="credit-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Payment for services" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Process Credit Transfer</button>
             </form>
         </div>
     </div>
 
+    <!-- Login Modal -->
     <div id="login-modal" class="fixed inset-0 z-[100] hidden">
         <div class="absolute inset-0 bg-black bg-opacity-60 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full mx-auto mt-32 p-8">
@@ -569,26 +740,9 @@
         </div>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-gray-800 text-white py-6 mt-8">
-        <div class="container mx-auto px-4">
-            <div class="flex flex-col md:flex-row justify-between items-center">
-                <div class="mb-4 md:mb-0">
-                    <h3 class="text-xl font-bold">CarKenya.Co.Ke</h3>
-                    <p class="text-gray-400">Bank Management System v2.0</p>
-                </div>
-                <div class="flex space-x-6">
-                    <span class="text-gray-400">
-                        <i class="fas fa-shield-alt"></i> Secure Bank Management
-                    </span>
-                </div>
-            </div>
-            <div class="text-center mt-6 text-gray-500 text-sm">
-                <p>© 2024 CarKenya Financial Manager. For authorized use only.</p>
-            </div>
-        </div>
-    </footer>
-
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <script src="script.js"></script>
 </body>
 </html>
