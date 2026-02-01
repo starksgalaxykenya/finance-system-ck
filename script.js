@@ -565,18 +565,29 @@ async function loadBanks() {
 
 async function loadLedger() {
     try {
-        // Load all ledger entries ordered by date (newest first) - NO USER FILTERING
+        // Load all ledger entries ordered by date (newest first)
         const snap = await db.collection('bankLedger')
             .orderBy('date', 'desc')
             .limit(1000)
             .get();
         
-        state.ledger = snap.docs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data() 
-        }));
+        // Filter out transactions before opening balance dates
+        state.ledger = snap.docs
+            .map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(tx => {
+                // Check if transaction is before any bank's opening balance
+                const txDate = new Date(tx.date).getTime();
+                const bankName = tx.bankName;
+                
+                if (bankName && state.openingBalanceTimestamps[bankName]) {
+                    const cutoffDate = new Date(state.openingBalanceTimestamps[bankName].timestamp).getTime();
+                    return txDate >= cutoffDate; // Keep only if on or after cutoff
+                }
+                
+                return true; // Keep if no opening balance set
+            });
         
-        console.log(`Loaded ${state.ledger.length} ledger entries (Global Access)`);
+        console.log(`Loaded ${state.ledger.length} ledger entries after opening balance filtering`);
         renderLedgerTable();
         
         return state.ledger;
@@ -599,14 +610,14 @@ async function processReceiptPayments() {
         let newCount = 0;
         let skippedCount = 0;
         
-        receiptsSnap.forEach(doc => {
-            const transactionId = doc.id;
-            
-            // Skip if already processed
-            if (state.processedTransactions.has(transactionId)) {
-                skippedCount++;
-                return;
-            }
+        for (const doc of receiptsSnap.docs) {
+    const transactionId = doc.id;
+    
+    // Skip if already processed
+    if (state.processedTransactions.has(transactionId)) {
+        skippedCount++;
+        continue;  // Changed from return to continue
+    }
             
            const data = doc.data();
 // Check for KSH amount first, then USD, then generic amount
@@ -648,6 +659,35 @@ if (amount === 0 || isNaN(amount)) {
                 skippedCount++;
                 return;
             }
+
+// === FIX START ===
+// Check if this receipt is before the opening balance cutoff date
+let shouldSkip = false;
+const bankNameForOpening = targetBank.name;
+
+// Get opening balance cutoff date for this bank
+const openingConfig = state.openingBalanceTimestamps[bankNameForOpening] || 
+                     (targetBank.openingBalanceConfig ? {
+                         timestamp: targetBank.openingBalanceConfig.dateString,
+                         balance: targetBank.openingBalanceConfig.amount
+                     } : null);
+
+if (openingConfig && openingConfig.timestamp) {
+    const cutoffDate = new Date(openingConfig.timestamp).getTime();
+    const receiptDate = new Date(data.paymentDate || data.createdAt || new Date()).getTime();
+    
+    // Skip if receipt is before opening balance cutoff date
+    if (receiptDate < cutoffDate) {
+        console.log(`Skipping receipt ${doc.id} (${receiptDate}) before opening balance cutoff (${cutoffDate}) for bank ${bankNameForOpening}`);
+        // Mark as processed anyway so we don't process it again
+        state.processedTransactions.add(transactionId);
+        await saveProcessedTransactions(); // Save immediately
+        skippedCount++;
+        return;
+    }
+}
+// === FIX END ===
+
             
             // Create ledger entry
             const ledgerRef = db.collection('bankLedger').doc();
