@@ -1082,20 +1082,20 @@ document.getElementById('expense-payment-form')?.addEventListener('submit', asyn
 });
 
 // <!-- Change this line in the Action Buttons section -->
-<button onclick="showCreditTransferModal()" 
-        class="flex items-center bg-blue-600 text-white hover:bg-blue-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
-    <i class="fas fa-hand-holding-usd mr-2"></i> Credit Bank
-</button>
+//<button onclick="showCreditTransferModal()" 
+      //  class="flex items-center bg-blue-600 text-white hover:bg-blue-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
+   // <i class="fas fa-hand-holding-usd mr-2"></i> Credit Bank
+//</button>
 
-<!-- Also update the modal title -->
-<div id="credit-transfer-modal" class="fixed inset-0 z-[100] hidden">
-    <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('credit-transfer-modal')"></div>
-    <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-            <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-hand-holding-usd text-blue-600"></i></div>
-            Credit Bank (External Funds)
-        </h3>
-        <!-- ... rest of modal content ... -->
+//<!-- Also update the modal title -->
+//<div id="credit-transfer-modal" class="fixed inset-0 z-[100] hidden">
+//    <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('credit-transfer-modal')"></div>
+//    <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
+      //  <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+        //    <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-hand-holding-usd text-blue-600"></i></div>
+      //      Credit Bank (External Funds)
+     //   </h3>
+     //   <!-- ... rest of modal content ... -->
 
 // --- UI RENDERING ---
 
