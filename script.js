@@ -608,13 +608,26 @@ async function processReceiptPayments() {
                 return;
             }
             
-            const data = doc.data();
-            const amount = parseFloat(data.amountUSD || data.amountKSH || data.amount || 0);
-            
-            if (amount === 0 || isNaN(amount)) {
-                skippedCount++;
-                return;
-            }
+           const data = doc.data();
+// Check for KSH amount first, then USD, then generic amount
+let amount = 0;
+
+// Try to extract currency from payment method or data
+const paymentMethod = data.paymentMethod || '';
+const isUSD = paymentMethod.toLowerCase().includes('usd') || 
+              (data.currency && data.currency.toUpperCase() === 'USD');
+
+if (isUSD) {
+    amount = parseFloat(data.amountUSD || data.amount || 0);
+} else {
+    // Default to KSH for everything else
+    amount = parseFloat(data.amountKSH || data.amount || 0);
+}
+
+if (amount === 0 || isNaN(amount)) {
+    skippedCount++;
+    return;
+}
             
             // Parse bank name from payment method
             const bankName = parseBankName(data.paymentMethod);
@@ -638,19 +651,19 @@ async function processReceiptPayments() {
             
             // Create ledger entry
             const ledgerRef = db.collection('bankLedger').doc();
-            batch.set(ledgerRef, {
-                date: data.paymentDate || data.createdAt || new Date().toISOString(),
-                type: 'receipt',
-                amount: amount,
-                bankId: targetBank.id,
-                bankName: targetBank.name,
-                currency: data.currency || targetBank.currency || 'KES',
-                description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
-                sourceDocId: doc.id,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: state.user?.uid,
-                userEmail: state.user?.email
-            });
+batch.set(ledgerRef, {
+    date: data.paymentDate || data.createdAt || new Date().toISOString(),
+    type: 'receipt',
+    amount: amount,
+    bankId: targetBank.id,
+    bankName: targetBank.name,
+    currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'), // Set correct currency
+    description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
+    sourceDocId: doc.id,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    userId: state.user?.uid,
+    userEmail: state.user?.email
+});
             
             state.processedTransactions.add(transactionId);
             newCount++;
