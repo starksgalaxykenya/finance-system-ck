@@ -571,23 +571,11 @@ async function loadLedger() {
             .limit(1000)
             .get();
         
-        // Filter out transactions before opening balance dates
-        state.ledger = snap.docs
-            .map(doc => ({ id: doc.id, ...doc.data() }))
-            .filter(tx => {
-                // Check if transaction is before any bank's opening balance
-                const txDate = new Date(tx.date).getTime();
-                const bankName = tx.bankName;
-                
-                if (bankName && state.openingBalanceTimestamps[bankName]) {
-                    const cutoffDate = new Date(state.openingBalanceTimestamps[bankName].timestamp).getTime();
-                    return txDate >= cutoffDate; // Keep only if on or after cutoff
-                }
-                
-                return true; // Keep if no opening balance set
-            });
+        // Don't filter transactions here anymore
+        // Store all transactions and let calculateBalances() handle the filtering
+        state.ledger = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         
-        console.log(`Loaded ${state.ledger.length} ledger entries after opening balance filtering`);
+        console.log(`Loaded ${state.ledger.length} ledger entries`);
         renderLedgerTable();
         
         return state.ledger;
@@ -610,102 +598,102 @@ async function processReceiptPayments() {
         let newCount = 0;
         let skippedCount = 0;
         
-       for (const doc of receiptsSnap.docs) {
-    const transactionId = doc.id;
-    
-    // Skip if already processed
-    if (state.processedTransactions.has(transactionId)) {
-        skippedCount++;
-        continue;
-    }
+        for (const doc of receiptsSnap.docs) {
+            const transactionId = doc.id;
             
-    const data = doc.data();
-    // Check for KSH amount first, then USD, then generic amount
-    let amount = 0;
-    
-    // Try to extract currency from payment method or data
-    const paymentMethod = data.paymentMethod || '';
-    const isUSD = paymentMethod.toLowerCase().includes('usd') || 
-                  (data.currency && data.currency.toUpperCase() === 'USD');
-    
-    if (isUSD) {
-        amount = parseFloat(data.amountUSD || data.amount || 0);
-    } else {
-        // Default to KSH for everything else
-        amount = parseFloat(data.amountKSH || data.amount || 0);
-    }
-    
-    if (amount === 0 || isNaN(amount)) {
-        skippedCount++;
-        continue;
-    }
+            // Skip if already processed
+            if (state.processedTransactions.has(transactionId)) {
+                skippedCount++;
+                continue;
+            }
+                    
+            const data = doc.data();
+            // Check for KSH amount first, then USD, then generic amount
+            let amount = 0;
             
-    // Parse bank name from payment method
-    const bankName = parseBankName(data.paymentMethod);
-    if (!bankName) {
-        console.warn(`Could not parse bank name from: ${data.paymentMethod}`);
-        skippedCount++;
-        continue;  // Changed from return to continue
-    }
+            // Try to extract currency from payment method or data
+            const paymentMethod = data.paymentMethod || '';
+            const isUSD = paymentMethod.toLowerCase().includes('usd') || 
+                          (data.currency && data.currency.toUpperCase() === 'USD');
             
-    // Find matching bank
-    const targetBank = state.banks.find(bank => 
-        bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
-        bankName.toLowerCase().includes(bank.name.toLowerCase())
-    );
+            if (isUSD) {
+                amount = parseFloat(data.amountUSD || data.amount || 0);
+            } else {
+                // Default to KSH for everything else
+                amount = parseFloat(data.amountKSH || data.amount || 0);
+            }
             
-    if (!targetBank) {
-        console.warn(`No matching bank found for: ${bankName}`);
-        skippedCount++;
-        continue;  // Changed from return to continue
-    }
+            if (amount === 0 || isNaN(amount)) {
+                skippedCount++;
+                continue;
+            }
+                    
+            // Parse bank name from payment method
+            const bankName = parseBankName(data.paymentMethod);
+            if (!bankName) {
+                console.warn(`Could not parse bank name from: ${data.paymentMethod}`);
+                skippedCount++;
+                continue;
+            }
+                    
+            // Find matching bank
+            const targetBank = state.banks.find(bank => 
+                bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
+                bankName.toLowerCase().includes(bank.name.toLowerCase())
+            );
+                    
+            if (!targetBank) {
+                console.warn(`No matching bank found for: ${bankName}`);
+                skippedCount++;
+                continue;
+            }
 
-    // === FIX START ===
-    // Check if this receipt is before the opening balance cutoff date
-    const bankNameForOpening = targetBank.name;
-    
-    // Get opening balance cutoff date for this bank
-    const openingConfig = state.openingBalanceTimestamps[bankNameForOpening] || 
-                         (targetBank.openingBalanceConfig ? {
-                             timestamp: targetBank.openingBalanceConfig.dateString,
-                             balance: targetBank.openingBalanceConfig.amount
-                         } : null);
-    
-    if (openingConfig && openingConfig.timestamp) {
-        const cutoffDate = new Date(openingConfig.timestamp).getTime();
-        const receiptDate = new Date(data.paymentDate || data.createdAt || new Date()).getTime();
-        
-        // Skip if receipt is before opening balance cutoff date
-        if (receiptDate < cutoffDate) {
-            console.log(`Skipping receipt ${doc.id} (${receiptDate}) before opening balance cutoff (${cutoffDate}) for bank ${bankNameForOpening}`);
-            // Mark as processed anyway so we don't process it again
+            // IMPORTANT: Get the actual receipt date, not just created/processed date
+            // Use paymentDate if available, otherwise createdAt
+            const receiptDate = data.paymentDate || data.createdAt || new Date();
+            const receiptDateTime = new Date(receiptDate).getTime();
+            
+            // Check opening balance cutoff for this bank
+            const bankNameForOpening = targetBank.name;
+            const openingConfig = state.openingBalanceTimestamps[bankNameForOpening] || 
+                                 (targetBank.openingBalanceConfig ? {
+                                     timestamp: targetBank.openingBalanceConfig.dateString,
+                                     balance: targetBank.openingBalanceConfig.amount
+                                 } : null);
+            
+            if (openingConfig && openingConfig.timestamp) {
+                const cutoffDateTime = new Date(openingConfig.timestamp).getTime();
+                
+                // Skip if receipt is BEFORE opening balance cutoff date/time
+                if (receiptDateTime < cutoffDateTime) {
+                    console.log(`Skipping receipt ${doc.id} (${new Date(receiptDate)}) before opening balance cutoff (${new Date(cutoffDateTime)}) for bank ${bankNameForOpening}`);
+                    // Still mark as processed so we don't try again
+                    state.processedTransactions.add(transactionId);
+                    await saveProcessedTransactions();
+                    skippedCount++;
+                    continue;
+                }
+            }
+                    
+            // Create ledger entry with proper date
+            const ledgerRef = db.collection('bankLedger').doc();
+            batch.set(ledgerRef, {
+                date: receiptDate, // Use the actual receipt/payment date
+                type: 'receipt',
+                amount: amount,
+                bankId: targetBank.id,
+                bankName: targetBank.name,
+                currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'),
+                description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
+                sourceDocId: doc.id,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: state.user?.uid,
+                userEmail: state.user?.email
+            });
+                    
             state.processedTransactions.add(transactionId);
-            await saveProcessedTransactions(); // Save immediately
-            skippedCount++;
-            continue;  // Changed from return to continue
+            newCount++;
         }
-    }
-    // === FIX END ===
-            
-    // Create ledger entry
-    const ledgerRef = db.collection('bankLedger').doc();
-    batch.set(ledgerRef, {
-        date: data.paymentDate || data.createdAt || new Date().toISOString(),
-        type: 'receipt',
-        amount: amount,
-        bankId: targetBank.id,
-        bankName: targetBank.name,
-        currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'), // Set correct currency
-        description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
-        sourceDocId: doc.id,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        userId: state.user?.uid,
-        userEmail: state.user?.email
-    });
-            
-    state.processedTransactions.add(transactionId);
-    newCount++;
-}
         
         // Commit batch if we have new receipts
         if (newCount > 0) {
@@ -796,21 +784,21 @@ function calculateBalances() {
     
     // Initialize each bank with 0 or opening balance
     state.banks.forEach(bank => {
-        let cutoffDate = null;
+        let cutoffDateTime = null;
         let startBalance = 0;
         
         // Check for opening balance configuration from timestamps
         if (state.openingBalanceTimestamps[bank.name]) {
             startBalance = state.openingBalanceTimestamps[bank.name].balance || 0;
             if (state.openingBalanceTimestamps[bank.name].timestamp) {
-                cutoffDate = new Date(state.openingBalanceTimestamps[bank.name].timestamp).getTime();
+                cutoffDateTime = new Date(state.openingBalanceTimestamps[bank.name].timestamp).getTime();
             }
         }
         // Fallback to bankDetails openingBalanceConfig
         else if (bank.openingBalanceConfig && bank.openingBalanceConfig.amount) {
             startBalance = parseFloat(bank.openingBalanceConfig.amount) || 0;
             if (bank.openingBalanceConfig.dateString) {
-                cutoffDate = new Date(bank.openingBalanceConfig.dateString).getTime();
+                cutoffDateTime = new Date(bank.openingBalanceConfig.dateString).getTime();
             }
         }
         
@@ -824,11 +812,15 @@ function calculateBalances() {
         
         // Process each transaction
         bankTransactions.forEach(tx => {
-            const txDate = new Date(tx.date).getTime();
+            const txDateTime = new Date(tx.date).getTime();
             const amount = parseFloat(tx.amount) || 0;
             
-            // Skip if transaction is before cutoff date
-            if (cutoffDate && txDate < cutoffDate) return;
+            // Skip if transaction is BEFORE cutoff date/time (strictly less than)
+            // Transactions AT or AFTER the cutoff date/time should be included
+            if (cutoffDateTime && txDateTime < cutoffDateTime) {
+                console.log(`Skipping transaction ${tx.id} at ${new Date(tx.date)} for bank ${bank.name} - before cutoff ${new Date(cutoffDateTime)}`);
+                return;
+            }
             
             // Process based on transaction type
             switch (tx.type) {
@@ -869,6 +861,8 @@ function calculateBalances() {
                     console.warn('Unknown transaction type:', tx.type);
             }
         });
+        
+        console.log(`Final balance for ${bank.name}: ${state.balances[bank.id]} (opening: ${startBalance}, cutoff: ${cutoffDateTime ? new Date(cutoffDateTime) : 'none'})`);
     });
 }
 
@@ -2471,12 +2465,17 @@ function openOpeningModal(bankId) {
                 </div>
                 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">As of Date</label>
-                    <input type="date" id="opening-balance-date-enhanced" 
-                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
-                           required>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">As of Date & Time</label>
+                    <div class="grid grid-cols-2 gap-4">
+                        <input type="date" id="opening-balance-date-enhanced" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               required>
+                        <input type="time" id="opening-balance-time-enhanced" 
+                               class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                               required>
+                    </div>
                     <p class="text-sm text-gray-500 mt-2">
-                        Transactions before this date will be excluded from calculations
+                        Transactions before this date/time will be excluded from calculations
                     </p>
                 </div>
                 
@@ -2556,12 +2555,13 @@ function openOpeningModal(bankId) {
     document.getElementById('opening-balance-date-enhanced').value = today;
     document.getElementById('opening-balance-amount-enhanced').value = openingBalance || '';
     
-    // Add form submit handler
+       // Add form submit handler
     document.getElementById('opening-balance-form-enhanced').addEventListener('submit', async (e) => {
         e.preventDefault();
         
         const amount = parseFloat(document.getElementById('opening-balance-amount-enhanced').value);
         const date = document.getElementById('opening-balance-date-enhanced').value;
+        const time = document.getElementById('opening-balance-time-enhanced').value;
         const notes = document.getElementById('opening-balance-notes-enhanced').value;
         
         if (!amount || isNaN(amount) || amount < 0) {
@@ -2569,8 +2569,17 @@ function openOpeningModal(bankId) {
             return;
         }
         
-        if (!date) {
-            showToast('Please select a date', 'error');
+        if (!date || !time) {
+            showToast('Please select both date and time', 'error');
+            return;
+        }
+        
+        // Combine date and time into a single timestamp
+        const dateTimeString = `${date}T${time}:00`;
+        const timestamp = new Date(dateTimeString);
+        
+        if (isNaN(timestamp.getTime())) {
+            showToast('Invalid date/time combination', 'error');
             return;
         }
         
@@ -2580,7 +2589,7 @@ function openOpeningModal(bankId) {
             // Store in openingBalanceTimestamps
             state.openingBalanceTimestamps[bank.name] = {
                 balance: amount,
-                timestamp: new Date(date),
+                timestamp: timestamp.toISOString(), // Store as ISO string
                 updatedBy: state.user?.email || 'Anonymous',
                 updatedAt: new Date().toISOString(),
                 notes: notes || ''
@@ -2593,7 +2602,7 @@ function openOpeningModal(bankId) {
             await db.collection('bankDetails').doc(bankId).update({
                 openingBalanceConfig: {
                     amount: amount,
-                    dateString: date,
+                    dateString: timestamp.toISOString(), // Store as ISO string
                     updatedAt: new Date().toISOString(),
                     updatedBy: state.user?.email || 'Unknown',
                     notes: notes
@@ -2605,15 +2614,13 @@ function openOpeningModal(bankId) {
             // Refresh data
             await initApp();
             
-            showToast('Opening balance set successfully!', 'success');
+            showToast(`Opening balance set successfully for ${timestamp.toLocaleString()}!`, 'success');
         } catch (error) {
             showToast('Failed to set opening balance: ' + error.message, 'error');
         } finally {
             showLoading(false);
         }
     });
-}
-
 function closeOpeningModalEnhanced() {
     const modal = document.getElementById('opening-balance-modal-enhanced');
     if (modal) {
@@ -3177,3 +3184,40 @@ window.closeOpeningModalEnhanced = closeOpeningModalEnhanced;
 window.closeWithdrawalModalEnhanced = closeWithdrawalModalEnhanced;
 window.toggleAutoRefresh = toggleAutoRefresh;
 window.refreshData = refreshData;
+window.debugBalanceCalculation = debugBalanceCalculation;
+
+
+// Debug function for balance calculation troubleshooting
+function debugBalanceCalculation(bankId) {
+    const bank = state.banks.find(b => b.id === bankId);
+    if (!bank) {
+        console.error('Bank not found');
+        return;
+    }
+    
+    console.log(`=== DEBUG: ${bank.name} ===`);
+    
+    const cutoffDateTime = state.openingBalanceTimestamps[bank.name]?.timestamp ?
+        new Date(state.openingBalanceTimestamps[bank.name].timestamp).getTime() : null;
+    console.log('Opening Balance:', state.openingBalanceTimestamps[bank.name]?.balance || 0);
+    console.log('Cutoff DateTime:', cutoffDateTime ? new Date(cutoffDateTime).toLocaleString() : 'None');
+    
+    const bankTransactions = state.ledger
+        .filter(tx => tx.bankId === bank.id || tx.toBankId === bank.id)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
+    console.log(`Total transactions: ${bankTransactions.length}`);
+    
+    bankTransactions.forEach((tx, index) => {
+        const txDateTime = new Date(tx.date).getTime();
+        const isBeforeCutoff = cutoffDateTime && txDateTime < cutoffDateTime;
+        console.log(`${index + 1}. ${tx.type} ${tx.amount} on ${new Date(tx.date).toLocaleString()} - ${isBeforeCutoff ? 'SKIPPED' : 'INCLUDED'}`);
+    });
+    
+    console.log('Current Balance:', state.balances[bankId]);
+    console.log('====================');
+}
+
+
+
+[file content end]
