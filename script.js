@@ -1082,7 +1082,6 @@ document.getElementById('expense-payment-form')?.addEventListener('submit', asyn
 });
 
 // --- UI RENDERING ---
-
 function renderDashboard() {
     const container = document.getElementById('bank-cards-container');
     if (!container) return;
