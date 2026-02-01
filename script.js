@@ -610,104 +610,102 @@ async function processReceiptPayments() {
         let newCount = 0;
         let skippedCount = 0;
         
-        for (const doc of receiptsSnap.docs) {
+       for (const doc of receiptsSnap.docs) {
     const transactionId = doc.id;
     
     // Skip if already processed
     if (state.processedTransactions.has(transactionId)) {
         skippedCount++;
+        continue;
+    }
+            
+    const data = doc.data();
+    // Check for KSH amount first, then USD, then generic amount
+    let amount = 0;
+    
+    // Try to extract currency from payment method or data
+    const paymentMethod = data.paymentMethod || '';
+    const isUSD = paymentMethod.toLowerCase().includes('usd') || 
+                  (data.currency && data.currency.toUpperCase() === 'USD');
+    
+    if (isUSD) {
+        amount = parseFloat(data.amountUSD || data.amount || 0);
+    } else {
+        // Default to KSH for everything else
+        amount = parseFloat(data.amountKSH || data.amount || 0);
+    }
+    
+    if (amount === 0 || isNaN(amount)) {
+        skippedCount++;
+        continue;
+    }
+            
+    // Parse bank name from payment method
+    const bankName = parseBankName(data.paymentMethod);
+    if (!bankName) {
+        console.warn(`Could not parse bank name from: ${data.paymentMethod}`);
+        skippedCount++;
         continue;  // Changed from return to continue
     }
             
-           const data = doc.data();
-// Check for KSH amount first, then USD, then generic amount
-let amount = 0;
-
-// Try to extract currency from payment method or data
-const paymentMethod = data.paymentMethod || '';
-const isUSD = paymentMethod.toLowerCase().includes('usd') || 
-              (data.currency && data.currency.toUpperCase() === 'USD');
-
-if (isUSD) {
-    amount = parseFloat(data.amountUSD || data.amount || 0);
-} else {
-    // Default to KSH for everything else
-    amount = parseFloat(data.amountKSH || data.amount || 0);
-}
-
-if (amount === 0 || isNaN(amount)) {
-    skippedCount++;
-    continue;
-}
+    // Find matching bank
+    const targetBank = state.banks.find(bank => 
+        bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
+        bankName.toLowerCase().includes(bank.name.toLowerCase())
+    );
             
-            // Parse bank name from payment method
-            const bankName = parseBankName(data.paymentMethod);
-            if (!bankName) {
-                console.warn(`Could not parse bank name from: ${data.paymentMethod}`);
-                skippedCount++;
-                return;
-            }
-            
-            // Find matching bank
-            const targetBank = state.banks.find(bank => 
-                bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
-                bankName.toLowerCase().includes(bank.name.toLowerCase())
-            );
-            
-            if (!targetBank) {
-                console.warn(`No matching bank found for: ${bankName}`);
-                skippedCount++;
-                return;
-            }
-
-// === FIX START ===
-// Check if this receipt is before the opening balance cutoff date
-let shouldSkip = false;
-const bankNameForOpening = targetBank.name;
-
-// Get opening balance cutoff date for this bank
-const openingConfig = state.openingBalanceTimestamps[bankNameForOpening] || 
-                     (targetBank.openingBalanceConfig ? {
-                         timestamp: targetBank.openingBalanceConfig.dateString,
-                         balance: targetBank.openingBalanceConfig.amount
-                     } : null);
-
-if (openingConfig && openingConfig.timestamp) {
-    const cutoffDate = new Date(openingConfig.timestamp).getTime();
-    const receiptDate = new Date(data.paymentDate || data.createdAt || new Date()).getTime();
-    
-    // Skip if receipt is before opening balance cutoff date
-    if (receiptDate < cutoffDate) {
-        console.log(`Skipping receipt ${doc.id} (${receiptDate}) before opening balance cutoff (${cutoffDate}) for bank ${bankNameForOpening}`);
-        // Mark as processed anyway so we don't process it again
-        state.processedTransactions.add(transactionId);
-        await saveProcessedTransactions(); // Save immediately
+    if (!targetBank) {
+        console.warn(`No matching bank found for: ${bankName}`);
         skippedCount++;
-        return;
+        continue;  // Changed from return to continue
     }
-}
-// === FIX END ===
 
-            
-            // Create ledger entry
-            const ledgerRef = db.collection('bankLedger').doc();
-batch.set(ledgerRef, {
-    date: data.paymentDate || data.createdAt || new Date().toISOString(),
-    type: 'receipt',
-    amount: amount,
-    bankId: targetBank.id,
-    bankName: targetBank.name,
-    currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'), // Set correct currency
-    description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
-    sourceDocId: doc.id,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    userId: state.user?.uid,
-    userEmail: state.user?.email
-});
-            
+    // === FIX START ===
+    // Check if this receipt is before the opening balance cutoff date
+    const bankNameForOpening = targetBank.name;
+    
+    // Get opening balance cutoff date for this bank
+    const openingConfig = state.openingBalanceTimestamps[bankNameForOpening] || 
+                         (targetBank.openingBalanceConfig ? {
+                             timestamp: targetBank.openingBalanceConfig.dateString,
+                             balance: targetBank.openingBalanceConfig.amount
+                         } : null);
+    
+    if (openingConfig && openingConfig.timestamp) {
+        const cutoffDate = new Date(openingConfig.timestamp).getTime();
+        const receiptDate = new Date(data.paymentDate || data.createdAt || new Date()).getTime();
+        
+        // Skip if receipt is before opening balance cutoff date
+        if (receiptDate < cutoffDate) {
+            console.log(`Skipping receipt ${doc.id} (${receiptDate}) before opening balance cutoff (${cutoffDate}) for bank ${bankNameForOpening}`);
+            // Mark as processed anyway so we don't process it again
             state.processedTransactions.add(transactionId);
-            newCount++;
-        });
+            await saveProcessedTransactions(); // Save immediately
+            skippedCount++;
+            continue;  // Changed from return to continue
+        }
+    }
+    // === FIX END ===
+            
+    // Create ledger entry
+    const ledgerRef = db.collection('bankLedger').doc();
+    batch.set(ledgerRef, {
+        date: data.paymentDate || data.createdAt || new Date().toISOString(),
+        type: 'receipt',
+        amount: amount,
+        bankId: targetBank.id,
+        bankName: targetBank.name,
+        currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'), // Set correct currency
+        description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
+        sourceDocId: doc.id,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        userId: state.user?.uid,
+        userEmail: state.user?.email
+    });
+            
+    state.processedTransactions.add(transactionId);
+    newCount++;
+}
         
         // Commit batch if we have new receipts
         if (newCount > 0) {
