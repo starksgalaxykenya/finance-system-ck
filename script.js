@@ -2621,6 +2621,7 @@ function openOpeningModal(bankId) {
             showLoading(false);
         }
     });
+}
 function closeOpeningModalEnhanced() {
     const modal = document.getElementById('opening-balance-modal-enhanced');
     if (modal) {
