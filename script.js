@@ -1081,7 +1081,7 @@ document.getElementById('expense-payment-form')?.addEventListener('submit', asyn
     }
 });
 
-<!-- Change this line in the Action Buttons section -->
+// <!-- Change this line in the Action Buttons section -->
 <button onclick="showCreditTransferModal()" 
         class="flex items-center bg-blue-600 text-white hover:bg-blue-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
     <i class="fas fa-hand-holding-usd mr-2"></i> Credit Bank
