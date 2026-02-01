@@ -565,30 +565,7 @@ async function loadBanks() {
 
 async function loadLedger() {
     try {
-        // Load all ledger entries ordered by date (newest first)
-        let query = db.collection('bankLedger').orderBy('date', 'desc');
-        
-        // Filter by user if field exists
-        if (state.user) {
-            query = db.collection('bankLedger')
-                .where('userId', '==', state.user.uid)
-                .orderBy('date', 'desc');
-        }
-        
-        const snap = await query.limit(1000).get();
-        
-        state.ledger = snap.docs.map(doc => ({ 
-            id: doc.id, 
-            ...doc.data() 
-        }));
-        
-        console.log(`Loaded ${state.ledger.length} ledger entries`);
-        renderLedgerTable();
-        
-        return state.ledger;
-    } catch (error) {
-        console.error("Failed to load ledger:", error);
-        // Fallback to loading without user filter
+        // Load all ledger entries ordered by date (newest first) - NO USER FILTERING
         const snap = await db.collection('bankLedger')
             .orderBy('date', 'desc')
             .limit(1000)
@@ -599,10 +576,13 @@ async function loadLedger() {
             ...doc.data() 
         }));
         
-        console.log(`Loaded ${state.ledger.length} ledger entries (fallback)`);
+        console.log(`Loaded ${state.ledger.length} ledger entries (Global Access)`);
         renderLedgerTable();
         
         return state.ledger;
+    } catch (error) {
+        console.error("Failed to load ledger:", error);
+        throw error;
     }
 }
 
@@ -668,7 +648,7 @@ async function processReceiptPayments() {
                 description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
                 sourceDocId: doc.id,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: state.user?.uid,
+                userId: 'global'
                 userEmail: state.user?.email
             });
             
@@ -986,7 +966,7 @@ document.getElementById('transfer-form-enhanced')?.addEventListener('submit', as
             createdBy: state.user?.email || 'Unknown',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'completed',
-            userId: state.user?.uid
+            userId: 'global'
         });
         
         // Add transaction fee entry if applicable
@@ -1004,7 +984,7 @@ document.getElementById('transfer-form-enhanced')?.addEventListener('submit', as
                 createdBy: state.user?.email || 'Unknown',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 status: 'completed',
-                userId: state.user?.uid
+                userId: 'global'
             });
         }
         
@@ -1084,7 +1064,7 @@ document.getElementById('expense-payment-form')?.addEventListener('submit', asyn
             createdBy: state.user?.email || 'Unknown',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             status: 'completed',
-            userId: state.user?.uid
+            userId: 'global'
         });
         
         closeModal('expense-payment-modal');
@@ -1101,87 +1081,21 @@ document.getElementById('expense-payment-form')?.addEventListener('submit', asyn
     }
 });
 
-// --- CREDIT TRANSFER (NEW FEATURE) ---
+<!-- Change this line in the Action Buttons section -->
+<button onclick="showCreditTransferModal()" 
+        class="flex items-center bg-blue-600 text-white hover:bg-blue-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
+    <i class="fas fa-hand-holding-usd mr-2"></i> Credit Bank
+</button>
 
-document.getElementById('credit-transfer-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    const bankId = document.getElementById('credit-bank').value;
-    const recipientType = document.getElementById('credit-recipient-type').value;
-    const category = document.getElementById('credit-category').value;
-    const customRecipient = document.getElementById('credit-custom-recipient').value;
-    const amount = parseFloat(document.getElementById('credit-amount').value);
-    const desc = document.getElementById('credit-desc').value;
-    
-    // Validation
-    if (!bankId) {
-        showToast('Please select a bank account', 'error');
-        return;
-    }
-    
-    if (recipientType === 'category' && !category) {
-        showToast('Please select a category', 'error');
-        return;
-    }
-    
-    if (recipientType === 'custom' && !customRecipient) {
-        showToast('Please enter a custom recipient name', 'error');
-        return;
-    }
-    
-    if (!amount || amount <= 0 || isNaN(amount)) {
-        showToast('Please enter a valid amount', 'error');
-        return;
-    }
-    
-    const bank = state.banks.find(b => b.id === bankId);
-    if (!bank) {
-        showToast('Invalid bank selection', 'error');
-        return;
-    }
-    
-    // Check balance
-    const currentBalance = state.balances[bankId] || 0;
-    if (currentBalance < amount) {
-        showToast(`Insufficient funds. Available: ${formatCurrency(currentBalance, bank.currency)}`, 'error');
-        return;
-    }
-    
-    showLoading(true, 'Processing credit transfer...');
-    
-    try {
-        const recipientName = recipientType === 'custom' ? customRecipient : category;
-        
-        await db.collection('bankLedger').add({
-            type: 'credit',
-            date: new Date().toISOString(),
-            amount: amount,
-            bankId: bankId,
-            bankName: bank.name,
-            currency: bank.currency,
-            category: recipientType === 'category' ? category : null,
-            recipientName: recipientName,
-            recipientType: recipientType,
-            description: desc,
-            createdBy: state.user?.email || 'Unknown',
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            status: 'completed',
-            userId: state.user?.uid
-        });
-        
-        closeModal('credit-transfer-modal');
-        document.getElementById('credit-transfer-form').reset();
-        
-        // Refresh data
-        await initApp();
-        
-        showToast(`Credit transfer of ${formatCurrency(amount, bank.currency)} completed successfully!`, 'success');
-    } catch (error) {
-        showToast('Credit transfer failed: ' + error.message, 'error');
-    } finally {
-        showLoading(false);
-    }
-});
+<!-- Also update the modal title -->
+<div id="credit-transfer-modal" class="fixed inset-0 z-[100] hidden">
+    <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('credit-transfer-modal')"></div>
+    <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+            <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-hand-holding-usd text-blue-600"></i></div>
+            Credit Bank (External Funds)
+        </h3>
+        <!-- ... rest of modal content ... -->
 
 // --- UI RENDERING ---
 
@@ -2856,7 +2770,7 @@ function openWithdrawalModal(bankId) {
                 createdBy: state.user?.email || 'Unknown',
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                 status: 'completed',
-                userId: state.user?.uid
+                userId: 'global'
             });
             
             closeWithdrawalModalEnhanced();
@@ -2904,6 +2818,257 @@ function openWithdrawalModal(bankId) {
     openModal('withdrawal-modal');
 }
 
+// --- AUTO REFRESH SYSTEM ---
+
+let autoRefreshInterval = null;
+
+function startAutoRefresh(intervalMinutes = 2) {
+    // Clear existing interval if any
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    
+    // Refresh every X minutes
+    autoRefreshInterval = setInterval(async () => {
+        if (state.user && state.isBankPinVerified) {
+            console.log(`Auto-refreshing data... (${new Date().toLocaleTimeString()})`);
+            
+            try {
+                // Refresh data silently
+                await refreshData();
+                
+                // Update last sync time
+                updateLastSyncTime();
+                
+                // Show subtle notification (only if tab is active)
+                if (!document.hidden) {
+                    const syncStatus = document.getElementById('sync-status-text');
+                    if (syncStatus) {
+                        const originalText = syncStatus.textContent;
+                        syncStatus.textContent = 'Auto-refreshed just now';
+                        setTimeout(() => {
+                            syncStatus.textContent = originalText;
+                        }, 3000);
+                    }
+                }
+            } catch (error) {
+                console.error('Auto-refresh failed:', error);
+            }
+        }
+    }, intervalMinutes * 60 * 1000);
+    
+    console.log(`Auto-refresh started (every ${intervalMinutes} minutes)`);
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+        autoRefreshInterval = null;
+        console.log('Auto-refresh stopped');
+    }
+}
+
+async function refreshData() {
+    try {
+        // Load fresh data from Firebase
+        const [banksData, ledgerData] = await Promise.all([
+            loadBanks(),
+            loadLedger()
+        ]);
+        
+        // Process receipt payments
+        await processReceiptPayments();
+        
+        // Calculate balances
+        calculateBalances();
+        
+        // Calculate expense summary
+        calculateExpenseSummary();
+        
+        // Update UI if on relevant tabs
+        const activeTab = document.querySelector('.tab-content.active');
+        if (activeTab && activeTab.id === 'dashboard') {
+            renderDashboard();
+        } else if (activeTab && activeTab.id === 'ledger-history') {
+            renderLedgerTable();
+        } else if (activeTab && activeTab.id === 'expense-categories') {
+            renderExpenseSummary();
+        } else if (activeTab && activeTab.id === 'reports') {
+            generateFinancialReport();
+        }
+        
+        updateStatistics();
+        updateLastSyncTime();
+        
+        return true;
+    } catch (error) {
+        console.error("Refresh failed:", error);
+        return false;
+    }
+}
+
+// Update initApp to start auto-refresh
+async function initApp() {
+    console.log("Initializing App...");
+    showLoading(true, "Loading bank data...");
+    
+    try {
+        // Update sync status
+        const syncStatus = document.getElementById('sync-status-text');
+        if (syncStatus) syncStatus.textContent = 'Loading bank data...';
+        
+        // Load data in parallel
+        const [banksData, ledgerData] = await Promise.all([
+            loadBanks(),
+            loadLedger()
+        ]);
+        
+        // Process receipt payments
+        await processReceiptPayments();
+        
+        // Calculate balances
+        calculateBalances();
+        
+        // Calculate expense summary
+        calculateExpenseSummary();
+        
+        // Update UI
+        renderDashboard();
+        updateStatistics();
+        updateLastSyncTime();
+        
+        // Populate expense categories
+        populateExpenseCategories();
+        
+        // Update expense tab
+        renderExpenseSummary();
+
+        // Initialize reports if reports tab is active
+        const reportsTab = document.getElementById('reports');
+        if (reportsTab && reportsTab.classList.contains('active')) {
+            initializeReports();
+        }
+        
+        // Mark system as ready
+        state.systemReady = true;
+        updateSystemStatus(true);
+        
+        // Start auto-refresh
+        startAutoRefresh(2); // Refresh every 2 minutes
+        
+        showToast('System initialized successfully! Auto-refresh enabled.', 'success');
+    } catch (error) {
+        console.error("Init failed", error);
+        showToast('Failed to load data: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+        
+        // Update sync status
+        const syncStatus = document.getElementById('sync-status-text');
+        if (syncStatus) syncStatus.textContent = 'Data loaded successfully';
+    }
+}
+
+// Update refreshBankData to use refreshData
+function refreshBankData() {
+    if (!state.user) {
+        showToast("Please login to Firebase first", "error");
+        return;
+    }
+    
+    if (!state.isBankPinVerified) {
+        showToast("Please enter your PIN in the bank access gate first", "error");
+        return;
+    }
+    
+    showLoading(true, 'Refreshing data...');
+    refreshData().finally(() => {
+        showLoading(false);
+        showToast('Data refreshed successfully!', 'success');
+    });
+}
+
+// --- AUTO REFRESH CONTROLS ---
+
+let isAutoRefreshEnabled = true;
+
+function toggleAutoRefresh() {
+    isAutoRefreshEnabled = !isAutoRefreshEnabled;
+    
+    if (isAutoRefreshEnabled) {
+        startAutoRefresh(2);
+        showToast('Auto-refresh enabled (every 2 minutes)', 'success');
+        
+        const toggleText = document.getElementById('auto-refresh-toggle-text');
+        if (toggleText) toggleText.textContent = 'Pause Auto-Refresh';
+        
+        const statusEl = document.getElementById('auto-refresh-status');
+        if (statusEl) {
+            const dot = statusEl.querySelector('span');
+            if (dot) {
+                dot.className = 'inline-block w-2 h-2 rounded-full bg-green-500 mr-2';
+                statusEl.innerHTML = `${dot.outerHTML} Active (every 2 min)`;
+            }
+        }
+    } else {
+        stopAutoRefresh();
+        showToast('Auto-refresh paused', 'warning');
+        
+        const toggleText = document.getElementById('auto-refresh-toggle-text');
+        if (toggleText) toggleText.textContent = 'Resume Auto-Refresh';
+        
+        const statusEl = document.getElementById('auto-refresh-status');
+        if (statusEl) {
+            const dot = statusEl.querySelector('span');
+            if (dot) {
+                dot.className = 'inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2';
+                statusEl.innerHTML = `${dot.outerHTML} Paused`;
+            }
+        }
+    }
+}
+
+// Update the startAutoRefresh function to update UI
+function startAutoRefresh(intervalMinutes = 2) {
+    // Clear existing interval if any
+    if (autoRefreshInterval) {
+        clearInterval(autoRefreshInterval);
+    }
+    
+    // Refresh every X minutes
+    autoRefreshInterval = setInterval(async () => {
+        if (state.user && state.isBankPinVerified && isAutoRefreshEnabled) {
+            console.log(`Auto-refreshing data... (${new Date().toLocaleTimeString()})`);
+            
+            try {
+                // Refresh data silently
+                await refreshData();
+                
+                // Update last sync time
+                updateLastSyncTime();
+                
+                // Show subtle notification (only if tab is active)
+                if (!document.hidden) {
+                    const syncStatus = document.getElementById('sync-status-text');
+                    if (syncStatus) {
+                        const originalText = syncStatus.textContent;
+                        syncStatus.textContent = 'Auto-refreshed just now';
+                        setTimeout(() => {
+                            if (syncStatus.textContent === 'Auto-refreshed just now') {
+                                syncStatus.textContent = 'Data synced successfully';
+                            }
+                        }, 3000);
+                    }
+                }
+            } catch (error) {
+                console.error('Auto-refresh failed:', error);
+            }
+        }
+    }, intervalMinutes * 60 * 1000);
+    
+    console.log(`Auto-refresh started (every ${intervalMinutes} minutes)`);
+}
+
 // --- INITIALIZATION ---
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -2932,6 +3097,27 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase
     if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
+    }
+
+    // Initialize auto-refresh status UI
+    const autoRefreshStatus = document.getElementById('auto-refresh-status');
+    if (autoRefreshStatus && !autoRefreshStatus.querySelector('span')) {
+        autoRefreshStatus.innerHTML = `
+            <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+            Ready
+        `;
+    }
+    
+    // Add currency prefix update for credit bank modal
+    const creditBankSelect = document.getElementById('credit-bank');
+    if (creditBankSelect) {
+        creditBankSelect.addEventListener('change', function() {
+            const bank = state.banks.find(b => b.id === this.value);
+            const currencyPrefix = document.getElementById('credit-currency-prefix');
+            if (currencyPrefix && bank) {
+                currencyPrefix.textContent = bank.currency;
+            }
+        });
     }
     
     // Add event listeners for recipient type switching
@@ -2985,3 +3171,5 @@ window.closeAllBanksSummary = closeAllBanksSummary;
 window.printSummary = printSummary;
 window.closeOpeningModalEnhanced = closeOpeningModalEnhanced;
 window.closeWithdrawalModalEnhanced = closeWithdrawalModalEnhanced;
+window.toggleAutoRefresh = toggleAutoRefresh;
+window.refreshData = refreshData;
