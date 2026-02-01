@@ -422,229 +422,232 @@
                             </div>
 
                             <!-- Reports Tab -->
-<div id="reports" class="tab-content">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-            <h3 class="font-semibold text-gray-800 text-lg flex items-center">
-                <i class="fas fa-chart-line mr-2"></i>Financial Reports
-            </h3>
-            <div class="flex items-center space-x-4">
-                <button onclick="generateFinancialReport()" 
-                        class="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all flex items-center">
-                    <i class="fas fa-file-export mr-2"></i> Generate Report
-                </button>
-            </div>
-        </div>
-        
-        <div class="p-6">
-            <!-- Report Filters -->
-            <div class="bg-gray-50 rounded-lg p-4 mb-6">
-                <h4 class="font-semibold text-gray-800 mb-4">Report Filters</h4>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                        <input type="date" id="report-start-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                        <input type="date" id="report-end-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
-                        <select id="report-bank-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
-                            <option value="all">All Banks</option>
-                            <!-- Banks will be populated dynamically -->
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
-                        <select id="report-type-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
-                            <option value="all">All Types</option>
-                            <option value="receipt">Receipts</option>
-                            <option value="expense">Expenses</option>
-                            <option value="transfer">Transfers</option>
-                            <option value="credit">Credits</option>
-                            <option value="withdrawal">Withdrawals</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
+                            <div id="reports" class="tab-content">
+                                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                                        <h3 class="font-semibold text-gray-800 text-lg flex items-center">
+                                            <i class="fas fa-chart-line mr-2"></i>Financial Reports
+                                        </h3>
+                                        <div class="flex items-center space-x-4">
+                                            <button onclick="generateFinancialReport()" 
+                                                    class="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all flex items-center">
+                                                <i class="fas fa-file-export mr-2"></i> Generate Report
+                                            </button>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="p-6">
+                                        <!-- Report Filters -->
+                                        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                                            <h4 class="font-semibold text-gray-800 mb-4">Report Filters</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                                                    <input type="date" id="report-start-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                                                    <input type="date" id="report-end-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
+                                                    <select id="report-bank-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                        <option value="all">All Banks</option>
+                                                        <!-- Banks will be populated dynamically -->
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+                                                    <select id="report-type-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                        <option value="all">All Types</option>
+                                                        <option value="receipt">Receipts</option>
+                                                        <option value="expense">Expenses</option>
+                                                        <option value="transfer">Transfers</option>
+                                                        <option value="credit">Credits</option>
+                                                        <option value="withdrawal">Withdrawals</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
 
-            <!-- Report Summary Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-90">Total Income</p>
-                            <p class="text-2xl font-bold mt-2" id="report-income">KES 0</p>
-                        </div>
-                        <i class="fas fa-arrow-down text-2xl opacity-80"></i>
-                    </div>
-                </div>
-                
-                <div class="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-90">Total Expenses</p>
-                            <p class="text-2xl font-bold mt-2" id="report-expenses">KES 0</p>
-                        </div>
-                        <i class="fas fa-arrow-up text-2xl opacity-80"></i>
-                    </div>
-                </div>
-                
-                <div class="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-90">Net Balance</p>
-                            <p class="text-2xl font-bold mt-2" id="report-net">KES 0</p>
-                        </div>
-                        <i class="fas fa-balance-scale text-2xl opacity-80"></i>
-                    </div>
-                </div>
-                
-                <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-6">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-90">Transactions</p>
-                            <p class="text-2xl font-bold mt-2" id="report-transactions">0</p>
-                        </div>
-                        <i class="fas fa-exchange-alt text-2xl opacity-80"></i>
-                    </div>
-                </div>
-            </div>
+                                        <!-- Report Summary Cards -->
+                                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                                            <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Total Income</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-income">KES 0</p>
+                                                    </div>
+                                                    <i class="fas fa-arrow-down text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Total Expenses</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-expenses">KES 0</p>
+                                                    </div>
+                                                    <i class="fas fa-arrow-up text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Net Balance</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-net">KES 0</p>
+                                                    </div>
+                                                    <i class="fas fa-balance-scale text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Transactions</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-transactions">0</p>
+                                                    </div>
+                                                    <i class="fas fa-exchange-alt text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                        </div>
 
-            <!-- Report Charts -->
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
-                    <h4 class="font-semibold text-gray-800 mb-4">Income vs Expenses</h4>
-                    <div class="h-64">
-                        <canvas id="incomeExpenseChart"></canvas>
+                                        <!-- Report Charts -->
+                                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                                            <div class="bg-white border border-gray-200 rounded-xl p-6">
+                                                <h4 class="font-semibold text-gray-800 mb-4">Income vs Expenses</h4>
+                                                <div class="h-64">
+                                                    <canvas id="incomeExpenseChart"></canvas>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-white border border-gray-200 rounded-xl p-6">
+                                                <h4 class="font-semibold text-gray-800 mb-4">Bank Balances</h4>
+                                                <div class="h-64">
+                                                    <canvas id="bankBalanceChart"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Detailed Transaction Report -->
+                                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                                                <h4 class="font-semibold text-gray-800">Detailed Transactions</h4>
+                                            </div>
+                                            <div class="overflow-x-auto">
+                                                <table class="min-w-full divide-y divide-gray-200">
+                                                    <thead class="bg-gray-50">
+                                                        <tr>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="report-transactions-body" class="bg-white divide-y divide-gray-200">
+                                                        <!-- Report transactions will be populated here -->
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                
-                <div class="bg-white border border-gray-200 rounded-xl p-6">
-                    <h4 class="font-semibold text-gray-800 mb-4">Bank Balances</h4>
-                    <div class="h-64">
-                        <canvas id="bankBalanceChart"></canvas>
+
+                <!-- Sidebar Area -->
+                <div class="lg:w-1/3 space-y-8">
+                    <!-- System Status Card - MOVED TO RIGHT SIDEBAR -->
+                    <div id="system-status-card" class="bg-white rounded-2xl shadow-lg p-6">
+                        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
+                            <i class="fas fa-shield-alt mr-3"></i>✨ System Status
+                        </h2>
+                        
+                        <div class="space-y-4 mb-6">
+                            <div class="flex items-start">
+                                <i class="fas fa-database text-blue-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Firebase Connection</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="firebase-connection-status">
+                                        <span class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                        Not Connected
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <i class="fas fa-sync-alt text-green-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Last Sync</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="last-sync-time">
+                                        Never
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-start">
+                                <i class="fas fa-file-invoice-dollar text-purple-500 mt=1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Transactions Processed</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="transactions-count">
+                                        0 transactions
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Add Auto-Refresh Status -->
+                            <div class="flex items-start">
+                                <i class="fas fa-redo text-cyan-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Auto-Refresh</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="auto-refresh-status">
+                                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                                        Active (every 2 min)
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-heartbeat mr-2"></i>System Health
+                        </h3>
+                        <div id="system-health-status" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+                            <div class="flex items-center">
+                                <i class="fas fa-check-circle text-green-500 mr-3"></i>
+                                <span class="font-medium text-green-800">System Ready</span>
+                            </div>
+                        </div>
+                        
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                            <i class="fas fa-bolt mr-2"></i>Quick Actions
+                        </h3>
+                        <div class="space-y-3">
+                            <button onclick="showAllBanksSummary()" 
+                                    class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-list-alt mr-3"></i>
+                                <span>View All Banks Summary</span>
+                            </button>
+                            <button onclick="toggleLoginModal()" 
+                                    class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-cloud mr-3"></i>
+                                <span>Firebase Settings</span>
+                            </button>
+                            <button onclick="showTransactionFeeReport()" 
+                                    class="w-full flex items-center text-purple-600 hover:text-purple-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-percentage mr-3"></i>
+                                <span>Transaction Fees Report</span>
+                            </button>
+                            <button onclick="toggleAutoRefresh()" 
+                                    class="w-full flex items-center text-cyan-600 hover:text-cyan-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-redo mr-3"></i>
+                                <span id="auto-refresh-toggle-text">Pause Auto-Refresh</span>
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <!-- Detailed Transaction Report -->
-            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
-                    <h4 class="font-semibold text-gray-800">Detailed Transactions</h4>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
-                            </tr>
-                        </thead>
-                        <tbody id="report-transactions-body" class="bg-white divide-y divide-gray-200">
-                            <!-- Report transactions will be populated here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-               <!-- Move the System Status card to be part of the sidebar -->
-<div class="lg:w-1/3">
-    <!-- System Status Card - MOVED TO SIDEBAR -->
-    <div id="system-status-card" class="bg-white rounded-2xl shadow-lg p-6 mb-8">
-        <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <i class="fas fa-shield-alt mr-3"></i>✨ System Status
-        </h2>
-        
-        <div class="space-y-4 mb-6">
-            <div class="flex items-start">
-                <i class="fas fa-database text-blue-500 mt-1 mr-3"></i>
-                <div>
-                    <h4 class="font-semibold text-gray-800">Firebase Connection</h4>
-                    <p class="text-sm text-gray-600 mt-1" id="firebase-connection-status">
-                        <span class="inline-block w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
-                        Not Connected
-                    </p>
-                </div>
-            </div>
-            
-            <div class="flex items-start">
-                <i class="fas fa-sync-alt text-green-500 mt-1 mr-3"></i>
-                <div>
-                    <h4 class="font-semibold text-gray-800">Last Sync</h4>
-                    <p class="text-sm text-gray-600 mt-1" id="last-sync-time">
-                        Never
-                    </p>
-                </div>
-            </div>
-            
-            <div class="flex items-start">
-                <i class="fas fa-file-invoice-dollar text-purple-500 mt=1 mr-3"></i>
-                <div>
-                    <h4 class="font-semibold text-gray-800">Transactions Processed</h4>
-                    <p class="text-sm text-gray-600 mt-1" id="transactions-count">
-                        0 transactions
-                    </p>
-                </div>
-            </div>
-            
-            <!-- Add Auto-Refresh Status -->
-            <div class="flex items-start">
-                <i class="fas fa-redo text-cyan-500 mt-1 mr-3"></i>
-                <div>
-                    <h4 class="font-semibold text-gray-800">Auto-Refresh</h4>
-                    <p class="text-sm text-gray-600 mt-1" id="auto-refresh-status">
-                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                        Active (every 2 min)
-                    </p>
-                </div>
-            </div>
-        </div>
-        
-        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-            <i class="fas fa-heartbeat mr-2"></i>System Health
-        </h3>
-        <div id="system-health-status" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <div class="flex items-center">
-                <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                <span class="font-medium text-green-800">System Ready</span>
-            </div>
-        </div>
-        
-        <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-            <i class="fas fa-bolt mr-2"></i>Quick Actions
-        </h3>
-        <div class="space-y-3">
-            <button onclick="showAllBanksSummary()" 
-                    class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                <i class="fas fa-list-alt mr-3"></i>
-                <span>View All Banks Summary</span>
-            </button>
-            <button onclick="toggleLoginModal()" 
-                    class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                <i class="fas fa-cloud mr-3"></i>
-                <span>Firebase Settings</span>
-            </button>
-            <button onclick="showTransactionFeeReport()" 
-                    class="w-full flex items-center text-purple-600 hover:text-purple-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                <i class="fas fa-percentage mr-3"></i>
-                <span>Transaction Fees Report</span>
-            </button>
-            <button onclick="toggleAutoRefresh()" 
-                    class="w-full flex items-center text-cyan-600 hover:text-cyan-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                <i class="fas fa-redo mr-3"></i>
-                <span id="auto-refresh-toggle-text">Pause Auto-Refresh</span>
-            </button>
-        </div>
-    </div>
 
                     <!-- Quick Stats -->
                     <div class="bg-gradient-to-br from-green-600 to-green-800 text-white rounded-2xl shadow-lg p-6">
@@ -820,43 +823,43 @@
         </div>
     </div>
 
-<!-- Credit Transfer Modal -->
-<div id="credit-transfer-modal" class="fixed inset-0 z-[100] hidden">
-    <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('credit-transfer-modal')"></div>
-    <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
-        <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
-            <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-hand-holding-usd text-blue-600"></i></div>
-            Credit Bank (External Funds)
-        </h3>
-        <form id="credit-transfer-form" class="space-y-4">
-            <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Destination Bank Account</label>
-                <select id="credit-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
-                <div id="credit-bank-balance" class="text-xs text-gray-500 mt-1"></div>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Source of Funds</label>
-                <input type="text" id="credit-source" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Client Payment, Investment, Loan" required>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
-                <div class="flex items-center">
-                    <span id="credit-currency-prefix" class="mr-2 text-gray-500">KES</span>
-                    <input type="number" id="credit-amount" step="0.01" class="flex-1 border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
+    <!-- Credit Transfer Modal -->
+    <div id="credit-transfer-modal" class="fixed inset-0 z-[100] hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('credit-transfer-modal')"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
+            <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-hand-holding-usd text-blue-600"></i></div>
+                Credit Bank (External Funds)
+            </h3>
+            <form id="credit-transfer-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Destination Bank Account</label>
+                    <select id="credit-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
+                    <div id="credit-bank-balance" class="text-xs text-gray-500 mt-1"></div>
                 </div>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                <input type="text" id="credit-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Payment for services rendered" required>
-            </div>
-            <div>
-                <label class="block text-xs font-medium text-gray-500 mb-1">Reference Number</label>
-                <input type="text" id="credit-reference" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., INV-12345, MPESA-ABC123">
-            </div>
-            <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Credit Bank Account</button>
-        </form>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Source of Funds</label>
+                    <input type="text" id="credit-source" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Client Payment, Investment, Loan" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
+                    <div class="flex items-center">
+                        <span id="credit-currency-prefix" class="mr-2 text-gray-500">KES</span>
+                        <input type="number" id="credit-amount" step="0.01" class="flex-1 border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                    <input type="text" id="credit-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Payment for services rendered" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Reference Number</label>
+                    <input type="text" id="credit-reference" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., INV-12345, MPESA-ABC123">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Credit Bank Account</button>
+            </form>
+        </div>
     </div>
-</div>
 
     <!-- Login Modal -->
     <div id="login-modal" class="fixed inset-0 z-[100] hidden">
@@ -873,7 +876,7 @@
         </div>
     </div>
 
-      <!-- Chart.js Library -->
+    <!-- Chart.js Library -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <!-- html2pdf for PDF export -->
