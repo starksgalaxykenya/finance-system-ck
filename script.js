@@ -2367,12 +2367,6 @@ function initializeBankSystem() {
     }
 }
 
-function exportLedgerToPDF() {
-    showToast('PDF export feature coming soon!', 'info');
-}
-
-
-
 // --- OPENING BALANCE MODAL (Updated to work with new HTML structure) ---
 
 function openOpeningModal(bankId) {
@@ -2775,30 +2769,6 @@ function closeWithdrawalModalEnhanced() {
     if (modal) {
         modal.remove();
     }
-}
-
-
-// --- WITHDRAWAL MODAL (Keep existing) ---
-
-function openWithdrawalModal(bankId) {
-    // Check if PIN is verified
-    if (!state.isBankPinVerified) {
-        showToast("Please enter your PIN in the bank access gate first", "error");
-        return;
-    }
-    
-    // Use existing withdrawal modal
-    // (Keep the existing withdrawal modal implementation)
-    const bank = state.banks.find(b => b.id === bankId);
-    if (!bank) return;
-    
-    // Update bank select
-    const bankSelect = document.getElementById('w-bank');
-    if (bankSelect) {
-        bankSelect.value = bankId;
-    }
-    
-    openModal('withdrawal-modal');
 }
 
 // --- AUTO REFRESH SYSTEM ---
