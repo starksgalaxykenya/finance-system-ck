@@ -2826,7 +2826,7 @@ function closeWithdrawalModalEnhanced() {
 
 let autoRefreshInterval = null;
 
-function startAutoRefresh(intervalMinutes = 2) {
+function startAutoRefresh(intervalMinutes = 0.1667) { // 10 seconds = 0.1667 minutes
     // Clear existing interval if any
     if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
@@ -2861,7 +2861,7 @@ function startAutoRefresh(intervalMinutes = 2) {
         }
     }, intervalMinutes * 60 * 1000);
     
-    console.log(`Auto-refresh started (every ${intervalMinutes} minutes)`);
+    console.log(`Auto-refresh started (every ${intervalMinutes * 60} seconds)`);
 }
 
 function stopAutoRefresh() {
@@ -2958,7 +2958,7 @@ async function initApp() {
         updateSystemStatus(true);
         
         // Start auto-refresh
-        startAutoRefresh(2); // Refresh every 2 minutes
+        startAutoRefresh(0.1667); // Refresh every 10 seconds (10/60 = 0.1667 minutes)
         
         showToast('System initialized successfully! Auto-refresh enabled.', 'success');
     } catch (error) {
@@ -3001,7 +3001,7 @@ function toggleAutoRefresh() {
     
     if (isAutoRefreshEnabled) {
         startAutoRefresh(2);
-        showToast('Auto-refresh enabled (every 2 minutes)', 'success');
+        showToast('Auto-refresh enabled (every 10 seconds)', 'success');
         
         const toggleText = document.getElementById('auto-refresh-toggle-text');
         if (toggleText) toggleText.textContent = 'Pause Auto-Refresh';
@@ -3011,7 +3011,7 @@ function toggleAutoRefresh() {
             const dot = statusEl.querySelector('span');
             if (dot) {
                 dot.className = 'inline-block w-2 h-2 rounded-full bg-green-500 mr-2';
-                statusEl.innerHTML = `${dot.outerHTML} Active (every 2 min)`;
+                statusEl.innerHTML = `${dot.outerHTML} Active (every 10 seconds)`;
             }
         }
     } else {
@@ -3033,7 +3033,7 @@ function toggleAutoRefresh() {
 }
 
 // Update the startAutoRefresh function to update UI
-function startAutoRefresh(intervalMinutes = 2) {
+function startAutoRefresh(intervalMinutes = 0.1667) { // 10 seconds = 0.1667 minutes
     // Clear existing interval if any
     if (autoRefreshInterval) {
         clearInterval(autoRefreshInterval);
@@ -3070,7 +3070,7 @@ function startAutoRefresh(intervalMinutes = 2) {
         }
     }, intervalMinutes * 60 * 1000);
     
-    console.log(`Auto-refresh started (every ${intervalMinutes} minutes)`);
+    console.log(`Auto-refresh started (every ${intervalMinutes * 60} seconds)`);
 }
 
 // --- INITIALIZATION ---
