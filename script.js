@@ -637,7 +637,7 @@ if (isUSD) {
 
 if (amount === 0 || isNaN(amount)) {
     skippedCount++;
-    return;
+    continue;
 }
             
             // Parse bank name from payment method
