@@ -2555,7 +2555,7 @@ function openOpeningModal(bankId) {
     document.getElementById('opening-balance-date-enhanced').value = today;
     document.getElementById('opening-balance-amount-enhanced').value = openingBalance || '';
     
-                   // Add form submit handler
+    // Add form submit handler
     document.getElementById('opening-balance-form-enhanced').addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -2621,7 +2621,8 @@ function openOpeningModal(bankId) {
             showLoading(false);
         }
     });
-} // <-- THIS WAS THE MISSING CLOSING BRACE for the openOpeningModal function
+} // <-- THIS WAS THE MISSING CLOSING BRACE - ADD THIS LINE
+
 function closeOpeningModalEnhanced() {
     const modal = document.getElementById('opening-balance-modal-enhanced');
     if (modal) {
