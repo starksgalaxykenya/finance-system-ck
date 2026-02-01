@@ -648,7 +648,7 @@ async function processReceiptPayments() {
                 description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
                 sourceDocId: doc.id,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: 'global'
+                userId: 'global',
                 userEmail: state.user?.email
             });
             
