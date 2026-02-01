@@ -3185,40 +3185,4 @@ window.closeOpeningModalEnhanced = closeOpeningModalEnhanced;
 window.closeWithdrawalModalEnhanced = closeWithdrawalModalEnhanced;
 window.toggleAutoRefresh = toggleAutoRefresh;
 window.refreshData = refreshData;
-window.debugBalanceCalculation = debugBalanceCalculation;
 
-
-// Debug function for balance calculation troubleshooting
-function debugBalanceCalculation(bankId) {
-    const bank = state.banks.find(b => b.id === bankId);
-    if (!bank) {
-        console.error('Bank not found');
-        return;
-    }
-    
-    console.log(`=== DEBUG: ${bank.name} ===`);
-    
-    const cutoffDateTime = state.openingBalanceTimestamps[bank.name]?.timestamp ?
-        new Date(state.openingBalanceTimestamps[bank.name].timestamp).getTime() : null;
-    console.log('Opening Balance:', state.openingBalanceTimestamps[bank.name]?.balance || 0);
-    console.log('Cutoff DateTime:', cutoffDateTime ? new Date(cutoffDateTime).toLocaleString() : 'None');
-    
-    const bankTransactions = state.ledger
-        .filter(tx => tx.bankId === bank.id || tx.toBankId === bank.id)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    console.log(`Total transactions: ${bankTransactions.length}`);
-    
-    bankTransactions.forEach((tx, index) => {
-        const txDateTime = new Date(tx.date).getTime();
-        const isBeforeCutoff = cutoffDateTime && txDateTime < cutoffDateTime;
-        console.log(`${index + 1}. ${tx.type} ${tx.amount} on ${new Date(tx.date).toLocaleString()} - ${isBeforeCutoff ? 'SKIPPED' : 'INCLUDED'}`);
-    });
-    
-    console.log('Current Balance:', state.balances[bankId]);
-    console.log('====================');
-}
-
-
-
-[file content end]
