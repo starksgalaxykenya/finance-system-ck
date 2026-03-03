@@ -159,6 +159,47 @@
             background-color: #f3f4f6;
             color: #4b5563;
         }
+
+        /* PIN management styles */
+        .pin-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 2px;
+        }
+        .pin-dot-active {
+            background-color: #267921;
+        }
+        .pin-dot-inactive {
+            background-color: #d1d5db;
+        }
+        .pin-keypad {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .pin-key {
+            background: #f3f4f6;
+            border: none;
+            border-radius: 12px;
+            padding: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .pin-key:hover {
+            background: #e5e7eb;
+            transform: scale(0.98);
+        }
+        .pin-key:active {
+            background: #d1d5db;
+        }
+        .pin-key-zero {
+            grid-column: span 3;
+        }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
@@ -174,7 +215,7 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
-    <!-- Bank Access Gate (PIN Required) - Now Secure -->
+    <!-- Bank Access Gate (PIN Required) - Now with PIN Management -->
     <div id="bank-access-gate" class="fixed inset-0 z-[100000] bg-white flex items-center justify-center" style="display: none;">
         <div class="max-w-md w-full mx-4">
             <div class="bg-white rounded-2xl shadow-2xl p-8 text-center">
@@ -185,17 +226,29 @@
                 </div>
                 
                 <div class="mb-6">
+                    <div class="flex justify-center space-x-3 mb-4" id="pin-dots">
+                        <span class="pin-dot pin-dot-inactive"></span>
+                        <span class="pin-dot pin-dot-inactive"></span>
+                        <span class="pin-dot pin-dot-inactive"></span>
+                        <span class="pin-dot pin-dot-inactive"></span>
+                    </div>
                     <input type="password" id="bank-access-code" 
                            class="w-full text-center text-4xl tracking-widest font-bold border-2 border-gray-300 rounded-xl py-4 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
-                           maxlength="4" placeholder="0000" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,4)">
+                           maxlength="4" placeholder="••••" oninput="updatePinDots(this.value)">
                     <p class="text-sm text-gray-500 mt-2">Enter 4-digit security PIN</p>
                     <p class="text-xs text-red-500 mt-1 hidden" id="pin-error-message"></p>
                 </div>
                 
-                <button onclick="verifyBankAccessPin()" 
-                        class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] text-lg">
-                    <i class="fas fa-unlock mr-2"></i>Access Bank Management
-                </button>
+                <div class="flex space-x-4 mb-4">
+                    <button onclick="verifyBankAccessPin()" 
+                            class="flex-1 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] text-lg">
+                        <i class="fas fa-unlock mr-2"></i>Access
+                    </button>
+                    <button onclick="showPinManagementModal()" 
+                            class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] text-lg">
+                        <i class="fas fa-key mr-2"></i>Manage PIN
+                    </button>
+                </div>
                 
                 <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p class="text-sm text-gray-600">
@@ -203,6 +256,137 @@
                         Secure access required for financial operations
                     </p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PIN Management Modal -->
+    <div id="pin-management-modal" class="fixed inset-0 z-[100001] hidden">
+        <div class="absolute inset-0 bg-black bg-opacity-70 backdrop-blur-sm" onclick="closePinManagementModal()"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-auto mt-20 p-8">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center">
+                    <i class="fas fa-key mr-3 text-blue-600"></i>PIN Management
+                </h2>
+                <button onclick="closePinManagementModal()" class="text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <!-- PIN Management Tabs -->
+            <div class="flex border-b border-gray-200 mb-6">
+                <button class="pin-tab flex-1 py-3 px-4 text-center font-semibold text-gray-600 hover:text-green-600 transition-all active" id="tab-create" onclick="switchPinTab('create')">
+                    <i class="fas fa-plus-circle mr-2"></i>Create PIN
+                </button>
+                <button class="pin-tab flex-1 py-3 px-4 text-center font-semibold text-gray-600 hover:text-green-600 transition-all" id="tab-change" onclick="switchPinTab('change')">
+                    <i class="fas fa-edit mr-2"></i>Change PIN
+                </button>
+            </div>
+            
+            <!-- Create PIN Form -->
+            <div id="create-pin-form" class="pin-form active">
+                <div class="text-center mb-6">
+                    <i class="fas fa-shield-alt text-5xl text-green-500 mb-3"></i>
+                    <p class="text-gray-600">Create a new 4-digit PIN for bank access</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">New PIN</label>
+                        <div class="flex justify-center space-x-3 mb-2" id="create-pin-dots">
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                        </div>
+                        <input type="password" id="new-pin" 
+                               class="w-full text-center text-2xl tracking-widest font-bold border-2 border-gray-300 rounded-lg py-3 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
+                               maxlength="4" placeholder="••••" oninput="updateCreatePinDots(this.value)">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirm PIN</label>
+                        <div class="flex justify-center space-x-3 mb-2" id="confirm-pin-dots">
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                        </div>
+                        <input type="password" id="confirm-pin" 
+                               class="w-full text-center text-2xl tracking-widest font-bold border-2 border-gray-300 rounded-lg py-3 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
+                               maxlength="4" placeholder="••••" oninput="updateConfirmPinDots(this.value)">
+                    </div>
+                    
+                    <p id="create-pin-error" class="text-red-500 text-sm text-center hidden"></p>
+                    
+                    <button onclick="createNewPin()" 
+                            class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg transition-all transform hover:scale-[1.02]">
+                        <i class="fas fa-check-circle mr-2"></i>Create PIN
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Change PIN Form -->
+            <div id="change-pin-form" class="pin-form hidden">
+                <div class="text-center mb-6">
+                    <i class="fas fa-edit text-5xl text-blue-500 mb-3"></i>
+                    <p class="text-gray-600">Change your existing PIN</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Current PIN</label>
+                        <div class="flex justify-center space-x-3 mb-2" id="current-pin-dots">
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                        </div>
+                        <input type="password" id="current-pin" 
+                               class="w-full text-center text-2xl tracking-widest font-bold border-2 border-gray-300 rounded-lg py-3 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
+                               maxlength="4" placeholder="••••" oninput="updateCurrentPinDots(this.value)">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">New PIN</label>
+                        <div class="flex justify-center space-x-3 mb-2" id="change-new-pin-dots">
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                        </div>
+                        <input type="password" id="change-new-pin" 
+                               class="w-full text-center text-2xl tracking-widest font-bold border-2 border-gray-300 rounded-lg py-3 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
+                               maxlength="4" placeholder="••••" oninput="updateChangeNewPinDots(this.value)">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirm New PIN</label>
+                        <div class="flex justify-center space-x-3 mb-2" id="change-confirm-pin-dots">
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                            <span class="pin-dot pin-dot-inactive"></span>
+                        </div>
+                        <input type="password" id="change-confirm-pin" 
+                               class="w-full text-center text-2xl tracking-widest font-bold border-2 border-gray-300 rounded-lg py-3 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
+                               maxlength="4" placeholder="••••" oninput="updateChangeConfirmPinDots(this.value)">
+                    </div>
+                    
+                    <p id="change-pin-error" class="text-red-500 text-sm text-center hidden"></p>
+                    
+                    <button onclick="changeExistingPin()" 
+                            class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-all transform hover:scale-[1.02]">
+                        <i class="fas fa-save mr-2"></i>Change PIN
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                <p class="text-xs text-gray-500">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    Your PIN is securely stored and encrypted. Never share your PIN with anyone.
+                </p>
             </div>
         </div>
     </div>
@@ -236,6 +420,12 @@
                                 <i class="fas fa-sign-out-alt text-lg"></i>
                             </button>
                         </div>
+                        
+                        <!-- PIN Management Button (Visible when logged in) -->
+                        <button onclick="showPinManagementModal()" id="pin-manage-btn" 
+                                class="hidden bg-yellow-500 hover:bg-yellow-600 text-white font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
+                            <i class="fas fa-key mr-2"></i>Manage PIN
+                        </button>
                     </div>
                 </div>
             </div>
@@ -672,6 +862,11 @@
                                     class="w-full flex items-center text-indigo-600 hover:text-indigo-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
                                 <i class="fas fa-balance-scale mr-3"></i>
                                 <span>Verify All Balances</span>
+                            </button>
+                            <button onclick="showPinManagementModal()" 
+                                    class="w-full flex items-center text-yellow-600 hover:text-yellow-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-key mr-3"></i>
+                                <span>Manage Bank PIN</span>
                             </button>
                         </div>
                     </div>
