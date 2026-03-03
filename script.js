@@ -56,7 +56,7 @@ let state = {
         mode: 'create'
     },
     
-    // ===== FIXED: Add these properties correctly =====
+    // ===== FIXED: These properties are correctly added with commas =====
     openModals: new Set(), // Track open modals to prevent dropdown refresh
     lastSelection: {
         transferFrom: null,
