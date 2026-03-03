@@ -48,6 +48,15 @@ let state = {
     transactionLock: false, // For preventing race conditions
     idempotencyKeys: new Set(), // Prevent duplicate transactions
     balanceVerification: {} // Store verification results
+     // Track open modals to prevent dropdown refresh
+    openModals: new Set(),
+    lastSelection: {
+        transferFrom: null,
+        transferTo: null,
+        expenseBank: null,
+        creditBank: null,
+        withdrawalBank: null
+    }
 };
 
 // Expense categories from Excel
@@ -1334,6 +1343,8 @@ function parseBankName(paymentMethod) {
 
 // --- BANK SELECTS UPDATES ---
 
+// Replace your existing updateBankSelects function with this:
+
 function updateBankSelects() {
     const selects = [
         't-from-enhanced', 't-to-enhanced', 
@@ -1341,9 +1352,22 @@ function updateBankSelects() {
         'w-bank'
     ];
     
+    // ===== ADD THIS =====
+    // Store current values before rebuilding
+    const currentValues = {};
+    selects.forEach(id => {
+        const select = document.getElementById(id);
+        if (select) {
+            currentValues[id] = select.value;
+        }
+    });
+    
     selects.forEach(id => {
         const select = document.getElementById(id);
         if (!select) return;
+        
+        // Remember the selected value before clearing
+        const previousValue = select.value;
         
         select.innerHTML = '<option value="">Select Bank</option>';
         state.banks.forEach(bank => {
@@ -1354,17 +1378,67 @@ function updateBankSelects() {
             select.appendChild(option);
         });
         
+        // ===== ADD THIS =====
+        // Restore selection if modal is open, otherwise use stored value
+        if (state.openModals.has('transfer-modal-enhanced') && (id === 't-from-enhanced' || id === 't-to-enhanced')) {
+            if (id === 't-from-enhanced' && state.lastSelection.transferFrom) {
+                select.value = state.lastSelection.transferFrom;
+            } else if (id === 't-to-enhanced' && state.lastSelection.transferTo) {
+                select.value = state.lastSelection.transferTo;
+            } else {
+                select.value = previousValue; // Fallback
+            }
+        } else if (state.openModals.has('expense-payment-modal') && id === 'expense-bank') {
+            if (state.lastSelection.expenseBank) {
+                select.value = state.lastSelection.expenseBank;
+            } else {
+                select.value = previousValue;
+            }
+        } else if (state.openModals.has('credit-transfer-modal') && id === 'credit-bank') {
+            if (state.lastSelection.creditBank) {
+                select.value = state.lastSelection.creditBank;
+            } else {
+                select.value = previousValue;
+            }
+        } else {
+            // If no modal is open, restore previous value if it exists
+            if (previousValue) {
+                select.value = previousValue;
+            }
+        }
+        
         // Add event listeners for balance display
         if (id.includes('from') || id === 'expense-bank' || id === 'credit-bank' || id === 'w-bank') {
-            select.addEventListener('change', function() {
-                const balanceId = id === 't-from-enhanced' ? 't-from-balance-enhanced' :
-                                 id === 'expense-bank' ? 'expense-bank-balance' :
-                                 id === 'credit-bank' ? 'credit-bank-balance' :
-                                 `${id}-balance`;
-                updateBankBalanceDisplay(this.value, balanceId);
-            });
+            // Remove existing listener to prevent duplicates
+            select.removeEventListener('change', handleBankSelectionChange);
+            select.addEventListener('change', handleBankSelectionChange);
         }
     });
+}
+
+// ===== ADD THIS NEW HELPER FUNCTION =====
+function handleBankSelectionChange(event) {
+    const select = event.target;
+    const id = select.id;
+    const value = select.value;
+    
+    // Store selection in state
+    if (id === 't-from-enhanced') {
+        state.lastSelection.transferFrom = value;
+    } else if (id === 't-to-enhanced') {
+        state.lastSelection.transferTo = value;
+    } else if (id === 'expense-bank') {
+        state.lastSelection.expenseBank = value;
+    } else if (id === 'credit-bank') {
+        state.lastSelection.creditBank = value;
+    }
+    
+    // Update balance display
+    const balanceId = id === 't-from-enhanced' ? 't-from-balance-enhanced' :
+                     id === 'expense-bank' ? 'expense-bank-balance' :
+                     id === 'credit-bank' ? 'credit-bank-balance' :
+                     `${id}-balance`;
+    updateBankBalanceDisplay(value, balanceId);
 }
 
 function updateBankBalanceDisplay(bankId, elementId) {
@@ -2887,6 +2961,8 @@ function generateReportCharts(transactions) {
 
 // --- MODAL CONTROLS ---
 
+// Update your showTransferConfirmation function:
+
 function showTransferConfirmation() {
     if (!state.isBankPinVerified) {
         showToast("Please enter your PIN in the bank access gate first", "error");
@@ -2896,9 +2972,16 @@ function showTransferConfirmation() {
     // Update bank selects first
     updateBankSelects();
     
+    // ===== ADD THIS =====
+    // Clear previous selections
+    state.lastSelection.transferFrom = null;
+    state.lastSelection.transferTo = null;
+    
     // Show the enhanced transfer modal
     openModal('transfer-modal-enhanced');
 }
+
+// Update your showExpensePaymentModal function:
 
 function showExpensePaymentModal(bankId = null) {
     if (!state.isBankPinVerified) {
@@ -2917,10 +3000,13 @@ function showExpensePaymentModal(bankId = null) {
         const bankSelect = document.getElementById('expense-bank');
         if (bankSelect) {
             bankSelect.value = bankId;
+            state.lastSelection.expenseBank = bankId; // ===== ADD THIS =====
             updateBankBalanceDisplay(bankId, 'expense-bank-balance');
         }
     }
 }
+
+// Update your showCreditTransferModal function:
 
 function showCreditTransferModal() {
     if (!state.isBankPinVerified) {
@@ -2934,21 +3020,33 @@ function showCreditTransferModal() {
     // Show modal
     openModal('credit-transfer-modal');
     
+    // ===== ADD THIS =====
+    // Clear previous selection
+    state.lastSelection.creditBank = null;
+    
     // Add event listener for recipient type change
     const recipientTypeSelect = document.getElementById('credit-recipient-type');
     const categorySection = document.getElementById('credit-category-section');
     const customSection = document.getElementById('credit-custom-section');
     
     if (recipientTypeSelect && categorySection && customSection) {
-        recipientTypeSelect.addEventListener('change', function() {
-            if (this.value === 'category') {
-                categorySection.classList.remove('hidden');
-                customSection.classList.add('hidden');
-            } else {
-                categorySection.classList.add('hidden');
-                customSection.classList.remove('hidden');
-            }
-        });
+        // Remove existing listener to prevent duplicates
+        recipientTypeSelect.removeEventListener('change', handleRecipientTypeChange);
+        recipientTypeSelect.addEventListener('change', handleRecipientTypeChange);
+    }
+}
+
+// Helper function for recipient type change
+function handleRecipientTypeChange(event) {
+    const categorySection = document.getElementById('credit-category-section');
+    const customSection = document.getElementById('credit-custom-section');
+    
+    if (event.target.value === 'category') {
+        if (categorySection) categorySection.classList.remove('hidden');
+        if (customSection) customSection.classList.add('hidden');
+    } else {
+        if (categorySection) categorySection.classList.add('hidden');
+        if (customSection) customSection.classList.remove('hidden');
     }
 }
 
@@ -3226,6 +3324,8 @@ function openTab(evt, tabName) {
     
 }
 
+// Replace your existing openModal and closeModal functions with these:
+
 function openModal(id) {
     // Check if PIN is verified for bank-related modals
     const bankModals = ['transfer-modal-enhanced', 'expense-payment-modal', 'credit-transfer-modal', 'withdrawal-modal'];
@@ -3237,6 +3337,20 @@ function openModal(id) {
     const modal = document.getElementById(id);
     if (modal) {
         modal.classList.remove('hidden');
+        
+        // ===== ADD THIS =====
+        // Track that this modal is open
+        state.openModals.add(id);
+        
+        // Store current selections when modal opens
+        if (id === 'transfer-modal-enhanced') {
+            state.lastSelection.transferFrom = document.getElementById('t-from-enhanced')?.value || null;
+            state.lastSelection.transferTo = document.getElementById('t-to-enhanced')?.value || null;
+        } else if (id === 'expense-payment-modal') {
+            state.lastSelection.expenseBank = document.getElementById('expense-bank')?.value || null;
+        } else if (id === 'credit-transfer-modal') {
+            state.lastSelection.creditBank = document.getElementById('credit-bank')?.value || null;
+        }
     }
 }
 
@@ -3244,6 +3358,20 @@ function closeModal(id) {
     const modal = document.getElementById(id);
     if (modal) {
         modal.classList.add('hidden');
+        
+        // ===== ADD THIS =====
+        // Remove from open modals set
+        state.openModals.delete(id);
+        
+        // Clear selections for this modal when closed
+        if (id === 'transfer-modal-enhanced') {
+            state.lastSelection.transferFrom = null;
+            state.lastSelection.transferTo = null;
+        } else if (id === 'expense-payment-modal') {
+            state.lastSelection.expenseBank = null;
+        } else if (id === 'credit-transfer-modal') {
+            state.lastSelection.creditBank = null;
+        }
     }
 }
 
@@ -3739,6 +3867,8 @@ function closeWithdrawalModalEnhanced() {
 let autoRefreshInterval = null;
 let isAutoRefreshEnabled = true;
 
+// Replace your existing auto-refresh interval with this:
+
 function startAutoRefresh(intervalSeconds = 10) { // 10 seconds default
     // Clear existing interval if any
     if (autoRefreshInterval) {
@@ -3748,6 +3878,20 @@ function startAutoRefresh(intervalSeconds = 10) { // 10 seconds default
     // Refresh every X seconds
     autoRefreshInterval = setInterval(async () => {
         if (state.user && state.isBankPinVerified && isAutoRefreshEnabled && !state.transactionLock) {
+            
+            // ===== ADD THIS =====
+            // Skip auto-refresh if any financial modals are open to preserve selections
+            const financialModals = ['transfer-modal-enhanced', 'expense-payment-modal', 'credit-transfer-modal', 'withdrawal-modal'];
+            const anyModalOpen = financialModals.some(modalId => {
+                const modal = document.getElementById(modalId);
+                return modal && !modal.classList.contains('hidden');
+            });
+            
+            if (anyModalOpen) {
+                console.log('Auto-refresh skipped - modal open');
+                return;
+            }
+            
             console.log(`Auto-refreshing data... (${new Date().toLocaleTimeString()})`);
             
             try {
@@ -3825,6 +3969,8 @@ function toggleAutoRefresh() {
     }
 }
 
+// Replace your existing refreshData function with this:
+
 async function refreshData() {
     try {
         // Load fresh data from Firebase
@@ -3842,6 +3988,15 @@ async function refreshData() {
         // Calculate expense summary
         calculateExpenseSummary();
         
+        // ===== ADD THIS =====
+        // Store current selections before UI update
+        const currentSelections = {
+            transferFrom: document.getElementById('t-from-enhanced')?.value || null,
+            transferTo: document.getElementById('t-to-enhanced')?.value || null,
+            expenseBank: document.getElementById('expense-bank')?.value || null,
+            creditBank: document.getElementById('credit-bank')?.value || null
+        };
+        
         // Update UI if on relevant tabs
         const activeTab = document.querySelector('.tab-content.active');
         if (activeTab && activeTab.id === 'dashboard') {
@@ -3852,6 +4007,46 @@ async function refreshData() {
             renderExpenseSummary();
         } else if (activeTab && activeTab.id === 'reports') {
             generateFinancialReport();
+        }
+        
+        // ===== ADD THIS =====
+        // Restore selections if modals are open
+        if (state.openModals.has('transfer-modal-enhanced')) {
+            const fromSelect = document.getElementById('t-from-enhanced');
+            const toSelect = document.getElementById('t-to-enhanced');
+            
+            if (fromSelect && state.lastSelection.transferFrom) {
+                fromSelect.value = state.lastSelection.transferFrom;
+                updateBankBalanceDisplay(state.lastSelection.transferFrom, 't-from-balance-enhanced');
+            } else if (fromSelect && currentSelections.transferFrom) {
+                fromSelect.value = currentSelections.transferFrom;
+            }
+            
+            if (toSelect && state.lastSelection.transferTo) {
+                toSelect.value = state.lastSelection.transferTo;
+            } else if (toSelect && currentSelections.transferTo) {
+                toSelect.value = currentSelections.transferTo;
+            }
+        }
+        
+        if (state.openModals.has('expense-payment-modal')) {
+            const expenseSelect = document.getElementById('expense-bank');
+            if (expenseSelect && state.lastSelection.expenseBank) {
+                expenseSelect.value = state.lastSelection.expenseBank;
+                updateBankBalanceDisplay(state.lastSelection.expenseBank, 'expense-bank-balance');
+            } else if (expenseSelect && currentSelections.expenseBank) {
+                expenseSelect.value = currentSelections.expenseBank;
+            }
+        }
+        
+        if (state.openModals.has('credit-transfer-modal')) {
+            const creditSelect = document.getElementById('credit-bank');
+            if (creditSelect && state.lastSelection.creditBank) {
+                creditSelect.value = state.lastSelection.creditBank;
+                updateBankBalanceDisplay(state.lastSelection.creditBank, 'credit-bank-balance');
+            } else if (creditSelect && currentSelections.creditBank) {
+                creditSelect.value = currentSelections.creditBank;
+            }
         }
         
         updateStatistics();
