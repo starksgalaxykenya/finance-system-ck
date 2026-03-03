@@ -12,16 +12,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-functions-compat.js"></script>
     
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
-    <!-- DOMPurify for XSS protection -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.5/purify.min.js"></script>
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -158,13 +151,13 @@
             100% { background-position: 200% 0; }
         }
 
-        /* Audit log indicator */
+        /* Audit trail styles */
         .audit-badge {
-            background-color: #fef3c7;
-            color: #92400e;
             font-size: 0.7rem;
             padding: 2px 6px;
             border-radius: 4px;
+            background-color: #f3f4f6;
+            color: #4b5563;
         }
     </style>
 </head>
@@ -181,26 +174,25 @@
     <!-- Toast Container -->
     <div id="toast-container"></div>
 
-    <!-- Bank Access Gate (Now with Server-Verified PIN) -->
+    <!-- Bank Access Gate (PIN Required) - Now Secure -->
     <div id="bank-access-gate" class="fixed inset-0 z-[100000] bg-white flex items-center justify-center" style="display: none;">
         <div class="max-w-md w-full mx-4">
             <div class="bg-white rounded-2xl shadow-2xl p-8 text-center">
                 <div class="mb-8">
                     <i class="fas fa-lock text-6xl text-green-600 mb-4"></i>
                     <h2 class="text-3xl font-bold text-gray-800 mb-2">Bank Access Required</h2>
-                    <p class="text-gray-600">Enter your secure PIN to access bank management</p>
+                    <p class="text-gray-600">Enter your PIN to access bank management</p>
                 </div>
                 
                 <div class="mb-6">
                     <input type="password" id="bank-access-code" 
                            class="w-full text-center text-4xl tracking-widest font-bold border-2 border-gray-300 rounded-xl py-4 focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition"
-                           maxlength="6" placeholder="••••••" 
-                           oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,6)">
-                    <p class="text-sm text-gray-500 mt-2">Enter 6-digit security PIN</p>
-                    <p class="text-xs text-gray-400 mt-1" id="pin-attempts-remaining"></p>
+                           maxlength="4" placeholder="0000" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,4)">
+                    <p class="text-sm text-gray-500 mt-2">Enter 4-digit security PIN</p>
+                    <p class="text-xs text-red-500 mt-1 hidden" id="pin-error-message"></p>
                 </div>
                 
-                <button onclick="window.verifyBankAccess()" 
+                <button onclick="verifyBankAccessPin()" 
                         class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white font-bold py-4 rounded-xl transition-all transform hover:scale-[1.02] text-lg">
                     <i class="fas fa-unlock mr-2"></i>Access Bank Management
                 </button>
@@ -208,33 +200,14 @@
                 <div class="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                     <p class="text-sm text-gray-600">
                         <i class="fas fa-shield-alt text-yellow-500 mr-1"></i>
-                        Two-factor authentication enabled • All actions are audited
+                        Secure access required for financial operations
                     </p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- MFA Setup Modal (First time login) -->
-    <div id="mfa-setup-modal" class="fixed inset-0 z-[100000] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-60 backdrop-blur-sm"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-32 p-8">
-            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Set Up Security PIN</h2>
-            <div class="space-y-4">
-                <p class="text-sm text-gray-600 text-center">This PIN will be required for all financial operations</p>
-                <input type="password" id="mfa-pin-1" placeholder="Enter 6-digit PIN" maxlength="6" 
-                       class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition text-center text-2xl tracking-widest"
-                       oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,6)">
-                <input type="password" id="mfa-pin-2" placeholder="Confirm PIN" maxlength="6"
-                       class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition text-center text-2xl tracking-widest"
-                       oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0,6)">
-                <p id="mfa-error" class="text-red-500 text-sm text-center hidden"></p>
-                <button onclick="window.setupMFA()" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-lg">Set Up PIN</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main Content -->
+    <!-- Main Content (Hidden until PIN verified) -->
     <div id="bank-management-content" class="hidden">
         <!-- Header -->
         <header class="bg-gradient-to-r from-green-600 to-green-800 text-white shadow-lg">
@@ -243,24 +216,22 @@
                     <div class="mb-4 md:mb-0">
                         <h1 class="text-2xl font-bold flex items-center">
                             <i class="fas fa-car mr-3"></i>CarKenya.Co.Ke 🚘 Bank Ledger
-                            <span class="ml-3 text-xs bg-yellow-500 text-gray-900 px-2 py-1 rounded-full">Production v3.0</span>
                         </h1>
-                        <p class="text-green-200 text-sm mt-1">Real-time Bank Management • All transactions audited</p>
+                        <p class="text-green-200 text-sm mt-1">Real-time Bank Management & Financial Dashboard</p>
                     </div>
                     
                     <div class="flex items-center space-x-4">
                         <div id="firebase-user-info" class="hidden bg-white bg-opacity-20 px-4 py-2 rounded-lg">
                             <i class="fas fa-user-circle mr-2"></i>
                             <span id="user-email" class="font-medium text-sm"></span>
-                            <span class="ml-2 audit-badge text-xs">2FA Enabled</span>
                         </div>
                         
                         <div id="auth-section" class="flex items-center space-x-3">
-                            <button onclick="window.toggleLoginModal()" id="login-btn" 
+                            <button onclick="toggleLoginModal()" id="login-btn" 
                                     class="bg-white text-green-600 hover:bg-gray-100 font-semibold py-2 px-4 rounded-lg transition-all flex items-center">
                                 <i class="fas fa-cloud mr-2"></i>Connect Firebase
                             </button>
-                            <button onclick="window.logout()" id="logout-btn" 
+                            <button onclick="logout()" id="logout-btn" 
                                     class="hidden text-white hover:text-red-200 transition-colors p-2">
                                 <i class="fas fa-sign-out-alt text-lg"></i>
                             </button>
@@ -280,20 +251,20 @@
                     <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
                         <div class="flex border-b border-gray-200">
                             <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all active"
-                                    onclick="window.openTab(event, 'dashboard')">
+                                    onclick="openTab(event, 'dashboard')">
                                 <i class="fas fa-university mr-2"></i>🏦 Bank Dashboard
                             </button>
                             <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
-                                    onclick="window.openTab(event, 'ledger-history')">
+                                    onclick="openTab(event, 'ledger-history')">
                                 <i class="fas fa-history mr-2"></i>📋 Ledger History
                             </button>
                             <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
-                                    onclick="window.openTab(event, 'reconciliation')">
-                                <i class="fas fa-balance-scale mr-2"></i>⚖️ Reconciliation
+                                    onclick="openTab(event, 'expense-categories')">
+                                <i class="fas fa-chart-pie mr-2"></i>💰 Expense Categories
                             </button>
                             <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
-                                    onclick="window.openTab(event, 'audit')">
-                                <i class="fas fa-shield-alt mr-2"></i>📜 Audit Log
+                                    onclick="openTab(event, 'reports')">
+                                <i class="fas fa-chart-line mr-2"></i>📈 Reports
                             </button>
                         </div>
 
@@ -301,45 +272,38 @@
                         <div class="p-6">
                             <!-- Dashboard Tab -->
                             <div id="dashboard" class="tab-content active">
-                                <!-- Sync Status with Idempotency Key Display -->
+                                <!-- Sync Status -->
                                 <div id="firebase-sync-status" class="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
                                     <div class="flex items-center justify-between">
                                         <div class="flex items-center">
                                             <i class="fas fa-cloud text-xl text-blue-500 mr-3"></i>
                                             <div>
-                                                <h4 class="font-semibold text-gray-800">System Status</h4>
-                                                <p class="text-sm text-gray-600" id="sync-status-text">Ready</p>
-                                                <p class="text-xs text-gray-400" id="idempotency-key-display"></p>
+                                                <h4 class="font-semibold text-gray-800">Firebase Sync Status</h4>
+                                                <p class="text-sm text-gray-600" id="sync-status-text">Loading...</p>
                                             </div>
                                         </div>
-                                        <div class="flex space-x-2">
-                                            <button onclick="window.verifyAllBalances()"
-                                                    class="bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
-                                                <i class="fas fa-check-double mr-2"></i>Verify Balances
-                                            </button>
-                                            <button onclick="window.syncReceipts()"
-                                                    class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
-                                                <i class="fas fa-sync-alt mr-2"></i>Sync Receipts
-                                            </button>
-                                        </div>
+                                        <button onclick="syncReceipts()"
+                                                class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-all flex items-center">
+                                            <i class="fas fa-sync-alt mr-2"></i>Sync Receipts
+                                        </button>
                                     </div>
                                 </div>
 
                                 <!-- Action Buttons -->
                                 <div class="flex flex-wrap gap-3 mb-8">
-                                    <button onclick="window.showTransferConfirmation()" 
+                                    <button onclick="showTransferConfirmation()" 
                                             class="flex items-center bg-purple-600 text-white hover:bg-purple-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
                                         <i class="fas fa-exchange-alt mr-2"></i> Inter-Bank Transfer
                                     </button>
-                                    <button onclick="window.showExpensePaymentModal()" 
+                                    <button onclick="showExpensePaymentModal()" 
                                             class="flex items-center bg-red-600 text-white hover:bg-red-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
                                         <i class="fas fa-money-check-alt mr-2"></i> Record Expense
                                     </button>
-                                    <button onclick="window.refreshBankData()" 
+                                    <button onclick="refreshBankData()" 
                                             class="flex items-center bg-green-600 text-white hover:bg-green-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
                                         <i class="fas fa-sync-alt mr-2"></i> Refresh Data
                                     </button>
-                                    <button onclick="window.showCreditTransferModal()" 
+                                    <button onclick="showCreditTransferModal()" 
                                             class="flex items-center bg-blue-600 text-white hover:bg-blue-700 px-5 py-3 rounded-lg font-medium shadow-sm transition-all transform hover:scale-[1.02]">
                                         <i class="fas fa-hand-holding-usd mr-2"></i> Credit Bank
                                     </button>
@@ -385,7 +349,7 @@
                                         </h3>
                                         <div class="flex items-center space-x-4">
                                             <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full" id="ledger-count">0 Records</span>
-                                            <button onclick="window.exportLedgerToPDF()" 
+                                            <button onclick="exportLedgerToPDF()" 
                                                     class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg transition-all">
                                                 <i class="fas fa-download mr-1"></i> Export PDF
                                             </button>
@@ -400,7 +364,6 @@
                                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bank/Recipient</th>
                                                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                                     <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                                                    <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                                                 </tr>
                                             </thead>
                                             <tbody id="ledger-body" class="bg-white divide-y divide-gray-200 text-sm">
@@ -409,71 +372,196 @@
                                         </table>
                                     </div>
                                     <div class="px-6 py-4 border-t border-gray-100 bg-gray-50 text-center">
-                                        <p class="text-sm text-gray-500">Showing latest 100 transactions • All transactions have idempotency keys</p>
+                                        <p class="text-sm text-gray-500">Showing latest 100 transactions</p>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Reconciliation Tab -->
-                            <div id="reconciliation" class="tab-content">
+                            <!-- Expense Categories Tab -->
+                            <div id="expense-categories" class="tab-content">
                                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                                     <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                                         <h3 class="font-semibold text-gray-800 text-lg flex items-center">
-                                            <i class="fas fa-balance-scale mr-2"></i>Bank Reconciliation
+                                            <i class="fas fa-chart-pie mr-2"></i>Expense Categories Summary
                                         </h3>
-                                        <button onclick="window.runReconciliation()" 
-                                                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm">
-                                            <i class="fas fa-play mr-2"></i>Run Reconciliation
-                                        </button>
+                                        <div class="flex items-center space-x-4">
+                                            <span class="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full" id="expense-total">Total: KSH 0</span>
+                                            <button onclick="refreshExpenseSummary()" 
+                                                    class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg transition-all">
+                                                <i class="fas fa-sync-alt mr-1"></i> Refresh
+                                            </button>
+                                        </div>
                                     </div>
-                                    
                                     <div class="p-6">
-                                        <div class="grid grid-cols-1 gap-6" id="reconciliation-results">
-                                            <!-- Reconciliation results will be populated here -->
+                                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                            <!-- Category List -->
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                                    <i class="fas fa-list mr-2"></i>Expense Categories
+                                                </h4>
+                                                <div class="space-y-4 max-h-96 overflow-y-auto pr-2">
+                                                    <!-- Categories will be populated by JavaScript -->
+                                                    <div id="categories-list"></div>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Chart Visualization -->
+                                            <div>
+                                                <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                                    <i class="fas fa-chart-bar mr-2"></i>Expense Distribution
+                                                </h4>
+                                                <div class="bg-gray-50 rounded-lg p-4 h-96 flex items-center justify-center">
+                                                    <div id="expense-chart-container" class="w-full h-full">
+                                                        <canvas id="expenseChart"></canvas>
+                                                    </div>
+                                                </div>
+                                            </div>
                                         </div>
                                         
-                                        <div class="mt-6">
-                                            <h4 class="font-semibold text-gray-800 mb-4">Manual Adjustment</h4>
-                                            <form id="reconciliation-adjustment-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <select id="reconciliation-bank" class="border rounded-lg p-2" required>
-                                                    <option value="">Select Bank</option>
-                                                </select>
-                                                <input type="number" id="reconciliation-statement-balance" 
-                                                       placeholder="Statement Balance" step="0.01" class="border rounded-lg p-2" required>
-                                                <input type="date" id="reconciliation-date" class="border rounded-lg p-2" required>
-                                                <textarea id="reconciliation-notes" placeholder="Reconciliation Notes" class="border rounded-lg p-2 md:col-span-2"></textarea>
-                                                <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 md:col-span-2">
-                                                    Record Reconciliation
-                                                </button>
-                                            </form>
+                                        <!-- Custom Recipients Section -->
+                                        <div class="mt-8">
+                                            <h4 class="font-semibold text-gray-800 mb-4 flex items-center">
+                                                <i class="fas fa-users mr-2"></i>Custom Recipients Summary
+                                            </h4>
+                                            <div id="custom-recipients-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                <!-- Custom recipients will be populated here -->
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Audit Log Tab -->
-                            <div id="audit" class="tab-content">
+                            <!-- Reports Tab -->
+                            <div id="reports" class="tab-content">
                                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                                    <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                                    <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                                         <h3 class="font-semibold text-gray-800 text-lg flex items-center">
-                                            <i class="fas fa-shield-alt mr-2"></i>Audit Trail
+                                            <i class="fas fa-chart-line mr-2"></i>Financial Reports
                                         </h3>
+                                        <div class="flex items-center space-x-4">
+                                            <button onclick="generateFinancialReport()" 
+                                                    class="text-sm bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-all flex items-center">
+                                                <i class="fas fa-file-export mr-2"></i> Generate Report
+                                            </button>
+                                        </div>
                                     </div>
-                                    <div class="overflow-x-auto">
-                                        <table class="min-w-full divide-y divide-gray-200">
-                                            <thead class="bg-gray-50">
-                                                <tr>
-                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Timestamp</th>
-                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
-                                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody id="audit-body" class="bg-white divide-y divide-gray-200 text-sm">
-                                                <!-- Audit entries will be populated here -->
-                                            </tbody>
-                                        </table>
+                                    
+                                    <div class="p-6">
+                                        <!-- Report Filters -->
+                                        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+                                            <h4 class="font-semibold text-gray-800 mb-4">Report Filters</h4>
+                                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                                                    <input type="date" id="report-start-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                                                    <input type="date" id="report-end-date" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Bank Account</label>
+                                                    <select id="report-bank-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                        <option value="all">All Banks</option>
+                                                        <!-- Banks will be populated dynamically -->
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-sm font-medium text-gray-700 mb-1">Transaction Type</label>
+                                                    <select id="report-type-filter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                                                        <option value="all">All Types</option>
+                                                        <option value="receipt">Receipts</option>
+                                                        <option value="expense">Expenses</option>
+                                                        <option value="transfer">Transfers</option>
+                                                        <option value="credit">Credits</option>
+                                                        <option value="withdrawal">Withdrawals</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Report Summary Cards -->
+                                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                                            <div class="bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Total Income</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-income">KES 0</p>
+                                                    </div>
+                                                    <i class="fas fa-arrow-down text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Total Expenses</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-expenses">KES 0</p>
+                                                    </div>
+                                                    <i class="fas fa-arrow-up text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Net Balance</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-net">KES 0</p>
+                                                    </div>
+                                                    <i class="fas fa-balance-scale text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-xl p-6">
+                                                <div class="flex items-center justify-between">
+                                                    <div>
+                                                        <p class="text-sm opacity-90">Transactions</p>
+                                                        <p class="text-2xl font-bold mt-2" id="report-transactions">0</p>
+                                                    </div>
+                                                    <i class="fas fa-exchange-alt text-2xl opacity-80"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Report Charts -->
+                                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                                            <div class="bg-white border border-gray-200 rounded-xl p-6">
+                                                <h4 class="font-semibold text-gray-800 mb-4">Income vs Expenses</h4>
+                                                <div class="h-64">
+                                                    <canvas id="incomeExpenseChart"></canvas>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-white border border-gray-200 rounded-xl p-6">
+                                                <h4 class="font-semibold text-gray-800 mb-4">Bank Balances</h4>
+                                                <div class="h-64">
+                                                    <canvas id="bankBalanceChart"></canvas>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!-- Detailed Transaction Report -->
+                                        <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                                            <div class="px-6 py-4 border-b border-gray-100 bg-gray-50">
+                                                <h4 class="font-semibold text-gray-800">Detailed Transactions</h4>
+                                            </div>
+                                            <div class="overflow-x-auto">
+                                                <table class="min-w-full divide-y divide-gray-200">
+                                                    <thead class="bg-gray-50">
+                                                        <tr>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bank</th>
+                                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="report-transactions-body" class="bg-white divide-y divide-gray-200">
+                                                        <!-- Report transactions will be populated here -->
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -483,10 +571,10 @@
 
                 <!-- Sidebar Area -->
                 <div class="lg:w-1/3 space-y-8">
-                    <!-- System Status Card -->
+                    <!-- System Status Card - MOVED TO RIGHT SIDEBAR -->
                     <div id="system-status-card" class="bg-white rounded-2xl shadow-lg p-6">
                         <h2 class="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-                            <i class="fas fa-shield-alt mr-3"></i>✨ System Security Status
+                            <i class="fas fa-shield-alt mr-3"></i>✨ System Status
                         </h2>
                         
                         <div class="space-y-4 mb-6">
@@ -502,34 +590,45 @@
                             </div>
                             
                             <div class="flex items-start">
-                                <i class="fas fa-fingerprint text-green-500 mt-1 mr-3"></i>
+                                <i class="fas fa-sync-alt text-green-500 mt-1 mr-3"></i>
                                 <div>
-                                    <h4 class="font-semibold text-gray-800">2FA / PIN Status</h4>
-                                    <p class="text-sm text-gray-600 mt-1" id="mfa-status">
-                                        <span class="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2"></span>
-                                        Not Verified
+                                    <h4 class="font-semibold text-gray-800">Last Sync</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="last-sync-time">
+                                        Never
                                     </p>
                                 </div>
                             </div>
                             
                             <div class="flex items-start">
-                                <i class="fas fa-key text-purple-500 mt-1 mr-3"></i>
+                                <i class="fas fa-file-invoice-dollar text-purple-500 mt=1 mr-3"></i>
                                 <div>
-                                    <h4 class="font-semibold text-gray-800">Idempotency Key</h4>
-                                    <p class="text-sm text-gray-600 mt-1" id="idempotency-status">
-                                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                                        Active
+                                    <h4 class="font-semibold text-gray-800">Transactions Processed</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="transactions-count">
+                                        0 transactions
                                     </p>
                                 </div>
                             </div>
                             
+                            <!-- Add Auto-Refresh Status -->
                             <div class="flex items-start">
-                                <i class="fas fa-shield-halved text-cyan-500 mt-1 mr-3"></i>
+                                <i class="fas fa-redo text-cyan-500 mt-1 mr-3"></i>
                                 <div>
-                                    <h4 class="font-semibold text-gray-800">Audit Logging</h4>
-                                    <p class="text-sm text-gray-600 mt-1" id="audit-status">
+                                    <h4 class="font-semibold text-gray-800">Auto-Refresh</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="auto-refresh-status">
                                         <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
-                                        All actions logged
+                                        Active (every 10 sec)
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <!-- Balance Verification Status -->
+                            <div class="flex items-start">
+                                <i class="fas fa-check-circle text-green-500 mt-1 mr-3"></i>
+                                <div>
+                                    <h4 class="font-semibold text-gray-800">Balance Integrity</h4>
+                                    <p class="text-sm text-gray-600 mt-1" id="balance-integrity-status">
+                                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 mr-2"></span>
+                                        Verified
                                     </p>
                                 </div>
                             </div>
@@ -541,28 +640,38 @@
                         <div id="system-health-status" class="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
                             <div class="flex items-center">
                                 <i class="fas fa-check-circle text-green-500 mr-3"></i>
-                                <span class="font-medium text-green-800">System Ready - All security measures active</span>
+                                <span class="font-medium text-green-800">System Ready</span>
                             </div>
                         </div>
                         
                         <h3 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-                            <i class="fas fa-bolt mr-2"></i>Security Actions
+                            <i class="fas fa-bolt mr-2"></i>Quick Actions
                         </h3>
                         <div class="space-y-3">
-                            <button onclick="window.showAuditLog()" 
-                                    class="w-full flex items-center text-purple-600 hover:text-purple-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                                <i class="fas fa-shield-alt mr-3"></i>
-                                <span>View Full Audit Trail</span>
-                            </button>
-                            <button onclick="window.rotateIdempotencyKey()" 
-                                    class="w-full flex items-center text-blue-600 hover:text-blue-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                                <i class="fas fa-rotate mr-3"></i>
-                                <span>Rotate Security Keys</span>
-                            </button>
-                            <button onclick="window.showSecurityReport()" 
+                            <button onclick="showAllBanksSummary()" 
                                     class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
-                                <i class="fas fa-file-shield mr-3"></i>
-                                <span>Security Report</span>
+                                <i class="fas fa-list-alt mr-3"></i>
+                                <span>View All Banks Summary</span>
+                            </button>
+                            <button onclick="toggleLoginModal()" 
+                                    class="w-full flex items-center text-green-600 hover:text-green-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-cloud mr-3"></i>
+                                <span>Firebase Settings</span>
+                            </button>
+                            <button onclick="showTransactionFeeReport()" 
+                                    class="w-full flex items-center text-purple-600 hover:text-purple-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-percentage mr-3"></i>
+                                <span>Transaction Fees Report</span>
+                            </button>
+                            <button onclick="toggleAutoRefresh()" 
+                                    class="w-full flex items-center text-cyan-600 hover:text-cyan-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-redo mr-3"></i>
+                                <span id="auto-refresh-toggle-text">Pause Auto-Refresh</span>
+                            </button>
+                            <button onclick="verifyAllBalances()" 
+                                    class="w-full flex items-center text-indigo-600 hover:text-indigo-700 transition-all bg-gray-50 hover:bg-gray-100 p-3 rounded-lg">
+                                <i class="fas fa-balance-scale mr-3"></i>
+                                <span>Verify All Balances</span>
                             </button>
                         </div>
                     </div>
@@ -570,7 +679,7 @@
                     <!-- Quick Stats -->
                     <div class="bg-gradient-to-br from-green-600 to-green-800 text-white rounded-2xl shadow-lg p-6">
                         <h3 class="text-xl font-bold mb-6 flex items-center">
-                            <i class="fas fa-chart-bar mr-3"></i>Verified Statistics
+                            <i class="fas fa-chart-bar mr-3"></i>Bank Statistics
                         </h3>
                         
                         <div class="space-y-4">
@@ -600,16 +709,19 @@
                             
                             <div>
                                 <div class="flex justify-between items-center mb-1">
-                                    <span class="text-sm opacity-90">Reconciliation Status</span>
-                                    <span class="font-bold" id="reconciliation-status">Verified</span>
+                                    <span class="text-sm opacity-90">Today's Transactions</span>
+                                    <span class="font-bold" id="stats-today-transactions">0</span>
+                                </div>
+                                <div class="w-full bg-white bg-opacity-30 rounded-full h-2">
+                                    <div id="stats-transactions-progress" class="bg-cyan-400 h-2 rounded-full" style="width: 0%"></div>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="mt-8">
-                            <button onclick="window.runFullSecurityAudit()"
+                            <button onclick="initializeBankSystem()"
                                     class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all transform hover:scale-[1.02] flex items-center justify-center">
-                                <i class="fas fa-shield-halved mr-2"></i>Run Security Audit
+                                <i class="fas fa-redo mr-2"></i>Reinitialize System
                             </button>
                         </div>
                     </div>
@@ -623,19 +735,16 @@
                 <div class="flex flex-col md:flex-row justify-between items-center">
                     <div class="mb-4 md:mb-0">
                         <h3 class="text-xl font-bold">CarKenya.Co.Ke</h3>
-                        <p class="text-gray-400">Bank Management System v3.0 - Production Ready</p>
+                        <p class="text-gray-400">Bank Management System v2.0 (Production Ready)</p>
                     </div>
                     <div class="flex space-x-6">
                         <span class="text-gray-400">
-                            <i class="fas fa-shield-alt"></i> FIPS 140-2 Compliant
-                        </span>
-                        <span class="text-gray-400">
-                            <i class="fas fa-clipboard-check"></i> SOC2 Type II
+                            <i class="fas fa-shield-alt"></i> Secure Bank Management
                         </span>
                     </div>
                 </div>
                 <div class="text-center mt-6 text-gray-500 text-sm">
-                    <p>© 2024 CarKenya Financial Manager. All actions are audited and immutable.</p>
+                    <p>© 2024 CarKenya Financial Manager. For authorized use only. All transactions audited.</p>
                 </div>
             </div>
         </footer>
@@ -643,40 +752,36 @@
 
     <!-- Modals -->
     
-    <!-- Transfer Modal -->
+    <!-- Transfer Modal with Transaction Cost -->
     <div id="transfer-modal-enhanced" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="window.closeModal('transfer-modal-enhanced')"></div>
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('transfer-modal-enhanced')"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6 transform transition-all">
             <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <div class="bg-purple-100 p-2 rounded-full mr-3"><i class="fas fa-exchange-alt text-purple-600"></i></div>
-                Inter-Bank Transfer (Secured)
-                <span class="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">ID: <span id="transfer-idempotency">...</span></span>
+                Inter-Bank Transfer with Fees
             </h3>
             <form id="transfer-form-enhanced" class="space-y-4">
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">From (Sender)</label>
-                        <select id="t-from-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50" required></select>
+                        <select id="t-from-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
                         <div id="t-from-balance-enhanced" class="text-xs text-gray-500 mt-1"></div>
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-gray-500 mb-1">To (Receiver)</label>
-                        <select id="t-to-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50" required></select>
+                        <select id="t-to-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
-                    <input type="number" id="t-amount-enhanced" step="0.01" min="0.01" max="1000000000" 
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="0.00" required>
+                    <input type="number" id="t-amount-enhanced" step="0.01" min="0.01" max="1000000000" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Description / Ref</label>
-                    <input type="text" id="t-desc-enhanced" maxlength="200"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="Reason for transfer" required>
+                    <input type="text" id="t-desc-enhanced" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="Reason for transfer" required>
                 </div>
                 
+                <!-- Transaction Fee Section -->
                 <div class="border-t border-gray-200 pt-4">
                     <h4 class="text-sm font-medium text-gray-700 mb-3">Transaction Fees</h4>
                     <div class="space-y-3">
@@ -690,9 +795,7 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-gray-500 mb-1">Transaction Fee Amount</label>
-                            <input type="number" id="t-fee-enhanced" step="0.01" min="0" max="10000000" 
-                                   class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                                   placeholder="0.00" value="0.00">
+                            <input type="number" id="t-fee-enhanced" step="0.01" min="0" max="10000000" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" value="0.00" required>
                         </div>
                         <div class="text-xs text-gray-500">
                             <i class="fas fa-info-circle mr-1"></i> This fee will be deducted from the selected party
@@ -700,70 +803,56 @@
                     </div>
                 </div>
                 
-                <input type="hidden" id="transfer-idempotency-key">
-                <button type="submit" class="w-full bg-purple-600 text-white py-2.5 rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200">
-                    Confirm Transfer (Secured)
-                </button>
+                <button type="submit" class="w-full bg-purple-600 text-white py-2.5 rounded-lg font-medium hover:bg-purple-700 transition-colors shadow-lg shadow-purple-200">Confirm Transfer</button>
             </form>
         </div>
     </div>
 
     <!-- Expense Payment Modal -->
     <div id="expense-payment-modal" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="window.closeModal('expense-payment-modal')"></div>
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('expense-payment-modal')"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <div class="bg-red-100 p-2 rounded-full mr-3"><i class="fas fa-money-check-alt text-red-600"></i></div>
                 Record Expense Payment
-                <span class="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">Audited</span>
             </h3>
             <form id="expense-payment-form" class="space-y-4">
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Source Bank Account</label>
-                    <select id="expense-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50" required></select>
+                    <select id="expense-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
                     <div id="expense-bank-balance" class="text-xs text-gray-500 mt-1"></div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Expense Category</label>
-                    <select id="expense-category" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50" required>
+                    <select id="expense-category" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50">
                         <option value="">Select Category</option>
+                        <!-- Categories will be populated from Excel -->
                     </select>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Custom Recipient (Optional)</label>
-                    <input type="text" id="expense-custom-recipient" maxlength="100"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="Enter custom recipient name">
+                    <input type="text" id="expense-custom-recipient" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="Enter custom recipient name" maxlength="100">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
-                    <input type="number" id="expense-amount" step="0.01" min="0.01" max="1000000000"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="0.00" required>
+                    <input type="number" id="expense-amount" step="0.01" min="0.01" max="1000000000" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                    <input type="text" id="expense-desc" maxlength="200"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="e.g., Office Rent Jan" required>
+                    <input type="text" id="expense-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Office Rent Jan" required maxlength="200">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Transaction Reference</label>
-                    <input type="text" id="expense-reference" maxlength="100"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="e.g., CHQ-12345, MPESA-ABC123">
+                    <input type="text" id="expense-reference" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., CHQ-12345, MPESA-ABC123" maxlength="100">
                 </div>
-                <input type="hidden" id="expense-idempotency-key">
-                <button type="submit" class="w-full bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200">
-                    Record Expense (Secured)
-                </button>
+                <button type="submit" class="w-full bg-red-600 text-white py-2.5 rounded-lg font-medium hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Record Expense</button>
             </form>
         </div>
     </div>
 
     <!-- Credit Transfer Modal -->
     <div id="credit-transfer-modal" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="window.closeModal('credit-transfer-modal')"></div>
+        <div class="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm" onclick="closeModal('credit-transfer-modal')"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto mt-20 p-6">
             <h3 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
                 <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-hand-holding-usd text-blue-600"></i></div>
@@ -772,40 +861,29 @@
             <form id="credit-transfer-form" class="space-y-4">
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Destination Bank Account</label>
-                    <select id="credit-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50" required></select>
+                    <select id="credit-bank" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border bg-gray-50"></select>
                     <div id="credit-bank-balance" class="text-xs text-gray-500 mt-1"></div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Source of Funds</label>
-                    <input type="text" id="credit-source" maxlength="100"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="e.g., Client Payment, Investment, Loan" required>
+                    <input type="text" id="credit-source" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Client Payment, Investment, Loan" required maxlength="100">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Amount</label>
                     <div class="flex items-center">
                         <span id="credit-currency-prefix" class="mr-2 text-gray-500">KES</span>
-                        <input type="number" id="credit-amount" step="0.01" min="0.01" max="1000000000"
-                               class="flex-1 border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                               placeholder="0.00" required>
+                        <input type="number" id="credit-amount" step="0.01" min="0.01" max="1000000000" class="flex-1 border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="0.00" required>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                    <input type="text" id="credit-desc" maxlength="200"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="e.g., Payment for services rendered" required>
+                    <input type="text" id="credit-desc" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., Payment for services rendered" required maxlength="200">
                 </div>
                 <div>
                     <label class="block text-xs font-medium text-gray-500 mb-1">Reference Number</label>
-                    <input type="text" id="credit-reference" maxlength="100"
-                           class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" 
-                           placeholder="e.g., INV-12345, MPESA-ABC123">
+                    <input type="text" id="credit-reference" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-green-500 focus:ring-green-500 text-sm p-2.5 border" placeholder="e.g., INV-12345, MPESA-ABC123" maxlength="100">
                 </div>
-                <input type="hidden" id="credit-idempotency-key">
-                <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
-                    Credit Bank Account (Secured)
-                </button>
+                <button type="submit" class="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">Credit Bank Account</button>
             </form>
         </div>
     </div>
@@ -814,58 +892,26 @@
     <div id="login-modal" class="fixed inset-0 z-[100] hidden">
         <div class="absolute inset-0 bg-black bg-opacity-60 backdrop-blur-sm"></div>
         <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full mx-auto mt-32 p-8">
-            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Secure Login</h2>
+            <h2 class="text-2xl font-bold text-center mb-6 text-gray-800">Welcome Back</h2>
             <div class="space-y-4">
-                <input type="email" id="l-email" placeholder="Email" 
-                       class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition">
-                <input type="password" id="l-password" placeholder="Password" 
-                       class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition">
-                <div class="flex items-center mb-4">
-                    <input type="checkbox" id="remember-session" class="mr-2">
-                    <label for="remember-session" class="text-sm text-gray-600">Remember this device (30 days)</label>
-                </div>
-                <button onclick="window.login()" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-lg">
-                    Sign In with 2FA
-                </button>
+                <input type="email" id="l-email" placeholder="Email" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition">
+                <input type="password" id="l-password" placeholder="Password" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none transition">
+                <button onclick="login()" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold hover:bg-green-700 transition shadow-lg">Sign In</button>
                 <p id="login-error" class="text-red-500 text-sm text-center hidden"></p>
-                <div class="text-center text-xs text-gray-400 mt-4">
-                    <i class="fas fa-shield-alt mr-1"></i> Multi-factor authentication enabled
-                </div>
+                <div class="text-center text-xs text-gray-400 mt-4">Restricted Access • Authorized Personnel Only</div>
             </div>
         </div>
     </div>
 
-    <!-- Reconciliation Report Modal -->
-    <div id="reconciliation-report-modal" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-auto mt-10 p-6 max-h-[80vh] overflow-y-auto">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Reconciliation Report</h2>
-                <button onclick="window.closeModal('reconciliation-report-modal')" class="text-gray-500 hover:text-gray-700 text-2xl">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="reconciliation-report-content"></div>
-        </div>
-    </div>
-
-    <!-- Security Report Modal -->
-    <div id="security-report-modal" class="fixed inset-0 z-[100] hidden">
-        <div class="absolute inset-0 bg-black bg-opacity-50"></div>
-        <div class="relative bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-auto mt-10 p-6">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-2xl font-bold text-gray-800">Security Audit Report</h2>
-                <button onclick="window.closeModal('security-report-modal')" class="text-gray-500 hover:text-gray-700 text-2xl">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div id="security-report-content"></div>
-        </div>
-    </div>
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <!-- html2pdf for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     
-    <script src="production-script.js"></script>
+    <!-- DOMPurify for XSS protection -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.5/purify.min.js"></script>
+    
+    <script src="script.js"></script>
 </body>
 </html>
