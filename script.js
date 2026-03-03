@@ -37,7 +37,6 @@ let state = {
     lastSyncTime: null,
     systemReady: false,
     isBankPinVerified: false,
-    // REMOVED: Hardcoded PIN - now using Firestore-stored PIN
     processedTransactions: new Set(),
     openingBalanceTimestamps: {},
     bankDetails: [],
@@ -47,9 +46,18 @@ let state = {
     chartInstance: null, // Chart.js instance
     transactionLock: false, // For preventing race conditions
     idempotencyKeys: new Set(), // Prevent duplicate transactions
-    balanceVerification: {} // Store verification results
-     // Track open modals to prevent dropdown refresh
-    openModals: new Set(),
+    balanceVerification: {}, // Store verification results
+    
+    // PIN Management State
+    pinManagement: {
+        currentPin: '',
+        newPin: '',
+        confirmPin: '',
+        mode: 'create'
+    },
+    
+    // ===== FIXED: Add these properties correctly =====
+    openModals: new Set(), // Track open modals to prevent dropdown refresh
     lastSelection: {
         transferFrom: null,
         transferTo: null,
@@ -551,12 +559,12 @@ function toggleLoginModal() {
 }
 
 // PIN Management State
-let pinManagementState = {
-    currentPin: '',
-    newPin: '',
-    confirmPin: '',
-    mode: 'create' // 'create' or 'change'
-};
+//let pinManagementState = {
+    //currentPin: '',
+   // newPin: '',
+  //  confirmPin: '',
+    //mode: 'create' // 'create' or 'change'
+//};
 
 // PIN dot indicators
 function updatePinDots(value) {
@@ -570,6 +578,8 @@ function updatePinDots(value) {
     }
 }
 
+// Update these functions:
+
 function updateCreatePinDots(value) {
     const dots = document.querySelectorAll('#create-pin-dots .pin-dot');
     for (let i = 0; i < 4; i++) {
@@ -579,7 +589,7 @@ function updateCreatePinDots(value) {
             dots[i].className = 'pin-dot pin-dot-inactive';
         }
     }
-    pinManagementState.newPin = value;
+    state.pinManagement.newPin = value; // Changed from pinManagementState
 }
 
 function updateConfirmPinDots(value) {
@@ -591,7 +601,7 @@ function updateConfirmPinDots(value) {
             dots[i].className = 'pin-dot pin-dot-inactive';
         }
     }
-    pinManagementState.confirmPin = value;
+    state.pinManagement.confirmPin = value; // Changed from pinManagementState
 }
 
 function updateCurrentPinDots(value) {
@@ -603,7 +613,7 @@ function updateCurrentPinDots(value) {
             dots[i].className = 'pin-dot pin-dot-inactive';
         }
     }
-    pinManagementState.currentPin = value;
+    state.pinManagement.currentPin = value; // Changed from pinManagementState
 }
 
 function updateChangeNewPinDots(value) {
@@ -615,7 +625,7 @@ function updateChangeNewPinDots(value) {
             dots[i].className = 'pin-dot pin-dot-inactive';
         }
     }
-    pinManagementState.newPin = value;
+    state.pinManagement.newPin = value; // Changed from pinManagementState
 }
 
 function updateChangeConfirmPinDots(value) {
@@ -627,12 +637,11 @@ function updateChangeConfirmPinDots(value) {
             dots[i].className = 'pin-dot pin-dot-inactive';
         }
     }
-    pinManagementState.confirmPin = value;
+    state.pinManagement.confirmPin = value; // Changed from pinManagementState
 }
 
-// Switch between PIN tabs
 function switchPinTab(tab) {
-    pinManagementState.mode = tab;
+    state.pinManagement.mode = tab; // Changed from pinManagementState
     
     // Update tab styles
     document.getElementById('tab-create').classList.toggle('active', tab === 'create');
@@ -659,10 +668,9 @@ function switchPinTab(tab) {
     document.getElementById('change-pin-error').classList.add('hidden');
 }
 
-// Show PIN Management Modal
 function showPinManagementModal() {
     // Reset state
-    pinManagementState = {
+    state.pinManagement = { // Changed from pinManagementState
         currentPin: '',
         newPin: '',
         confirmPin: '',
@@ -695,36 +703,30 @@ function showPinManagementModal() {
     document.getElementById('pin-management-modal').classList.remove('hidden');
 }
 
-// Close PIN Management Modal
-function closePinManagementModal() {
-    document.getElementById('pin-management-modal').classList.add('hidden');
-}
-
-// Create new PIN
 async function createNewPin() {
     const errorEl = document.getElementById('create-pin-error');
     
     // Validate PINs
-    if (!pinManagementState.newPin || pinManagementState.newPin.length !== 4) {
+    if (!state.pinManagement.newPin || state.pinManagement.newPin.length !== 4) { // Changed
         errorEl.textContent = 'Please enter a 4-digit PIN';
         errorEl.classList.remove('hidden');
         return;
     }
     
-    if (!pinManagementState.confirmPin || pinManagementState.confirmPin.length !== 4) {
+    if (!state.pinManagement.confirmPin || state.pinManagement.confirmPin.length !== 4) { // Changed
         errorEl.textContent = 'Please confirm your PIN';
         errorEl.classList.remove('hidden');
         return;
     }
     
-    if (pinManagementState.newPin !== pinManagementState.confirmPin) {
+    if (state.pinManagement.newPin !== state.pinManagement.confirmPin) { // Changed
         errorEl.textContent = 'PINs do not match';
         errorEl.classList.remove('hidden');
         return;
     }
     
     // Validate that it's numeric
-    if (!/^\d+$/.test(pinManagementState.newPin)) {
+    if (!/^\d+$/.test(state.pinManagement.newPin)) { // Changed
         errorEl.textContent = 'PIN must contain only numbers';
         errorEl.classList.remove('hidden');
         return;
@@ -734,7 +736,7 @@ async function createNewPin() {
     
     try {
         // Simple hash for demo - in production use proper bcrypt via Cloud Function
-        const pinHash = btoa(pinManagementState.newPin);
+        const pinHash = btoa(state.pinManagement.newPin); // Changed
         
         // Store in Firestore
         await db.collection('systemSettings').doc('bankPin').set({
@@ -764,45 +766,44 @@ async function createNewPin() {
     }
 }
 
-// Change existing PIN
 async function changeExistingPin() {
     const errorEl = document.getElementById('change-pin-error');
     
     // Validate current PIN
-    if (!pinManagementState.currentPin || pinManagementState.currentPin.length !== 4) {
+    if (!state.pinManagement.currentPin || state.pinManagement.currentPin.length !== 4) { // Changed
         errorEl.textContent = 'Please enter your current PIN';
         errorEl.classList.remove('hidden');
         return;
     }
     
     // Validate new PIN
-    if (!pinManagementState.newPin || pinManagementState.newPin.length !== 4) {
+    if (!state.pinManagement.newPin || state.pinManagement.newPin.length !== 4) { // Changed
         errorEl.textContent = 'Please enter a new 4-digit PIN';
         errorEl.classList.remove('hidden');
         return;
     }
     
-    if (!pinManagementState.confirmPin || pinManagementState.confirmPin.length !== 4) {
+    if (!state.pinManagement.confirmPin || state.pinManagement.confirmPin.length !== 4) { // Changed
         errorEl.textContent = 'Please confirm your new PIN';
         errorEl.classList.remove('hidden');
         return;
     }
     
-    if (pinManagementState.newPin !== pinManagementState.confirmPin) {
+    if (state.pinManagement.newPin !== state.pinManagement.confirmPin) { // Changed
         errorEl.textContent = 'New PINs do not match';
         errorEl.classList.remove('hidden');
         return;
     }
     
     // Validate that PINs are numeric
-    if (!/^\d+$/.test(pinManagementState.currentPin) || !/^\d+$/.test(pinManagementState.newPin)) {
+    if (!/^\d+$/.test(state.pinManagement.currentPin) || !/^\d+$/.test(state.pinManagement.newPin)) { // Changed
         errorEl.textContent = 'PINs must contain only numbers';
         errorEl.classList.remove('hidden');
         return;
     }
     
     // Don't allow same PIN
-    if (pinManagementState.currentPin === pinManagementState.newPin) {
+    if (state.pinManagement.currentPin === state.pinManagement.newPin) { // Changed
         errorEl.textContent = 'New PIN must be different from current PIN';
         errorEl.classList.remove('hidden');
         return;
@@ -821,7 +822,7 @@ async function changeExistingPin() {
         }
         
         const storedPinHash = pinDoc.data().pinHash;
-        const currentPinHash = btoa(pinManagementState.currentPin);
+        const currentPinHash = btoa(state.pinManagement.currentPin); // Changed
         
         // Verify current PIN
         if (currentPinHash !== storedPinHash) {
@@ -831,7 +832,7 @@ async function changeExistingPin() {
         }
         
         // Store new PIN hash
-        const newPinHash = btoa(pinManagementState.newPin);
+        const newPinHash = btoa(state.pinManagement.newPin); // Changed
         
         await db.collection('systemSettings').doc('bankPin').set({
             pinHash: newPinHash,
