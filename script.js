@@ -387,6 +387,9 @@ async function verifyBankAccessPin() {
             
             showToast("Bank management unlocked successfully!", "success");
             await addAuditLog('PIN_VERIFICATION_SUCCESS', { method: 'bank_access' });
+
+              // Show PIN manage button in header (in case it wasn't already visible)
+    document.getElementById('pin-manage-btn')?.classList.remove('hidden');
             
             // Initialize bank system if user is logged in
             if (state.user) {
@@ -442,7 +445,9 @@ auth.onAuthStateChanged(user => {
         if (content) {
             content.classList.add('hidden');
         }
-        
+
+        // Show PIN manage button in header (visible even before PIN verification)
+        document.getElementById('pin-manage-btn')?.classList.remove('hidden');
         // Update system status
         updateSystemStatus(true);
         showToast(`Welcome back, ${user.email.split('@')[0]}!`, "success");
@@ -472,7 +477,9 @@ auth.onAuthStateChanged(user => {
         if (content) {
             content.classList.add('hidden');
         }
-        
+
+        // Hide PIN manage button when logged out
+        document.getElementById('pin-manage-btn')?.classList.add('hidden');
         // Update system status
         updateSystemStatus(false);
         
@@ -531,6 +538,403 @@ function toggleLoginModal() {
     const modal = document.getElementById('login-modal');
     if (modal) {
         modal.classList.toggle('hidden');
+    }
+}
+
+// PIN Management State
+let pinManagementState = {
+    currentPin: '',
+    newPin: '',
+    confirmPin: '',
+    mode: 'create' // 'create' or 'change'
+};
+
+// PIN dot indicators
+function updatePinDots(value) {
+    const dots = document.querySelectorAll('#pin-dots .pin-dot');
+    for (let i = 0; i < 4; i++) {
+        if (i < value.length) {
+            dots[i].className = 'pin-dot pin-dot-active';
+        } else {
+            dots[i].className = 'pin-dot pin-dot-inactive';
+        }
+    }
+}
+
+function updateCreatePinDots(value) {
+    const dots = document.querySelectorAll('#create-pin-dots .pin-dot');
+    for (let i = 0; i < 4; i++) {
+        if (i < value.length) {
+            dots[i].className = 'pin-dot pin-dot-active';
+        } else {
+            dots[i].className = 'pin-dot pin-dot-inactive';
+        }
+    }
+    pinManagementState.newPin = value;
+}
+
+function updateConfirmPinDots(value) {
+    const dots = document.querySelectorAll('#confirm-pin-dots .pin-dot');
+    for (let i = 0; i < 4; i++) {
+        if (i < value.length) {
+            dots[i].className = 'pin-dot pin-dot-active';
+        } else {
+            dots[i].className = 'pin-dot pin-dot-inactive';
+        }
+    }
+    pinManagementState.confirmPin = value;
+}
+
+function updateCurrentPinDots(value) {
+    const dots = document.querySelectorAll('#current-pin-dots .pin-dot');
+    for (let i = 0; i < 4; i++) {
+        if (i < value.length) {
+            dots[i].className = 'pin-dot pin-dot-active';
+        } else {
+            dots[i].className = 'pin-dot pin-dot-inactive';
+        }
+    }
+    pinManagementState.currentPin = value;
+}
+
+function updateChangeNewPinDots(value) {
+    const dots = document.querySelectorAll('#change-new-pin-dots .pin-dot');
+    for (let i = 0; i < 4; i++) {
+        if (i < value.length) {
+            dots[i].className = 'pin-dot pin-dot-active';
+        } else {
+            dots[i].className = 'pin-dot pin-dot-inactive';
+        }
+    }
+    pinManagementState.newPin = value;
+}
+
+function updateChangeConfirmPinDots(value) {
+    const dots = document.querySelectorAll('#change-confirm-pin-dots .pin-dot');
+    for (let i = 0; i < 4; i++) {
+        if (i < value.length) {
+            dots[i].className = 'pin-dot pin-dot-active';
+        } else {
+            dots[i].className = 'pin-dot pin-dot-inactive';
+        }
+    }
+    pinManagementState.confirmPin = value;
+}
+
+// Switch between PIN tabs
+function switchPinTab(tab) {
+    pinManagementState.mode = tab;
+    
+    // Update tab styles
+    document.getElementById('tab-create').classList.toggle('active', tab === 'create');
+    document.getElementById('tab-change').classList.toggle('active', tab === 'change');
+    
+    // Show/hide forms
+    document.getElementById('create-pin-form').classList.toggle('hidden', tab !== 'create');
+    document.getElementById('change-pin-form').classList.toggle('hidden', tab !== 'change');
+    
+    // Clear all inputs
+    document.querySelectorAll('#create-pin-form input, #change-pin-form input').forEach(input => {
+        input.value = '';
+    });
+    
+    // Reset dots
+    updateCreatePinDots('');
+    updateConfirmPinDots('');
+    updateCurrentPinDots('');
+    updateChangeNewPinDots('');
+    updateChangeConfirmPinDots('');
+    
+    // Hide error messages
+    document.getElementById('create-pin-error').classList.add('hidden');
+    document.getElementById('change-pin-error').classList.add('hidden');
+}
+
+// Show PIN Management Modal
+function showPinManagementModal() {
+    // Reset state
+    pinManagementState = {
+        currentPin: '',
+        newPin: '',
+        confirmPin: '',
+        mode: 'create'
+    };
+    
+    // Reset UI
+    document.getElementById('tab-create').classList.add('active');
+    document.getElementById('tab-change').classList.remove('active');
+    document.getElementById('create-pin-form').classList.remove('hidden');
+    document.getElementById('change-pin-form').classList.add('hidden');
+    
+    // Clear all inputs
+    document.querySelectorAll('#create-pin-form input, #change-pin-form input').forEach(input => {
+        input.value = '';
+    });
+    
+    // Reset dots
+    updateCreatePinDots('');
+    updateConfirmPinDots('');
+    updateCurrentPinDots('');
+    updateChangeNewPinDots('');
+    updateChangeConfirmPinDots('');
+    
+    // Hide error messages
+    document.getElementById('create-pin-error').classList.add('hidden');
+    document.getElementById('change-pin-error').classList.add('hidden');
+    
+    // Show modal
+    document.getElementById('pin-management-modal').classList.remove('hidden');
+}
+
+// Close PIN Management Modal
+function closePinManagementModal() {
+    document.getElementById('pin-management-modal').classList.add('hidden');
+}
+
+// Create new PIN
+async function createNewPin() {
+    const errorEl = document.getElementById('create-pin-error');
+    
+    // Validate PINs
+    if (!pinManagementState.newPin || pinManagementState.newPin.length !== 4) {
+        errorEl.textContent = 'Please enter a 4-digit PIN';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    if (!pinManagementState.confirmPin || pinManagementState.confirmPin.length !== 4) {
+        errorEl.textContent = 'Please confirm your PIN';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    if (pinManagementState.newPin !== pinManagementState.confirmPin) {
+        errorEl.textContent = 'PINs do not match';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    // Validate that it's numeric
+    if (!/^\d+$/.test(pinManagementState.newPin)) {
+        errorEl.textContent = 'PIN must contain only numbers';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    showLoading(true, 'Creating PIN...');
+    
+    try {
+        // Simple hash for demo - in production use proper bcrypt via Cloud Function
+        const pinHash = btoa(pinManagementState.newPin);
+        
+        // Store in Firestore
+        await db.collection('systemSettings').doc('bankPin').set({
+            pinHash: pinHash,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: state.user?.email || 'system'
+        }, { merge: true });
+        
+        // Add audit log
+        await addAuditLog('PIN_CREATED', { 
+            createdBy: state.user?.email || 'system'
+        });
+        
+        showToast('PIN created successfully!', 'success');
+        closePinManagementModal();
+        
+        // Clear PIN input on access gate
+        document.getElementById('bank-access-code').value = '';
+        updatePinDots('');
+        
+    } catch (error) {
+        console.error('PIN creation error:', error);
+        errorEl.textContent = 'Failed to create PIN: ' + error.message;
+        errorEl.classList.remove('hidden');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Change existing PIN
+async function changeExistingPin() {
+    const errorEl = document.getElementById('change-pin-error');
+    
+    // Validate current PIN
+    if (!pinManagementState.currentPin || pinManagementState.currentPin.length !== 4) {
+        errorEl.textContent = 'Please enter your current PIN';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    // Validate new PIN
+    if (!pinManagementState.newPin || pinManagementState.newPin.length !== 4) {
+        errorEl.textContent = 'Please enter a new 4-digit PIN';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    if (!pinManagementState.confirmPin || pinManagementState.confirmPin.length !== 4) {
+        errorEl.textContent = 'Please confirm your new PIN';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    if (pinManagementState.newPin !== pinManagementState.confirmPin) {
+        errorEl.textContent = 'New PINs do not match';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    // Validate that PINs are numeric
+    if (!/^\d+$/.test(pinManagementState.currentPin) || !/^\d+$/.test(pinManagementState.newPin)) {
+        errorEl.textContent = 'PINs must contain only numbers';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    // Don't allow same PIN
+    if (pinManagementState.currentPin === pinManagementState.newPin) {
+        errorEl.textContent = 'New PIN must be different from current PIN';
+        errorEl.classList.remove('hidden');
+        return;
+    }
+    
+    showLoading(true, 'Changing PIN...');
+    
+    try {
+        // Get current PIN hash from Firestore
+        const pinDoc = await db.collection('systemSettings').doc('bankPin').get();
+        
+        if (!pinDoc.exists) {
+            errorEl.textContent = 'No PIN configured. Please create a PIN first.';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        
+        const storedPinHash = pinDoc.data().pinHash;
+        const currentPinHash = btoa(pinManagementState.currentPin);
+        
+        // Verify current PIN
+        if (currentPinHash !== storedPinHash) {
+            errorEl.textContent = 'Current PIN is incorrect';
+            errorEl.classList.remove('hidden');
+            return;
+        }
+        
+        // Store new PIN hash
+        const newPinHash = btoa(pinManagementState.newPin);
+        
+        await db.collection('systemSettings').doc('bankPin').set({
+            pinHash: newPinHash,
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp(),
+            updatedBy: state.user?.email || 'system',
+            previousHash: storedPinHash // Store previous hash for audit trail
+        }, { merge: true });
+        
+        // Add audit log
+        await addAuditLog('PIN_CHANGED', { 
+            changedBy: state.user?.email || 'system'
+        });
+        
+        showToast('PIN changed successfully!', 'success');
+        closePinManagementModal();
+        
+        // Clear PIN input on access gate
+        document.getElementById('bank-access-code').value = '';
+        updatePinDots('');
+        
+    } catch (error) {
+        console.error('PIN change error:', error);
+        errorEl.textContent = 'Failed to change PIN: ' + error.message;
+        errorEl.classList.remove('hidden');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// Update the verifyBankAccessPin function to use Firestore-stored PIN
+async function verifyBankAccessPin() {
+    const pinInput = document.getElementById('bank-access-code');
+    const errorEl = document.getElementById('pin-error-message');
+    if (!pinInput) return;
+    
+    const pin = pinInput.value;
+    
+    if (!pin || pin.length !== 4 || !/^\d+$/.test(pin)) {
+        if (errorEl) {
+            errorEl.textContent = 'Please enter a valid 4-digit PIN';
+            errorEl.classList.remove('hidden');
+        }
+        return;
+    }
+    
+    showLoading(true, 'Verifying PIN...');
+    
+    try {
+        // Get user-specific PIN from Firestore
+        const pinDoc = await db.collection('systemSettings').doc('bankPin').get();
+        
+        let storedPinHash = null;
+        if (pinDoc.exists) {
+            storedPinHash = pinDoc.data().pinHash;
+        }
+        
+        // If no PIN is set, prompt user to create one
+        if (!storedPinHash) {
+            showToast('No PIN configured. Please create a PIN first.', 'warning');
+            if (errorEl) {
+                errorEl.textContent = 'No PIN configured. Click "Manage PIN" to create one.';
+                errorEl.classList.remove('hidden');
+            }
+            showPinManagementModal();
+            return;
+        }
+        
+        // Simple hash for demo - in production use proper bcrypt via Cloud Function
+        const inputHash = btoa(pin);
+        
+        if (inputHash === storedPinHash) {
+            state.isBankPinVerified = true;
+            
+            // Hide the gate and show bank management content
+            const gate = document.getElementById('bank-access-gate');
+            const content = document.getElementById('bank-management-content');
+            
+            if (gate) {
+                gate.style.display = 'none';
+            }
+            if (content) {
+                content.classList.remove('hidden');
+            }
+            
+            if (errorEl) errorEl.classList.add('hidden');
+            
+            showToast("Bank management unlocked successfully!", "success");
+            await addAuditLog('PIN_VERIFICATION_SUCCESS', { method: 'bank_access' });
+            
+            // Show PIN manage button in header
+            document.getElementById('pin-manage-btn')?.classList.remove('hidden');
+            
+            // Initialize bank system if user is logged in
+            if (state.user) {
+                initApp();
+            }
+        } else {
+            showToast("Invalid PIN. Please try again.", "error");
+            if (errorEl) {
+                errorEl.textContent = 'Invalid PIN';
+                errorEl.classList.remove('hidden');
+            }
+            pinInput.value = '';
+            updatePinDots('');
+            pinInput.focus();
+            await addAuditLog('PIN_VERIFICATION_FAILED', { method: 'bank_access' }, 'failure');
+        }
+    } catch (error) {
+        console.error('PIN verification error:', error);
+        showToast('Error verifying PIN: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
@@ -3573,3 +3977,14 @@ window.closeWithdrawalModalEnhanced = closeWithdrawalModalEnhanced;
 window.toggleAutoRefresh = toggleAutoRefresh;
 window.refreshData = refreshData;
 window.verifyAllBalances = verifyAllBalances;
+window.showPinManagementModal = showPinManagementModal;
+window.closePinManagementModal = closePinManagementModal;
+window.createNewPin = createNewPin;
+window.changeExistingPin = changeExistingPin;
+window.switchPinTab = switchPinTab;
+window.updatePinDots = updatePinDots;
+window.updateCreatePinDots = updateCreatePinDots;
+window.updateConfirmPinDots = updateConfirmPinDots;
+window.updateCurrentPinDots = updateCurrentPinDots;
+window.updateChangeNewPinDots = updateChangeNewPinDots;
+window.updateChangeConfirmPinDots = updateChangeConfirmPinDots;
