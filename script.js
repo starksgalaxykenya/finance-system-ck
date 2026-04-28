@@ -704,7 +704,15 @@ function showPinManagementModal() {
     document.getElementById('change-pin-error').classList.add('hidden');
     
     // Show modal
+    // Show modal
     document.getElementById('pin-management-modal').classList.remove('hidden');
+}
+
+function closePinManagementModal() {
+    const modal = document.getElementById('pin-management-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
 }
 
 async function createNewPin() {
