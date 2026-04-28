@@ -165,7 +165,7 @@ function showToast(message, type = 'info') {
     }, 5000);
 }
 
-function validateAmount(amount, bank = null, isFee = false) {
+function validateAmount(amount, bank = null, isFee = false, checkBalance = false) {
     // Check if amount exists and is a number
     if (amount === null || amount === undefined || isNaN(amount)) {
         throw new Error('Invalid amount: must be a number');
@@ -190,10 +190,8 @@ function validateAmount(amount, bank = null, isFee = false) {
         throw new Error('Amount can have at most 2 decimal places');
     }
     
-    // If bank provided, check balance for withdrawals/expenses (but not for credits/receipts)
-    if (bank && (arguments.callee.caller.name?.includes('expense') || 
-                 arguments.callee.caller.name?.includes('withdrawal') ||
-                 arguments.callee.caller.name?.includes('transfer'))) {
+    // If bank provided and checkBalance is explicitly true, verify sufficient funds
+    if (bank && checkBalance) {
         const currentBalance = state.balances[bank.id] || 0;
         if (currentBalance < numAmount) {
             throw new Error(`Insufficient funds. Available: ${formatCurrency(currentBalance, bank.currency)}`);
@@ -202,7 +200,6 @@ function validateAmount(amount, bank = null, isFee = false) {
     
     return parseFloat(numAmount.toFixed(2));
 }
-
 function generateIdempotencyKey(operation, params) {
     const str = `${operation}_${JSON.stringify(params)}_${Date.now()}_${Math.random()}`;
     let hash = 0;
@@ -676,6 +673,13 @@ function showPinManagementModal() {
         confirmPin: '',
         mode: 'create'
     };
+
+    function closePinManagementModal() {
+    const modal = document.getElementById('pin-management-modal');
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+}
     
     // Reset UI
     document.getElementById('tab-create').classList.add('active');
@@ -1217,11 +1221,25 @@ async function processReceiptPayments() {
                 continue;
             }
                     
-            // Find matching bank
-            const targetBank = state.banks.find(bank => 
-                bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
-                bankName.toLowerCase().includes(bank.name.toLowerCase())
-            );
+            // Find matching bank — must match both name AND currency
+            const receiptCurrency = isUSD ? 'USD' : 'KES';
+            let targetBank = state.banks.find(bank => {
+                const nameMatches = bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
+                                    bankName.toLowerCase().includes(bank.name.toLowerCase());
+                const currencyMatches = bank.currency === receiptCurrency;
+                return nameMatches && currencyMatches;
+            });
+            
+            // Fallback: if no currency-exact match, try name-only match
+            if (!targetBank) {
+                targetBank = state.banks.find(bank => 
+                    bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
+                    bankName.toLowerCase().includes(bank.name.toLowerCase())
+                );
+                if (targetBank) {
+                    console.warn(`Currency mismatch for receipt ${transactionId}: expected ${receiptCurrency}, matched ${targetBank.currency} account of ${targetBank.name}`);
+                }
+            }
                     
             if (!targetBank) {
                 console.warn(`No matching bank found for: ${bankName}`);
@@ -1234,9 +1252,9 @@ async function processReceiptPayments() {
             const receiptDate = data.paymentDate || data.createdAt || new Date();
             const receiptDateTime = new Date(receiptDate).getTime();
             
-            // Check opening balance cutoff for this bank
-            const bankNameForOpening = targetBank.name;
-            const openingConfig = state.openingBalanceTimestamps[bankNameForOpening] || 
+            // Check opening balance cutoff for this bank (id-keyed first, name-keyed as legacy fallback)
+            const openingConfig = state.openingBalanceTimestamps[targetBank.id] ||
+                                 state.openingBalanceTimestamps[targetBank.name] ||
                                  (targetBank.openingBalanceConfig ? {
                                      timestamp: targetBank.openingBalanceConfig.dateString,
                                      balance: targetBank.openingBalanceConfig.amount
@@ -1467,11 +1485,13 @@ function calculateBalances() {
         let cutoffDateTime = null;
         let startBalance = 0;
         
-        // Check for opening balance configuration from timestamps
-        if (state.openingBalanceTimestamps[bank.name]) {
-            startBalance = state.openingBalanceTimestamps[bank.name].balance || 0;
-            if (state.openingBalanceTimestamps[bank.name].timestamp) {
-                cutoffDateTime = new Date(state.openingBalanceTimestamps[bank.name].timestamp).getTime();
+        // Check for opening balance configuration from timestamps (id-keyed first, name-keyed as legacy fallback)
+        const openingTimestamp = state.openingBalanceTimestamps[bank.id] || 
+                                 state.openingBalanceTimestamps[bank.name];
+        if (openingTimestamp) {
+            startBalance = openingTimestamp.balance || 0;
+            if (openingTimestamp.timestamp) {
+                cutoffDateTime = new Date(openingTimestamp.timestamp).getTime();
             }
         }
         // Fallback to bankDetails openingBalanceConfig
@@ -1580,11 +1600,14 @@ async function verifyAllBalances(showNotification = true) {
             let cutoffDateTime = null;
             
             // Get opening balance info
-            if (state.openingBalanceTimestamps[bank.name]) {
-                calculatedBalance = state.openingBalanceTimestamps[bank.name].balance || 0;
-                if (state.openingBalanceTimestamps[bank.name].timestamp) {
-                    cutoffDateTime = new Date(state.openingBalanceTimestamps[bank.name].timestamp).getTime();
+            const openingTs = state.openingBalanceTimestamps[bank.id] || 
+                              state.openingBalanceTimestamps[bank.name];
+            if (openingTs) {
+                calculatedBalance = openingTs.balance || 0;
+                if (openingTs.timestamp) {
+                    cutoffDateTime = new Date(openingTs.timestamp).getTime();
                 }
+        
             } else if (bank.openingBalanceConfig && bank.openingBalanceConfig.amount) {
                 calculatedBalance = parseFloat(bank.openingBalanceConfig.amount) || 0;
                 if (bank.openingBalanceConfig.dateString) {
@@ -1971,7 +1994,7 @@ document.getElementById('expense-payment-form')?.addEventListener('submit', asyn
     // Validate amount
     let amount;
     try {
-        amount = validateAmount(amountInput, bank);
+        amount = validateAmount(amountInput, bank, false, true);
     } catch (error) {
         showToast(error.message, 'error');
         return;
@@ -2078,12 +2101,10 @@ function renderDashboard() {
         const iconClass = isUSD ? 'text-blue-500' : 'text-green-500';
         const balanceClass = balance >= 0 ? 'text-gray-900' : 'text-red-600';
         
-        // Check if opening balance is set via timestamps
-        const hasOpeningTimestamp = !!state.openingBalanceTimestamps[bank.name];
-        const openingBalance = hasOpeningTimestamp ? 
-            state.openingBalanceTimestamps[bank.name].balance : 
-            (bank.openingBalanceConfig?.amount || 0);
-        
+        // Check if opening balance is set via timestamps (id-keyed first, name-keyed as legacy fallback)
+        const openingTs = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
+        const hasOpeningTimestamp = !!openingTs;
+        const openingBalance = hasOpeningTimestamp ? openingTs.balance : (bank.openingBalanceConfig?.amount || 0);
         // Calculate credits and debits for this bank
         const bankTransactions = state.ledger.filter(tx => 
             tx.bankId === bank.id || tx.toBankId === bank.id
@@ -3135,7 +3156,8 @@ function showAllBanksSummary() {
     sortedBanks.forEach(bank => {
         const balance = state.balances[bank.id] || 0;
         const currencySymbol = bank.currency === 'USD' ? '$' : 'KES ';
-        const openingBalance = state.openingBalanceTimestamps[bank.name]?.balance || bank.openingBalanceConfig?.amount || 0;
+        const _openingTs = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
+        const openingBalance = _openingTs?.balance || bank.openingBalanceConfig?.amount || 0;
         
         // Calculate credits and debits for this bank
         const bankTransactions = state.ledger.filter(tx => 
@@ -3160,8 +3182,9 @@ function showAllBanksSummary() {
         summary += `  Total Credits: ${currencySymbol}${formatNumber(totalCredits)}\n`;
         summary += `  Total Debits: ${currencySymbol}${formatNumber(totalDebits)}\n`;
         
-        if (state.openingBalanceTimestamps[bank.name]) {
-            summary += `  Opening Set: ${new Date(state.openingBalanceTimestamps[bank.name].timestamp).toLocaleDateString()}\n`;
+        const _ts = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
+        if (_ts) {
+            summary += `  Opening Set: ${new Date(_ts.timestamp).toLocaleDateString()}\n`;
         } else {
             summary += `  Opening Set: Not configured\n`;
         }
@@ -3508,7 +3531,9 @@ function openOpeningModal(bankId) {
     // Fill details
     const detailsContainer = document.getElementById('opening-balance-details-enhanced');
     const currentBalance = state.balances[bankId] || 0;
-    const openingBalance = state.openingBalanceTimestamps[bank.name]?.balance || bank.openingBalanceConfig?.amount || 0;
+    const openingBalance = state.openingBalanceTimestamps[bank.id]?.balance || 
+                       state.openingBalanceTimestamps[bank.name]?.balance || // legacy fallback
+                       bank.openingBalanceConfig?.amount || 0;
     
     detailsContainer.innerHTML = `
         <div class="space-y-2">
@@ -3574,14 +3599,16 @@ function openOpeningModal(bankId) {
         showLoading(true, 'Setting opening balance...');
         
         try {
-            // Store in openingBalanceTimestamps
-            state.openingBalanceTimestamps[bank.name] = {
-                balance: amount,
-                timestamp: timestamp.toISOString(), // Store as ISO string
-                updatedBy: state.user?.email || 'Anonymous',
-                updatedAt: new Date().toISOString(),
-                notes: notes || ''
-            };
+            // Store in openingBalanceTimestamps — keyed by bank.id to isolate KES/USD accounts
+state.openingBalanceTimestamps[bank.id] = {
+    balance: amount,
+    timestamp: timestamp.toISOString(),
+    updatedBy: state.user?.email || 'Anonymous',
+    updatedAt: new Date().toISOString(),
+    notes: notes || '',
+    bankName: bank.name,
+    currency: bank.currency
+};
             
             // Save to processed transactions
             await saveProcessedTransactions();
@@ -3780,7 +3807,7 @@ function openWithdrawalModal(bankId) {
         // Validate amount
         let amount;
         try {
-            amount = validateAmount(amountInput, bank);
+            amount = validateAmount(amountInput, bank, false, true);
         } catch (error) {
             showToast(error.message, 'error');
             return;
