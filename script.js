@@ -1295,7 +1295,7 @@ async function processReceiptPayments() {
                 
                 // Skip if receipt is BEFORE opening balance cutoff date/time
                 if (receiptDateTime < cutoffDateTime) {
-                    console.log(`Skipping receipt ${doc.id} (${new Date(receiptDate)}) before opening balance cutoff (${new Date(cutoffDateTime)}) for bank ${bankNameForOpening}`);
+                    console.log(`Skipping receipt ${doc.id} (${new Date(receiptDate)}) before opening balance cutoff (${new Date(cutoffDateTime)}) for bank ${targetBank.name}`);
                     // Still mark as processed so we don't try again
                     state.processedTransactions.add(transactionId);
                     await saveProcessedTransactions();
