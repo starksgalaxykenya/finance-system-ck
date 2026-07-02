@@ -439,23 +439,33 @@
                 <div class="lg:w-2/3">
                     <!-- Tabs Navigation -->
                     <div class="bg-white rounded-2xl shadow-lg overflow-hidden mb-8">
-                        <div class="flex border-b border-gray-200">
-                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all active"
+                        <div class="overflow-x-auto">
+                        <div class="flex border-b border-gray-200 min-w-max">
+                            <button class="custom-tab py-3 px-5 text-sm font-semibold text-gray-600 hover:text-green-600 transition-all active whitespace-nowrap"
                                     onclick="openTab(event, 'dashboard')">
-                                <i class="fas fa-university mr-2"></i>🏦 Bank Dashboard
+                                <i class="fas fa-university mr-1"></i>🏦 Banks
                             </button>
-                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
+                            <button class="custom-tab py-3 px-5 text-sm font-semibold text-gray-600 hover:text-green-600 transition-all whitespace-nowrap"
                                     onclick="openTab(event, 'ledger-history')">
-                                <i class="fas fa-history mr-2"></i>📋 Ledger History
+                                <i class="fas fa-history mr-1"></i>📋 Ledger
                             </button>
-                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
+                            <button class="custom-tab py-3 px-5 text-sm font-semibold text-gray-600 hover:text-green-600 transition-all whitespace-nowrap"
                                     onclick="openTab(event, 'expense-categories')">
-                                <i class="fas fa-chart-pie mr-2"></i>💰 Expense Categories
+                                <i class="fas fa-chart-pie mr-1"></i>💰 Expenses
                             </button>
-                            <button class="custom-tab flex-1 py-4 px-6 text-lg font-semibold text-gray-600 hover:text-green-600 transition-all"
+                            <button class="custom-tab py-3 px-5 text-sm font-semibold text-gray-600 hover:text-green-600 transition-all whitespace-nowrap"
                                     onclick="openTab(event, 'reports')">
-                                <i class="fas fa-chart-line mr-2"></i>📈 Reports
+                                <i class="fas fa-chart-line mr-1"></i>📈 Reports
                             </button>
+                            <button class="custom-tab py-3 px-5 text-sm font-semibold text-gray-600 hover:text-indigo-600 transition-all whitespace-nowrap"
+                                    onclick="openTab(event, 'accruals')">
+                                <i class="fas fa-file-invoice mr-1"></i>📑 Accruals
+                            </button>
+                            <button class="custom-tab py-3 px-5 text-sm font-semibold text-gray-600 hover:text-purple-600 transition-all whitespace-nowrap"
+                                    onclick="openTab(event, 'summary')">
+                                <i class="fas fa-chart-pie mr-1"></i>📊 Summary
+                            </button>
+                        </div>
                         </div>
 
                         <!-- Tab Content -->
@@ -755,6 +765,27 @@
                                     </div>
                                 </div>
                             </div>
+
+                                            <!-- Accruals Tab -->
+                                            <div id="accruals" class="tab-content">
+                                                <div id="accruals-tab-content" class="space-y-4">
+                                                    <div class="text-center py-16 text-gray-400">
+                                                        <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+                                                        <p>Loading accruals…</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <!-- Summary Dashboard Tab -->
+                                            <div id="summary" class="tab-content">
+                                                <div id="summary-tab-content" class="space-y-4">
+                                                    <div class="text-center py-16 text-gray-400">
+                                                        <i class="fas fa-spinner fa-spin text-3xl mb-4"></i>
+                                                        <p>Loading summary…</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
                         </div>
                     </div>
                 </div>
