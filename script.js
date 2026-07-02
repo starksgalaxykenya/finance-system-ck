@@ -1260,14 +1260,22 @@ async function processReceiptPayments() {
                 return nameMatches && currencyMatches;
             });
             
-            // Fallback: if no currency-exact match, try name-only match
+            // Fallback: if no currency-exact match, only fall back to a name-only match
+            // when there's exactly one bank account with that name (no currency ambiguity).
+            // If a bank has BOTH a KES and a USD account (e.g. "EQUITY BANK"), guessing here
+            // risks crediting a USD receipt into the KES account (or vice versa), so we must
+            // never silently pick one when more than one candidate exists.
             if (!targetBank) {
-                targetBank = state.banks.find(bank => 
+                const nameMatchingBanks = state.banks.filter(bank =>
                     bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
                     bankName.toLowerCase().includes(bank.name.toLowerCase())
                 );
-                if (targetBank) {
-                    console.warn(`Currency mismatch for receipt ${transactionId}: expected ${receiptCurrency}, matched ${targetBank.currency} account of ${targetBank.name}`);
+
+                if (nameMatchingBanks.length === 1) {
+                    targetBank = nameMatchingBanks[0];
+                    console.warn(`Currency mismatch for receipt ${transactionId}: expected ${receiptCurrency}, only match is ${targetBank.currency} account of ${targetBank.name}`);
+                } else if (nameMatchingBanks.length > 1) {
+                    console.error(`Ambiguous bank match for receipt ${transactionId}: "${bankName}" (expected ${receiptCurrency}) matches ${nameMatchingBanks.length} accounts with currencies [${nameMatchingBanks.map(b => b.currency).join(', ')}] — skipping instead of guessing to avoid crediting the wrong currency account.`);
                 }
             }
                     
