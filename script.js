@@ -64,6 +64,25 @@ let state = {
         expenseBank: null,
         creditBank: null,
         withdrawalBank: null
+    },
+
+    // Accrual Finance State
+    accruals: {
+        entries: [],
+        summary: {
+            totalReceivable: { KES: 0, USD: 0 },
+            totalPayable: { KES: 0, USD: 0 },
+            overdueReceivable: { KES: 0, USD: 0 },
+            overduePayable: { KES: 0, USD: 0 },
+            aging: {
+                current:    { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } },
+                thirtyPlus: { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } },
+                sixtyPlus:  { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } },
+                ninetyPlus: { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } }
+            },
+            pendingCount: { receivable: 0, payable: 0 },
+            settledCount: { receivable: 0, payable: 0 }
+        }
     }
 };
 
@@ -1050,6 +1069,9 @@ async function initApp() {
         
         // Calculate expense summary
         calculateExpenseSummary();
+        
+        // Load accrual entries
+        await loadAccruals();
         
         // Update UI
         renderDashboard();
@@ -3352,6 +3374,10 @@ function openTab(evt, tabName) {
         renderExpenseSummary();
     } else if (tabName === 'reports') {
         initializeReports();
+    } else if (tabName === 'accruals') {
+        renderAccrualsTab();
+    } else if (tabName === 'summary') {
+        renderSummaryDashboard();
     }
     
 }
@@ -4030,7 +4056,9 @@ async function refreshData() {
         // Calculate expense summary
         calculateExpenseSummary();
         
-        // ===== ADD THIS =====
+        // Reload accruals
+        await loadAccruals();
+        
         // Store current selections before UI update
         const currentSelections = {
             transferFrom: document.getElementById('t-from-enhanced')?.value || null,
@@ -4049,6 +4077,10 @@ async function refreshData() {
             renderExpenseSummary();
         } else if (activeTab && activeTab.id === 'reports') {
             generateFinancialReport();
+        } else if (activeTab && activeTab.id === 'accruals') {
+            renderAccrualsTab();
+        } else if (activeTab && activeTab.id === 'summary') {
+            renderSummaryDashboard();
         }
         
         // ===== ADD THIS =====
@@ -4187,6 +4219,1096 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 5000);
 });
 
+// ============================================================
+// --- ACCRUAL FINANCE ENGINE ---
+// ============================================================
+
+async function loadAccruals() {
+    try {
+        const snap = await db.collection('accrualEntries')
+            .orderBy('createdAt', 'desc')
+            .limit(500)
+            .get();
+
+        state.accruals.entries = snap.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt || new Date().toISOString()
+            };
+        });
+
+        // Auto-compute overdue status (UI-only, not persisted)
+        const now = new Date();
+        state.accruals.entries.forEach(entry => {
+            if (entry.status === 'pending' && entry.dueDate) {
+                if (new Date(entry.dueDate) < now) {
+                    entry._computedStatus = 'overdue';
+                } else {
+                    entry._computedStatus = 'pending';
+                }
+            } else {
+                entry._computedStatus = entry.status;
+            }
+        });
+
+        calculateAccrualSummary();
+        return state.accruals.entries;
+    } catch (error) {
+        console.error('Failed to load accruals:', error);
+        return [];
+    }
+}
+
+function calculateAccrualSummary() {
+    const summary = {
+        totalReceivable: { KES: 0, USD: 0 },
+        totalPayable:    { KES: 0, USD: 0 },
+        overdueReceivable: { KES: 0, USD: 0 },
+        overduePayable:    { KES: 0, USD: 0 },
+        aging: {
+            current:    { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } },
+            thirtyPlus: { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } },
+            sixtyPlus:  { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } },
+            ninetyPlus: { receivable: { KES: 0, USD: 0 }, payable: { KES: 0, USD: 0 } }
+        },
+        pendingCount: { receivable: 0, payable: 0 },
+        settledCount: { receivable: 0, payable: 0 }
+    };
+
+    const now = new Date();
+
+    state.accruals.entries.forEach(entry => {
+        const amount  = parseFloat(entry.amount) || 0;
+        const cur     = (entry.currency === 'USD') ? 'USD' : 'KES';
+        const dueDate = entry.dueDate ? new Date(entry.dueDate) : now;
+        const daysOverdue = Math.floor((now - dueDate) / 86400000);
+
+        if (entry.status === 'settled') {
+            if (entry.type === 'receivable') summary.settledCount.receivable++;
+            else                             summary.settledCount.payable++;
+            return;
+        }
+
+        const bucket = entry.type === 'receivable' ? 'receivable' : 'payable';
+
+        if (bucket === 'receivable') {
+            summary.totalReceivable[cur] += amount;
+            summary.pendingCount.receivable++;
+            if (daysOverdue > 0) summary.overdueReceivable[cur] += amount;
+        } else {
+            summary.totalPayable[cur] += amount;
+            summary.pendingCount.payable++;
+            if (daysOverdue > 0) summary.overduePayable[cur] += amount;
+        }
+
+        // Aging bucket (based on days overdue; not-yet-due goes into "current")
+        let agingKey;
+        if (daysOverdue <= 30) agingKey = 'current';
+        else if (daysOverdue <= 60) agingKey = 'thirtyPlus';
+        else if (daysOverdue <= 90) agingKey = 'sixtyPlus';
+        else agingKey = 'ninetyPlus';
+
+        summary.aging[agingKey][bucket][cur] += amount;
+    });
+
+    state.accruals.summary = summary;
+    return summary;
+}
+
+async function saveAccrualEntry(formData) {
+    if (!state.user) { showToast('Must be logged in', 'error'); return; }
+
+    const {
+        type, counterparty, description, amount, currency,
+        category, invoiceRef, issueDate, dueDate, notes
+    } = formData;
+
+    // Validate
+    if (!type || !counterparty || !description || !dueDate) {
+        throw new Error('Please fill in all required fields');
+    }
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+        throw new Error('Amount must be greater than zero');
+    }
+    if (numAmount > MAX_AMOUNT) {
+        throw new Error(`Amount exceeds maximum of ${MAX_AMOUNT.toLocaleString()}`);
+    }
+
+    const idempotencyKey = generateIdempotencyKey('accrual', {
+        type, counterparty, amount: numAmount, dueDate, timestamp: Date.now()
+    });
+
+    showLoading(true, 'Saving accrual entry...');
+    try {
+        const entryRef = db.collection('accrualEntries').doc();
+        await entryRef.set({
+            type,                // 'receivable' | 'payable'
+            counterparty:  sanitizeString(counterparty),
+            description:   sanitizeString(description),
+            amount:        parseFloat(numAmount.toFixed(2)),
+            currency:      currency || 'KES',
+            category:      sanitizeString(category || ''),
+            invoiceRef:    sanitizeString(invoiceRef || ''),
+            issueDate:     issueDate || new Date().toISOString().split('T')[0],
+            dueDate,
+            notes:         sanitizeString(notes || ''),
+            status:        'pending',
+            settledAt:     null,
+            settledBankId: null,
+            settledBy:     null,
+            settledLedgerId: null,
+            userId:        'global',
+            createdBy:     state.user.email,
+            createdAt:     firebase.firestore.FieldValue.serverTimestamp(),
+            idempotencyKey
+        });
+
+        await addAuditLog('ACCRUAL_CREATED', { type, counterparty, amount: numAmount, currency, dueDate });
+        showToast(`${type === 'receivable' ? 'Receivable' : 'Payable'} of ${formatCurrency(numAmount, currency)} saved!`, 'success');
+
+        await loadAccruals();
+        renderAccrualsTab();
+    } catch (err) {
+        console.error('saveAccrualEntry error:', err);
+        showToast('Failed to save accrual: ' + err.message, 'error');
+        await addAuditLog('ACCRUAL_CREATE_FAILED', { error: err.message }, 'failure');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function settleAccrualEntry(accrualId, bankId) {
+    if (!state.user) { showToast('Must be logged in', 'error'); return; }
+
+    const entry = state.accruals.entries.find(e => e.id === accrualId);
+    if (!entry) { showToast('Accrual entry not found', 'error'); return; }
+
+    const bank = state.banks.find(b => b.id === bankId);
+    if (!bank) { showToast('Bank not found', 'error'); return; }
+
+    if (entry.currency !== bank.currency) {
+        showToast(`Currency mismatch: accrual is ${entry.currency}, bank is ${bank.currency}`, 'error');
+        return;
+    }
+
+    showLoading(true, 'Settling accrual...');
+    try {
+        const batch = db.batch();
+        const now = new Date().toISOString();
+
+        // Create ledger entry for the cash settlement
+        const ledgerRef = db.collection('bankLedger').doc();
+        const ledgerType = entry.type === 'receivable' ? 'receipt' : 'expense';
+        batch.set(ledgerRef, {
+            type:        ledgerType,
+            date:        now,
+            amount:      entry.amount,
+            bankId:      bank.id,
+            bankName:    bank.name,
+            currency:    entry.currency,
+            description: `[Accrual Settlement] ${entry.description} — ${entry.counterparty}`,
+            reference:   entry.invoiceRef || '',
+            category:    entry.category || '',
+            accrualId:   accrualId,
+            createdBy:   state.user.email,
+            createdAt:   firebase.firestore.FieldValue.serverTimestamp(),
+            status:      'completed',
+            userId:      'global'
+        });
+
+        // Mark accrual as settled
+        const accrualRef = db.collection('accrualEntries').doc(accrualId);
+        batch.update(accrualRef, {
+            status:          'settled',
+            settledAt:       now,
+            settledBankId:   bank.id,
+            settledBankName: bank.name,
+            settledBy:       state.user.email,
+            settledLedgerId: ledgerRef.id
+        });
+
+        await batch.commit();
+        await addAuditLog('ACCRUAL_SETTLED', {
+            accrualId,
+            type:        entry.type,
+            counterparty: entry.counterparty,
+            amount:      entry.amount,
+            bank:        bank.name
+        });
+
+        showToast(`Accrual settled! ${formatCurrency(entry.amount, entry.currency)} ${ledgerType === 'receipt' ? 'credited to' : 'debited from'} ${bank.name}`, 'success');
+
+        await initApp();
+    } catch (err) {
+        console.error('settleAccrualEntry error:', err);
+        showToast('Settlement failed: ' + err.message, 'error');
+        await addAuditLog('ACCRUAL_SETTLE_FAILED', { accrualId, error: err.message }, 'failure');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function deleteAccrualEntry(accrualId) {
+    if (!confirm('Delete this accrual entry? This cannot be undone.')) return;
+    if (!state.user) { showToast('Must be logged in', 'error'); return; }
+
+    showLoading(true, 'Deleting accrual...');
+    try {
+        await db.collection('accrualEntries').doc(accrualId).delete();
+        await addAuditLog('ACCRUAL_DELETED', { accrualId });
+        showToast('Accrual entry deleted', 'success');
+        await loadAccruals();
+        renderAccrualsTab();
+    } catch (err) {
+        showToast('Delete failed: ' + err.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+// --- ACCRUALS TAB RENDERER ---
+
+function renderAccrualsTab() {
+    const container = document.getElementById('accruals-tab-content');
+    if (!container) return;
+
+    const s = state.accruals.summary;
+    const entries = state.accruals.entries;
+
+    const fmtKES = n => `KES ${formatNumber(n)}`;
+    const fmtUSD = n => `$ ${formatNumber(n)}`;
+
+    // Build status badge
+    function statusBadge(entry) {
+        const st = entry._computedStatus || entry.status;
+        if (st === 'settled')  return '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800 font-semibold">Settled</span>';
+        if (st === 'overdue')  return '<span class="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-800 font-semibold">Overdue</span>';
+        return '<span class="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-800 font-semibold">Pending</span>';
+    }
+
+    function typeBadge(type) {
+        if (type === 'receivable') return '<span class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 font-semibold">Receivable (AR)</span>';
+        return '<span class="px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-800 font-semibold">Payable (AP)</span>';
+    }
+
+    const pendingEntries  = entries.filter(e => e.status !== 'settled');
+    const settledEntries  = entries.filter(e => e.status === 'settled');
+    const overdueEntries  = pendingEntries.filter(e => e._computedStatus === 'overdue');
+    const receivables     = pendingEntries.filter(e => e.type === 'receivable');
+    const payables        = pendingEntries.filter(e => e.type === 'payable');
+
+    // Build bank options for settle modal
+    const bankOptions = state.banks.map(b =>
+        `<option value="${b.id}">${sanitizeString(b.name)} (${b.currency} — ${formatNumber(state.balances[b.id] || 0)})</option>`
+    ).join('');
+
+    container.innerHTML = `
+        <!-- KPI Summary Row -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div class="text-xs text-blue-600 font-semibold mb-1">ACCOUNTS RECEIVABLE</div>
+                <div class="text-xl font-bold text-blue-800">${fmtKES(s.totalReceivable.KES)}</div>
+                <div class="text-sm text-blue-600">${fmtUSD(s.totalReceivable.USD)}</div>
+                <div class="text-xs text-gray-500 mt-1">${s.pendingCount.receivable} pending</div>
+            </div>
+            <div class="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                <div class="text-xs text-purple-600 font-semibold mb-1">ACCOUNTS PAYABLE</div>
+                <div class="text-xl font-bold text-purple-800">${fmtKES(s.totalPayable.KES)}</div>
+                <div class="text-sm text-purple-600">${fmtUSD(s.totalPayable.USD)}</div>
+                <div class="text-xs text-gray-500 mt-1">${s.pendingCount.payable} pending</div>
+            </div>
+            <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                <div class="text-xs text-red-600 font-semibold mb-1">OVERDUE RECEIVABLE</div>
+                <div class="text-xl font-bold text-red-800">${fmtKES(s.overdueReceivable.KES)}</div>
+                <div class="text-sm text-red-600">${fmtUSD(s.overdueReceivable.USD)}</div>
+                <div class="text-xs text-gray-500 mt-1">${overdueEntries.filter(e=>e.type==='receivable').length} overdue</div>
+            </div>
+            <div class="bg-green-50 border border-green-200 rounded-xl p-4">
+                <div class="text-xs text-green-600 font-semibold mb-1">NET ACCRUAL (KES)</div>
+                <div class="text-xl font-bold ${s.totalReceivable.KES - s.totalPayable.KES >= 0 ? 'text-green-800' : 'text-red-800'}">${fmtKES(s.totalReceivable.KES - s.totalPayable.KES)}</div>
+                <div class="text-sm ${s.totalReceivable.USD - s.totalPayable.USD >= 0 ? 'text-green-600' : 'text-red-600'}">${fmtUSD(s.totalReceivable.USD - s.totalPayable.USD)}</div>
+                <div class="text-xs text-gray-500 mt-1">${s.settledCount.receivable + s.settledCount.payable} settled total</div>
+            </div>
+        </div>
+
+        <!-- Aging Analysis -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <h4 class="font-semibold text-gray-800 flex items-center"><i class="fas fa-clock mr-2 text-orange-500"></i>AR / AP Aging Analysis</h4>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Category</th>
+                            <th class="px-4 py-3 text-right">Current (0-30d)</th>
+                            <th class="px-4 py-3 text-right">31-60 Days</th>
+                            <th class="px-4 py-3 text-right">61-90 Days</th>
+                            <th class="px-4 py-3 text-right">90+ Days</th>
+                            <th class="px-4 py-3 text-right font-bold">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        ${['KES','USD'].map(cur => {
+                            const ar = [s.aging.current.receivable[cur], s.aging.thirtyPlus.receivable[cur], s.aging.sixtyPlus.receivable[cur], s.aging.ninetyPlus.receivable[cur]];
+                            const ap = [s.aging.current.payable[cur],    s.aging.thirtyPlus.payable[cur],    s.aging.sixtyPlus.payable[cur],    s.aging.ninetyPlus.payable[cur]];
+                            const arTotal = ar.reduce((a,b)=>a+b,0);
+                            const apTotal = ap.reduce((a,b)=>a+b,0);
+                            const sym = cur === 'USD' ? '$' : 'KES';
+                            if (arTotal === 0 && apTotal === 0) return '';
+                            return `
+                                <tr class="hover:bg-blue-50">
+                                    <td class="px-4 py-3 font-medium text-blue-700">AR — ${cur}</td>
+                                    ${ar.map(v=>`<td class="px-4 py-3 text-right ${v>0?'text-blue-600':''}">${sym} ${formatNumber(v)}</td>`).join('')}
+                                    <td class="px-4 py-3 text-right font-bold text-blue-800">${sym} ${formatNumber(arTotal)}</td>
+                                </tr>
+                                <tr class="hover:bg-purple-50">
+                                    <td class="px-4 py-3 font-medium text-purple-700">AP — ${cur}</td>
+                                    ${ap.map(v=>`<td class="px-4 py-3 text-right ${v>0?'text-red-500':''}">${sym} ${formatNumber(v)}</td>`).join('')}
+                                    <td class="px-4 py-3 text-right font-bold text-purple-800">${sym} ${formatNumber(apTotal)}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                        ${(s.totalReceivable.KES + s.totalPayable.KES + s.totalReceivable.USD + s.totalPayable.USD === 0) ? `
+                            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No pending accruals</td></tr>
+                        ` : ''}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex flex-wrap gap-3 mb-6">
+            <button onclick="openAccrualModal('receivable')"
+                    class="flex items-center bg-blue-600 text-white hover:bg-blue-700 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all">
+                <i class="fas fa-plus mr-2"></i> New Receivable (AR)
+            </button>
+            <button onclick="openAccrualModal('payable')"
+                    class="flex items-center bg-purple-600 text-white hover:bg-purple-700 px-4 py-2.5 rounded-lg font-medium shadow-sm transition-all">
+                <i class="fas fa-plus mr-2"></i> New Payable (AP)
+            </button>
+        </div>
+
+        <!-- Pending Entries Table -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <h4 class="font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-hourglass-half mr-2 text-yellow-500"></i>
+                    Pending Accruals
+                    <span class="ml-2 bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded-full">${pendingEntries.length}</span>
+                </h4>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Type</th>
+                            <th class="px-4 py-3 text-left">Counterparty</th>
+                            <th class="px-4 py-3 text-left">Description</th>
+                            <th class="px-4 py-3 text-right">Amount</th>
+                            <th class="px-4 py-3 text-center">Due Date</th>
+                            <th class="px-4 py-3 text-center">Status</th>
+                            <th class="px-4 py-3 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        ${pendingEntries.length === 0 ? `
+                            <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400"><i class="fas fa-check-circle text-green-400 mr-2"></i>All accruals are settled</td></tr>
+                        ` : pendingEntries.map(entry => {
+                            const daysLabel = (() => {
+                                if (!entry.dueDate) return '';
+                                const diff = Math.floor((new Date(entry.dueDate) - new Date()) / 86400000);
+                                if (diff < 0) return `<span class="text-red-500 text-xs">(${Math.abs(diff)}d overdue)</span>`;
+                                if (diff === 0) return `<span class="text-orange-500 text-xs">(due today)</span>`;
+                                return `<span class="text-gray-400 text-xs">(in ${diff}d)</span>`;
+                            })();
+                            return `
+                                <tr class="hover:bg-gray-50 ${entry._computedStatus==='overdue'?'bg-red-50':''}">
+                                    <td class="px-4 py-3">${typeBadge(entry.type)}</td>
+                                    <td class="px-4 py-3 font-medium text-gray-800">${sanitizeString(entry.counterparty)}</td>
+                                    <td class="px-4 py-3 text-gray-600 max-w-xs truncate">${sanitizeString(entry.description)}</td>
+                                    <td class="px-4 py-3 text-right font-bold ${entry.type==='receivable'?'text-blue-700':'text-purple-700'}">
+                                        ${formatCurrency(entry.amount, entry.currency)}
+                                    </td>
+                                    <td class="px-4 py-3 text-center text-gray-600">
+                                        ${entry.dueDate ? new Date(entry.dueDate).toLocaleDateString() : '—'}<br>${daysLabel}
+                                    </td>
+                                    <td class="px-4 py-3 text-center">${statusBadge(entry)}</td>
+                                    <td class="px-4 py-3 text-center">
+                                        <div class="flex justify-center gap-2">
+                                            <button onclick="openSettleAccrualModal('${entry.id}')"
+                                                    class="bg-green-100 hover:bg-green-200 text-green-700 text-xs font-medium px-3 py-1.5 rounded-lg transition-all">
+                                                <i class="fas fa-check mr-1"></i>Settle
+                                            </button>
+                                            <button onclick="deleteAccrualEntry('${entry.id}')"
+                                                    class="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-medium px-2 py-1.5 rounded-lg transition-all">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Settled Entries (collapsed) -->
+        ${settledEntries.length > 0 ? `
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 bg-green-50 border-b border-gray-200">
+                <h4 class="font-semibold text-gray-800 flex items-center">
+                    <i class="fas fa-check-circle mr-2 text-green-500"></i>
+                    Settled Accruals
+                    <span class="ml-2 bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">${settledEntries.length}</span>
+                </h4>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Type</th>
+                            <th class="px-4 py-3 text-left">Counterparty</th>
+                            <th class="px-4 py-3 text-left">Description</th>
+                            <th class="px-4 py-3 text-right">Amount</th>
+                            <th class="px-4 py-3 text-center">Settled On</th>
+                            <th class="px-4 py-3 text-left">Settled Via</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        ${settledEntries.slice(0, 20).map(entry => `
+                            <tr class="hover:bg-gray-50 opacity-75">
+                                <td class="px-4 py-3">${typeBadge(entry.type)}</td>
+                                <td class="px-4 py-3 text-gray-700">${sanitizeString(entry.counterparty)}</td>
+                                <td class="px-4 py-3 text-gray-500 max-w-xs truncate">${sanitizeString(entry.description)}</td>
+                                <td class="px-4 py-3 text-right font-semibold text-gray-700">${formatCurrency(entry.amount, entry.currency)}</td>
+                                <td class="px-4 py-3 text-center text-gray-500">${entry.settledAt ? new Date(entry.settledAt).toLocaleDateString() : '—'}</td>
+                                <td class="px-4 py-3 text-gray-500 text-xs">${sanitizeString(entry.settledBankName || '—')}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        ` : ''}
+    `;
+}
+
+function openAccrualModal(defaultType = 'receivable') {
+    const existing = document.getElementById('accrual-entry-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'accrual-entry-modal';
+    modal.className = 'fixed inset-0 z-[100] overflow-y-auto';
+    modal.innerHTML = `
+        <div class="absolute inset-0 bg-black bg-opacity-60 backdrop-blur-sm" onclick="closeAccrualModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-lg w-full mx-auto my-12 p-6">
+            <div class="flex justify-between items-center mb-5">
+                <h3 class="text-lg font-bold text-gray-900 flex items-center">
+                    <div class="bg-blue-100 p-2 rounded-full mr-3"><i class="fas fa-file-invoice text-blue-600"></i></div>
+                    New Accrual Entry
+                </h3>
+                <button onclick="closeAccrualModal()" class="text-gray-400 hover:text-gray-600 text-xl"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="accrual-entry-form" class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Entry Type *</label>
+                        <select id="accrual-type" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+                            <option value="receivable" ${defaultType==='receivable'?'selected':''}>Receivable (AR) — Money owed TO us</option>
+                            <option value="payable"    ${defaultType==='payable'?'selected':''}>Payable (AP) — Money we OWE</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Currency *</label>
+                        <select id="accrual-currency" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+                            <option value="KES">KES — Kenyan Shilling</option>
+                            <option value="USD">USD — US Dollar</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Counterparty (Client / Vendor) *</label>
+                    <input type="text" id="accrual-counterparty" maxlength="150"
+                           class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500"
+                           placeholder="e.g. ABC Motors Ltd, John Doe" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Description *</label>
+                    <input type="text" id="accrual-description" maxlength="200"
+                           class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500"
+                           placeholder="e.g. Invoice #INV-2024-001 for Vehicle Service" required>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Amount *</label>
+                        <input type="number" id="accrual-amount" step="0.01" min="0.01"
+                               class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500"
+                               placeholder="0.00" required>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Invoice / Reference</label>
+                        <input type="text" id="accrual-invoice-ref" maxlength="100"
+                               class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500"
+                               placeholder="INV-2024-001">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                    <select id="accrual-category" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+                        <option value="">— Select Category —</option>
+                        <option value="Sales Revenue">Sales Revenue</option>
+                        <option value="Service Revenue">Service Revenue</option>
+                        <option value="Rental Income">Rental Income</option>
+                        <option value="Loan Receivable">Loan Receivable</option>
+                        ${EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Issue Date</label>
+                        <input type="date" id="accrual-issue-date"
+                               class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Due Date *</label>
+                        <input type="date" id="accrual-due-date"
+                               class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Notes</label>
+                    <textarea id="accrual-notes" rows="2" maxlength="300"
+                              class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500"
+                              placeholder="Additional notes..."></textarea>
+                </div>
+                <button type="submit"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-semibold transition-colors shadow-md">
+                    <i class="fas fa-save mr-2"></i>Save Accrual Entry
+                </button>
+            </form>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Set default dates
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('accrual-issue-date').value = today;
+    // Default due date: 30 days from now
+    const due30 = new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0];
+    document.getElementById('accrual-due-date').value = due30;
+
+    document.getElementById('accrual-entry-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        try {
+            await saveAccrualEntry({
+                type:         document.getElementById('accrual-type').value,
+                currency:     document.getElementById('accrual-currency').value,
+                counterparty: document.getElementById('accrual-counterparty').value,
+                description:  document.getElementById('accrual-description').value,
+                amount:       document.getElementById('accrual-amount').value,
+                invoiceRef:   document.getElementById('accrual-invoice-ref').value,
+                category:     document.getElementById('accrual-category').value,
+                issueDate:    document.getElementById('accrual-issue-date').value,
+                dueDate:      document.getElementById('accrual-due-date').value,
+                notes:        document.getElementById('accrual-notes').value
+            });
+            closeAccrualModal();
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    });
+}
+
+function closeAccrualModal() {
+    const m = document.getElementById('accrual-entry-modal');
+    if (m) m.remove();
+}
+
+function openSettleAccrualModal(accrualId) {
+    const entry = state.accruals.entries.find(e => e.id === accrualId);
+    if (!entry) return;
+
+    const existing = document.getElementById('settle-accrual-modal');
+    if (existing) existing.remove();
+
+    const compatBanks = state.banks.filter(b => b.currency === entry.currency);
+    const bankOptions = compatBanks.map(b =>
+        `<option value="${b.id}">${sanitizeString(b.name)} — Available: ${formatCurrency(state.balances[b.id] || 0, b.currency)}</option>`
+    ).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'settle-accrual-modal';
+    modal.className = 'fixed inset-0 z-[101] flex items-center justify-center';
+    modal.innerHTML = `
+        <div class="absolute inset-0 bg-black bg-opacity-60 backdrop-blur-sm" onclick="closeSettleAccrualModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-4 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-gray-900 flex items-center">
+                    <div class="bg-green-100 p-2 rounded-full mr-3"><i class="fas fa-check-circle text-green-600"></i></div>
+                    Settle Accrual
+                </h3>
+                <button onclick="closeSettleAccrualModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-4 mb-4 text-sm">
+                <div class="font-semibold text-gray-800 mb-1">${sanitizeString(entry.counterparty)}</div>
+                <div class="text-gray-600">${sanitizeString(entry.description)}</div>
+                <div class="mt-2 text-lg font-bold ${entry.type==='receivable'?'text-blue-700':'text-purple-700'}">${formatCurrency(entry.amount, entry.currency)}</div>
+                <div class="text-xs text-gray-500 mt-1">
+                    ${entry.type === 'receivable' ? 'Credit this amount to the selected bank' : 'Debit this amount from the selected bank'}
+                </div>
+            </div>
+            ${compatBanks.length === 0 ? `
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+                    <i class="fas fa-exclamation-circle mr-2"></i>No ${entry.currency} bank accounts found. Please add one first.
+                </div>
+            ` : `
+                <div class="mb-4">
+                    <label class="block text-xs font-medium text-gray-500 mb-1">Select Bank Account (${entry.currency})</label>
+                    <select id="settle-bank-select" class="w-full border border-gray-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-green-500">
+                        <option value="">— Choose Bank —</option>
+                        ${bankOptions}
+                    </select>
+                </div>
+                <button onclick="confirmSettleAccrual('${accrualId}')"
+                        class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded-lg font-semibold transition-colors">
+                    <i class="fas fa-check mr-2"></i>Confirm Settlement
+                </button>
+            `}
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function confirmSettleAccrual(accrualId) {
+    const bankId = document.getElementById('settle-bank-select')?.value;
+    if (!bankId) { showToast('Please select a bank account', 'error'); return; }
+    closeSettleAccrualModal();
+    await settleAccrualEntry(accrualId, bankId);
+}
+
+function closeSettleAccrualModal() {
+    const m = document.getElementById('settle-accrual-modal');
+    if (m) m.remove();
+}
+
+// ============================================================
+// --- FINANCIAL SUMMARY DASHBOARD ---
+// ============================================================
+
+function renderSummaryDashboard() {
+    const container = document.getElementById('summary-tab-content');
+    if (!container) return;
+
+    // ---- Cash metrics ----
+    const cashKES = state.stats.totalKES || 0;
+    const cashUSD = state.stats.totalUSD || 0;
+
+    // ---- Ledger P&L (cash basis) ----
+    let cashIncomeKES = 0, cashIncomeUSD = 0;
+    let cashExpKES = 0,    cashExpUSD = 0;
+    let monthlyData = {}; // "YYYY-MM" -> { income, expense }
+
+    state.ledger.forEach(tx => {
+        const amt = parseFloat(tx.amount) || 0;
+        const cur = tx.currency || 'KES';
+        const mo  = (tx.date || '').slice(0, 7); // "YYYY-MM"
+        if (!monthlyData[mo]) monthlyData[mo] = { income: 0, expense: 0 };
+
+        if (tx.type === 'receipt') {
+            if (cur === 'USD') cashIncomeUSD += amt; else cashIncomeKES += amt;
+            monthlyData[mo].income += amt;
+        } else if (['expense', 'withdrawal', 'credit'].includes(tx.type)) {
+            if (cur === 'USD') cashExpUSD += amt; else cashExpKES += amt;
+            monthlyData[mo].expense += amt;
+        }
+    });
+
+    const netCashKES = cashIncomeKES - cashExpKES;
+    const netCashUSD = cashIncomeUSD - cashExpUSD;
+
+    // ---- Accrual metrics ----
+    const s = state.accruals.summary;
+    const accrualRevenueKES = s.totalReceivable.KES;
+    const accrualRevenueUSD = s.totalReceivable.USD;
+    const accrualExpKES     = s.totalPayable.KES;
+    const accrualExpUSD     = s.totalPayable.USD;
+
+    // ---- Accrual basis P&L ----
+    const accrualBasisIncKES = cashIncomeKES + accrualRevenueKES;
+    const accrualBasisExpKES = cashExpKES    + accrualExpKES;
+    const accrualBasisNetKES = accrualBasisIncKES - accrualBasisExpKES;
+
+    // ---- Expense category breakdown (top 8) ----
+    const topCategories = Object.entries(state.expenseSummary)
+        .filter(([, v]) => v > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8);
+
+    const totalCatExp = topCategories.reduce((acc, [, v]) => acc + v, 0);
+
+    // ---- Monthly trend (last 6 months) ----
+    const last6 = [];
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - i);
+        last6.push(d.toISOString().slice(0, 7));
+    }
+
+    // ---- Bank breakdown rows ----
+    const bankRows = state.banks.map(bank => {
+        const bal = state.balances[bank.id] || 0;
+        const openTs = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
+        const opening = openTs?.balance ?? (bank.openingBalanceConfig?.amount || 0);
+        const txns = state.ledger.filter(t => t.bankId === bank.id || t.toBankId === bank.id);
+        let inc = 0, exp = 0;
+        txns.forEach(t => {
+            const a = parseFloat(t.amount) || 0;
+            if (t.type === 'receipt' || (t.type === 'transfer' && t.toBankId === bank.id)) inc += a;
+            else if (['expense','withdrawal','credit'].includes(t.type) || (t.type === 'transfer' && t.bankId === bank.id)) exp += a;
+        });
+        const pctBar = (v, max) => {
+            if (max === 0) return 0;
+            return Math.min(100, Math.max(0, (v / max) * 100)).toFixed(1);
+        };
+        return { bank, bal, opening, inc, exp, txns: txns.length };
+    });
+
+    const maxBal = Math.max(...bankRows.map(r => Math.abs(r.bal)), 1);
+
+    container.innerHTML = `
+        <!-- Page Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h3 class="text-xl font-bold text-gray-800">Financial Summary</h3>
+                <p class="text-sm text-gray-500">Cash basis + Accrual overlay • Updated ${new Date().toLocaleString()}</p>
+            </div>
+            <button onclick="renderSummaryDashboard()"
+                    class="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium transition-all">
+                <i class="fas fa-sync-alt mr-2"></i>Refresh
+            </button>
+        </div>
+
+        <!-- KPI Row — Cash Basis -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-gradient-to-br from-green-500 to-green-700 text-white rounded-xl p-5 shadow-md">
+                <div class="text-xs font-semibold opacity-80 mb-2 uppercase">💵 Total Cash — KES</div>
+                <div class="text-2xl font-bold">KES ${formatNumber(cashKES)}</div>
+                <div class="text-xs opacity-75 mt-1">${state.banks.filter(b=>b.currency==='KES').length} KES accounts</div>
+            </div>
+            <div class="bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-xl p-5 shadow-md">
+                <div class="text-xs font-semibold opacity-80 mb-2 uppercase">💵 Total Cash — USD</div>
+                <div class="text-2xl font-bold">$ ${formatNumber(cashUSD)}</div>
+                <div class="text-xs opacity-75 mt-1">${state.banks.filter(b=>b.currency==='USD').length} USD accounts</div>
+            </div>
+            <div class="bg-gradient-to-br from-indigo-500 to-indigo-700 text-white rounded-xl p-5 shadow-md">
+                <div class="text-xs font-semibold opacity-80 mb-2 uppercase">📥 Cash Income (KES)</div>
+                <div class="text-2xl font-bold">KES ${formatNumber(cashIncomeKES)}</div>
+                <div class="text-xs opacity-75 mt-1">Total receipts received</div>
+            </div>
+            <div class="bg-gradient-to-br from-red-500 to-red-700 text-white rounded-xl p-5 shadow-md">
+                <div class="text-xs font-semibold opacity-80 mb-2 uppercase">📤 Cash Expenses (KES)</div>
+                <div class="text-2xl font-bold">KES ${formatNumber(cashExpKES)}</div>
+                <div class="text-xs opacity-75 mt-1">Total payments made</div>
+            </div>
+        </div>
+
+        <!-- P&L Comparison: Cash vs Accrual -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+            <!-- Cash Basis P&L -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-100">
+                    <h4 class="font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-coins mr-2 text-yellow-500"></i>Cash Basis P&L (KES)
+                    </h4>
+                </div>
+                <div class="p-6 space-y-3">
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Total Receipts</span>
+                        <span class="font-bold text-green-600">+ KES ${formatNumber(cashIncomeKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Total Expenses</span>
+                        <span class="font-bold text-red-600">− KES ${formatNumber(cashExpKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-3 rounded-lg ${netCashKES >= 0 ? 'bg-green-50' : 'bg-red-50'} px-3">
+                        <span class="font-bold text-gray-800">Net Cash Income</span>
+                        <span class="text-xl font-bold ${netCashKES >= 0 ? 'text-green-700' : 'text-red-700'}">
+                            ${netCashKES >= 0 ? '+' : ''}KES ${formatNumber(netCashKES)}
+                        </span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 text-sm text-gray-500">
+                        <span>Expense Ratio</span>
+                        <span class="font-medium">${cashIncomeKES > 0 ? ((cashExpKES / cashIncomeKES) * 100).toFixed(1) + '%' : '—'}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 text-sm text-gray-500">
+                        <span>Total Transactions</span>
+                        <span class="font-medium">${state.ledger.length}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accrual Basis P&L -->
+            <div class="bg-white rounded-xl border border-indigo-200 overflow-hidden">
+                <div class="px-6 py-4 bg-indigo-50 border-b border-indigo-100">
+                    <h4 class="font-semibold text-gray-800 flex items-center">
+                        <i class="fas fa-file-invoice-dollar mr-2 text-indigo-500"></i>Accrual Basis P&L (KES)
+                    </h4>
+                </div>
+                <div class="p-6 space-y-3">
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Cash Receipts</span>
+                        <span class="font-semibold text-green-600">KES ${formatNumber(cashIncomeKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Pending Receivables (AR)</span>
+                        <span class="font-semibold text-blue-600">+ KES ${formatNumber(accrualRevenueKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100 font-bold">
+                        <span class="text-sm text-gray-800">Total Accrual Revenue</span>
+                        <span class="text-green-700">KES ${formatNumber(accrualBasisIncKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Cash Expenses</span>
+                        <span class="font-semibold text-red-600">KES ${formatNumber(cashExpKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100">
+                        <span class="text-sm text-gray-600">Pending Payables (AP)</span>
+                        <span class="font-semibold text-purple-600">+ KES ${formatNumber(accrualExpKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-2 border-b border-gray-100 font-bold">
+                        <span class="text-sm text-gray-800">Total Accrual Expenses</span>
+                        <span class="text-red-700">KES ${formatNumber(accrualBasisExpKES)}</span>
+                    </div>
+                    <div class="flex justify-between items-center py-3 rounded-lg ${accrualBasisNetKES >= 0 ? 'bg-indigo-50' : 'bg-red-50'} px-3">
+                        <span class="font-bold text-gray-800">Net Accrual Income</span>
+                        <span class="text-xl font-bold ${accrualBasisNetKES >= 0 ? 'text-indigo-700' : 'text-red-700'}">
+                            ${accrualBasisNetKES >= 0 ? '+' : ''}KES ${formatNumber(accrualBasisNetKES)}
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bank Account Summary Table -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden mb-6">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                <h4 class="font-semibold text-gray-800 flex items-center"><i class="fas fa-university mr-2 text-green-600"></i>Bank Account Summary</h4>
+                <span class="text-xs text-gray-400">${state.banks.length} accounts</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm">
+                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                        <tr>
+                            <th class="px-4 py-3 text-left">Bank Account</th>
+                            <th class="px-4 py-3 text-left">Currency</th>
+                            <th class="px-4 py-3 text-right">Opening Balance</th>
+                            <th class="px-4 py-3 text-right">Total Credits</th>
+                            <th class="px-4 py-3 text-right">Total Debits</th>
+                            <th class="px-4 py-3 text-right font-bold">Current Balance</th>
+                            <th class="px-4 py-3 text-center">Balance Bar</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        ${bankRows.length === 0 ? `
+                            <tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No bank accounts loaded</td></tr>
+                        ` : bankRows.map(({ bank, bal, opening, inc, exp, txns }) => `
+                            <tr class="hover:bg-gray-50">
+                                <td class="px-4 py-3 font-semibold text-gray-800">${sanitizeString(bank.name)}</td>
+                                <td class="px-4 py-3">
+                                    <span class="px-2 py-0.5 text-xs rounded-full font-bold ${bank.currency==='USD'?'bg-blue-100 text-blue-700':'bg-green-100 text-green-700'}">${bank.currency}</span>
+                                </td>
+                                <td class="px-4 py-3 text-right text-gray-500">${formatNumber(opening)}</td>
+                                <td class="px-4 py-3 text-right text-green-600 font-medium">${formatNumber(inc)}</td>
+                                <td class="px-4 py-3 text-right text-red-600 font-medium">${formatNumber(exp)}</td>
+                                <td class="px-4 py-3 text-right font-bold ${bal >= 0 ? 'text-gray-900' : 'text-red-600'}">${formatNumber(bal)}</td>
+                                <td class="px-4 py-3">
+                                    <div class="w-full bg-gray-100 rounded-full h-2 min-w-16">
+                                        <div class="h-2 rounded-full ${bal >= 0 ? 'bg-green-500' : 'bg-red-500'}"
+                                             style="width:${Math.min(100,(Math.abs(bal)/maxBal)*100).toFixed(1)}%"></div>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                    ${bankRows.length > 0 ? `
+                    <tfoot class="bg-gray-50 font-bold text-sm">
+                        <tr>
+                            <td colspan="3" class="px-4 py-3 text-gray-600">Totals</td>
+                            <td class="px-4 py-3 text-right text-green-700">${formatNumber(bankRows.reduce((a,r)=>a+r.inc,0))}</td>
+                            <td class="px-4 py-3 text-right text-red-700">${formatNumber(bankRows.reduce((a,r)=>a+r.exp,0))}</td>
+                            <td class="px-4 py-3 text-right text-gray-900">
+                                KES ${formatNumber(cashKES)}<br>
+                                <span class="text-blue-600 text-xs font-normal">USD ${formatNumber(cashUSD)}</span>
+                            </td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                    ` : ''}
+                </table>
+            </div>
+        </div>
+
+        <!-- Bottom row: Expense Breakdown + AR/AP Summary -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+            <!-- Top Expense Categories -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-100">
+                    <h4 class="font-semibold text-gray-800 flex items-center"><i class="fas fa-tags mr-2 text-red-500"></i>Top Expense Categories</h4>
+                </div>
+                <div class="p-5 space-y-3">
+                    ${topCategories.length === 0 ? `<div class="text-center py-6 text-gray-400">No expenses recorded yet</div>` :
+                        topCategories.map(([cat, amt]) => {
+                            const pct = totalCatExp > 0 ? ((amt / totalCatExp) * 100).toFixed(1) : 0;
+                            return `
+                                <div>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm text-gray-700 truncate max-w-xs">${sanitizeString(cat)}</span>
+                                        <span class="text-sm font-bold text-red-600 ml-2">KES ${formatNumber(amt)}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 bg-gray-100 rounded-full h-2">
+                                            <div class="bg-red-500 h-2 rounded-full" style="width:${pct}%"></div>
+                                        </div>
+                                        <span class="text-xs text-gray-400 w-10 text-right">${pct}%</span>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')
+                    }
+                </div>
+            </div>
+
+            <!-- AR / AP Summary -->
+            <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 bg-gray-50 border-b border-gray-100">
+                    <h4 class="font-semibold text-gray-800 flex items-center"><i class="fas fa-balance-scale mr-2 text-indigo-500"></i>AR / AP Overview</h4>
+                </div>
+                <div class="p-5 space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="bg-blue-50 rounded-lg p-4 text-center">
+                            <div class="text-xs text-blue-600 font-semibold mb-1">TOTAL AR (KES)</div>
+                            <div class="text-xl font-bold text-blue-800">KES ${formatNumber(s.totalReceivable.KES)}</div>
+                            <div class="text-sm text-blue-600">+ $ ${formatNumber(s.totalReceivable.USD)}</div>
+                            <div class="text-xs text-gray-500 mt-1">${s.pendingCount.receivable} entries</div>
+                        </div>
+                        <div class="bg-purple-50 rounded-lg p-4 text-center">
+                            <div class="text-xs text-purple-600 font-semibold mb-1">TOTAL AP (KES)</div>
+                            <div class="text-xl font-bold text-purple-800">KES ${formatNumber(s.totalPayable.KES)}</div>
+                            <div class="text-sm text-purple-600">+ $ ${formatNumber(s.totalPayable.USD)}</div>
+                            <div class="text-xs text-gray-500 mt-1">${s.pendingCount.payable} entries</div>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-100 pt-3 space-y-2">
+                        <div class="flex justify-between text-sm">
+                            <span class="text-red-600 font-medium"><i class="fas fa-exclamation-circle mr-1"></i>Overdue AR (KES)</span>
+                            <span class="font-bold text-red-700">KES ${formatNumber(s.overdueReceivable.KES)}</span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-red-600 font-medium"><i class="fas fa-exclamation-circle mr-1"></i>Overdue AP (KES)</span>
+                            <span class="font-bold text-red-700">KES ${formatNumber(s.overduePayable.KES)}</span>
+                        </div>
+                        <div class="flex justify-between text-sm border-t pt-2">
+                            <span class="text-gray-600">Net AR (receivable − payable, KES)</span>
+                            <span class="font-bold ${s.totalReceivable.KES - s.totalPayable.KES >= 0 ? 'text-green-700' : 'text-red-700'}">
+                                KES ${formatNumber(s.totalReceivable.KES - s.totalPayable.KES)}
+                            </span>
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-gray-600">Settled to date</span>
+                            <span class="font-medium text-gray-700">${s.settledCount.receivable + s.settledCount.payable} entries</span>
+                        </div>
+                    </div>
+                    <button onclick="openTab(null,'accruals')"
+                            class="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium py-2 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-all">
+                        <i class="fas fa-external-link-alt mr-1"></i> Manage Accruals →
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly Trend Chart (canvas) -->
+        <div class="bg-white rounded-xl border border-gray-200 overflow-hidden">
+            <div class="px-6 py-4 bg-gray-50 border-b border-gray-100">
+                <h4 class="font-semibold text-gray-800 flex items-center"><i class="fas fa-chart-line mr-2 text-green-600"></i>Monthly Cash Flow — Last 6 Months</h4>
+            </div>
+            <div class="p-5">
+                <div style="height: 260px; position: relative;">
+                    <canvas id="summaryTrendChart"></canvas>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Render monthly trend chart
+    setTimeout(() => {
+        const ctx = document.getElementById('summaryTrendChart');
+        if (!ctx) return;
+        if (window._summaryTrendChart && typeof window._summaryTrendChart.destroy === 'function') {
+            window._summaryTrendChart.destroy();
+        }
+        const labels = last6.map(m => {
+            const [y, mo] = m.split('-');
+            return new Date(parseInt(y), parseInt(mo) - 1).toLocaleDateString(undefined, { month: 'short', year: '2-digit' });
+        });
+        const incomeData = last6.map(m => monthlyData[m]?.income || 0);
+        const expenseData = last6.map(m => monthlyData[m]?.expense || 0);
+        window._summaryTrendChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                    {
+                        label: 'Income',
+                        data: incomeData,
+                        backgroundColor: 'rgba(16, 185, 129, 0.75)',
+                        borderColor: '#10B981',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    },
+                    {
+                        label: 'Expenses',
+                        data: expenseData,
+                        backgroundColor: 'rgba(239, 68, 68, 0.75)',
+                        borderColor: '#EF4444',
+                        borderWidth: 1,
+                        borderRadius: 4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => `${ctx.dataset.label}: KES ${formatNumber(ctx.raw)}`
+                        }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false } },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { callback: v => 'KES ' + formatNumber(v) }
+                    }
+                }
+            }
+        });
+    }, 50);
+}
+
+// --- EXPOSE NEW ACCRUAL + SUMMARY FUNCTIONS ---
 // Expose functions to global scope for HTML onclick handlers
 window.generateFinancialReport = generateFinancialReport;
 window.initializeReports = initializeReports;
@@ -4225,3 +5347,15 @@ window.updateConfirmPinDots = updateConfirmPinDots;
 window.updateCurrentPinDots = updateCurrentPinDots;
 window.updateChangeNewPinDots = updateChangeNewPinDots;
 window.updateChangeConfirmPinDots = updateChangeConfirmPinDots;
+
+// Accrual & Summary exports
+window.loadAccruals = loadAccruals;
+window.renderAccrualsTab = renderAccrualsTab;
+window.renderSummaryDashboard = renderSummaryDashboard;
+window.openAccrualModal = openAccrualModal;
+window.closeAccrualModal = closeAccrualModal;
+window.openSettleAccrualModal = openSettleAccrualModal;
+window.closeSettleAccrualModal = closeSettleAccrualModal;
+window.confirmSettleAccrual = confirmSettleAccrual;
+window.deleteAccrualEntry = deleteAccrualEntry;
+window.settleAccrualEntry = settleAccrualEntry;
