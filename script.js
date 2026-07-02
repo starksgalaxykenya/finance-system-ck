@@ -3582,11 +3582,17 @@ function openOpeningModal(bankId) {
         const time = document.getElementById('opening-balance-time-enhanced').value;
         const notes = sanitizeString(document.getElementById('opening-balance-notes-enhanced').value);
         
-        // Validate amount
-        try {
-            validateAmount(amount, null, false);
-        } catch (error) {
-            showToast(error.message, 'error');
+        // Validate amount (zero is allowed for opening balance)
+        if (isNaN(amount) || amount === null || amount === undefined) {
+            showToast('Invalid amount: must be a number', 'error');
+            return;
+        }
+        if (amount < 0) {
+            showToast('Opening balance cannot be negative', 'error');
+            return;
+        }
+        if (amount > MAX_AMOUNT) {
+            showToast(`Amount exceeds maximum limit of ${MAX_AMOUNT.toLocaleString()}`, 'error');
             return;
         }
         
