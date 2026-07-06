@@ -22,6 +22,12 @@ const auth = firebase.auth();
 db.enablePersistence({ synchronizeTabs: true })
     .catch(err => console.warn('Firestore persistence error:', err));
 
+// --- LIVE SYNC (real-time updates across all logged-in users) ---
+// Holds active onSnapshot unsubscribe functions so they can be torn down on logout.
+let liveListenerUnsubscribers = [];
+let liveSyncDebounceTimer = null;
+let liveListenersAttached = false;
+
 // Global State with enhanced tracking
 let state = {
     user: null,
@@ -553,6 +559,8 @@ function logout() {
     if (confirm('Are you sure you want to logout?')) {
         showLoading(true, 'Logging out...');
         addAuditLog('USER_LOGOUT', { email: state.user?.email });
+        teardownLiveListeners();
+        state.systemReady = false;
         auth.signOut()
             .then(() => {
                 state.isBankPinVerified = false;
@@ -1098,7 +1106,11 @@ async function initApp() {
         // Mark system as ready
         state.systemReady = true;
         updateSystemStatus(true);
-        
+
+        // Start real-time listeners so changes made by other users (opening balance resets,
+        // new transactions, new receipts) appear here immediately without a page refresh.
+        setupLiveListeners();
+
         showToast('System initialized successfully!', 'success');
         await addAuditLog('SYSTEM_INIT', { banks: state.banks.length, transactions: state.ledger.length });
     } catch (error) {
@@ -1111,6 +1123,99 @@ async function initApp() {
         // Update sync status
         const syncStatus = document.getElementById('sync-status-text');
         if (syncStatus) syncStatus.textContent = 'Data loaded successfully';
+    }
+}
+
+// --- LIVE SYNC: real-time updates so all users see the same balances immediately ---
+
+function scheduleLiveRefresh(reason) {
+    // Debounce so a burst of snapshot events (e.g. a batch write) only triggers one recalculation
+    if (liveSyncDebounceTimer) clearTimeout(liveSyncDebounceTimer);
+    liveSyncDebounceTimer = setTimeout(async () => {
+        if (!state.systemReady) return; // don't run before initial load has finished
+        try {
+            console.log(`Live sync: refreshing (${reason})`);
+            await processReceiptPayments();
+            calculateBalances();
+            calculateExpenseSummary();
+            renderDashboard();
+            updateStatistics();
+            updateLastSyncTime();
+            renderExpenseSummary();
+            const syncStatus = document.getElementById('sync-status-text');
+            if (syncStatus) syncStatus.textContent = `Live update received (${new Date().toLocaleTimeString()})`;
+        } catch (err) {
+            console.error('Live sync refresh failed:', err);
+        }
+    }, 400);
+}
+
+function setupLiveListeners() {
+    if (liveListenersAttached) return; // avoid attaching twice
+    liveListenersAttached = true;
+
+    // Banks + opening balance config (bankDetails) — this is the shared source of truth that
+    // was previously only read once at load, so other users' resets never appeared without a
+    // manual page refresh. A live listener means every logged-in user's UI updates immediately.
+    const unsubBanks = db.collection('bankDetails').onSnapshot(snap => {
+        state.banks = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+            .filter(bank => {
+                if (!bank.name) {
+                    console.warn('Bank missing name:', bank.id);
+                    return false;
+                }
+                if (!bank.currency) bank.currency = 'KES';
+                return true;
+            });
+        state.bankDetails = state.banks.map(bank => ({
+            id: bank.id,
+            name: bank.name,
+            currency: bank.currency || 'KES',
+            openingBalance: bank.openingBalanceConfig?.amount || 0,
+            lastUpdated: new Date()
+        }));
+        updateBankSelects();
+        scheduleLiveRefresh('bank details updated');
+    }, err => console.error('Live bankDetails listener error:', err));
+
+    // Ledger entries (transfers, withdrawals, expenses, credits)
+    const unsubLedger = db.collection('bankLedger')
+        .orderBy('date', 'desc')
+        .limit(1000)
+        .onSnapshot(snap => {
+            state.ledger = snap.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    ...data,
+                    amount: parseFloat(data.amount) || 0,
+                    date: data.date || new Date().toISOString()
+                };
+            }).filter(tx => tx.amount > 0);
+            renderLedgerTable();
+            scheduleLiveRefresh('ledger updated');
+        }, err => console.error('Live bankLedger listener error:', err));
+
+    // New receipts coming in from the receipt-writer app
+    const unsubReceipts = db.collection('receipt_payments')
+        .orderBy('createdAt', 'desc')
+        .limit(200)
+        .onSnapshot(() => {
+            scheduleLiveRefresh('new receipt payment');
+        }, err => console.error('Live receipt_payments listener error:', err));
+
+    liveListenerUnsubscribers = [unsubBanks, unsubLedger, unsubReceipts];
+}
+
+function teardownLiveListeners() {
+    liveListenerUnsubscribers.forEach(unsub => {
+        try { unsub(); } catch (e) { /* already detached */ }
+    });
+    liveListenerUnsubscribers = [];
+    liveListenersAttached = false;
+    if (liveSyncDebounceTimer) {
+        clearTimeout(liveSyncDebounceTimer);
+        liveSyncDebounceTimer = null;
     }
 }
 
@@ -1290,13 +1395,18 @@ async function processReceiptPayments() {
             const receiptDate = data.paymentDate || data.createdAt || new Date();
             const receiptDateTime = new Date(receiptDate).getTime();
             
-            // Check opening balance cutoff for this bank (id-keyed first, name-keyed as legacy fallback)
-            const openingConfig = state.openingBalanceTimestamps[targetBank.id] ||
-                                 state.openingBalanceTimestamps[targetBank.name] ||
-                                 (targetBank.openingBalanceConfig ? {
+            // Check opening balance cutoff for this bank.
+            // bankDetails.openingBalanceConfig is the SHARED, cross-user source of truth (updated
+            // on every reset, visible to all users). state.openingBalanceTimestamps is a per-user
+            // cache (stored under processedTransactions/{uid}) and must never take priority, or a
+            // user who previously set their own opening balance will keep seeing their own stale
+            // value even after another user resets it.
+            const openingConfig = (targetBank.openingBalanceConfig ? {
                                      timestamp: targetBank.openingBalanceConfig.dateString,
                                      balance: targetBank.openingBalanceConfig.amount
-                                 } : null);
+                                 } : null) ||
+                                 state.openingBalanceTimestamps[targetBank.id] ||
+                                 state.openingBalanceTimestamps[targetBank.name];
             
             if (openingConfig && openingConfig.timestamp) {
                 const cutoffDateTime = new Date(openingConfig.timestamp).getTime();
@@ -1523,20 +1633,21 @@ function calculateBalances() {
         let cutoffDateTime = null;
         let startBalance = 0;
         
-        // Check for opening balance configuration from timestamps (id-keyed first, name-keyed as legacy fallback)
-        const openingTimestamp = state.openingBalanceTimestamps[bank.id] || 
-                                 state.openingBalanceTimestamps[bank.name];
-        if (openingTimestamp) {
-            startBalance = openingTimestamp.balance || 0;
-            if (openingTimestamp.timestamp) {
-                cutoffDateTime = new Date(openingTimestamp.timestamp).getTime();
-            }
-        }
-        // Fallback to bankDetails openingBalanceConfig
-        else if (bank.openingBalanceConfig && bank.openingBalanceConfig.amount) {
+        // Shared source of truth first (bankDetails.openingBalanceConfig, visible to all users);
+        // per-user timestamps cache only as legacy fallback for banks never migrated to it.
+        if (bank.openingBalanceConfig && bank.openingBalanceConfig.amount !== undefined) {
             startBalance = parseFloat(bank.openingBalanceConfig.amount) || 0;
             if (bank.openingBalanceConfig.dateString) {
                 cutoffDateTime = new Date(bank.openingBalanceConfig.dateString).getTime();
+            }
+        } else {
+            const openingTimestamp = state.openingBalanceTimestamps[bank.id] ||
+                                     state.openingBalanceTimestamps[bank.name];
+            if (openingTimestamp) {
+                startBalance = openingTimestamp.balance || 0;
+                if (openingTimestamp.timestamp) {
+                    cutoffDateTime = new Date(openingTimestamp.timestamp).getTime();
+                }
             }
         }
         
@@ -1637,19 +1748,20 @@ async function verifyAllBalances(showNotification = true) {
             let cutoffApplied = false;
             let cutoffDateTime = null;
             
-            // Get opening balance info
-            const openingTs = state.openingBalanceTimestamps[bank.id] || 
-                              state.openingBalanceTimestamps[bank.name];
-            if (openingTs) {
-                calculatedBalance = openingTs.balance || 0;
-                if (openingTs.timestamp) {
-                    cutoffDateTime = new Date(openingTs.timestamp).getTime();
-                }
-        
-            } else if (bank.openingBalanceConfig && bank.openingBalanceConfig.amount) {
+            // Get opening balance info — shared bankDetails config first, per-user cache as legacy fallback
+            if (bank.openingBalanceConfig && bank.openingBalanceConfig.amount !== undefined) {
                 calculatedBalance = parseFloat(bank.openingBalanceConfig.amount) || 0;
                 if (bank.openingBalanceConfig.dateString) {
                     cutoffDateTime = new Date(bank.openingBalanceConfig.dateString).getTime();
+                }
+            } else {
+                const openingTs = state.openingBalanceTimestamps[bank.id] ||
+                                  state.openingBalanceTimestamps[bank.name];
+                if (openingTs) {
+                    calculatedBalance = openingTs.balance || 0;
+                    if (openingTs.timestamp) {
+                        cutoffDateTime = new Date(openingTs.timestamp).getTime();
+                    }
                 }
             }
             
@@ -2139,10 +2251,11 @@ function renderDashboard() {
         const iconClass = isUSD ? 'text-blue-500' : 'text-green-500';
         const balanceClass = balance >= 0 ? 'text-gray-900' : 'text-red-600';
         
-        // Check if opening balance is set via timestamps (id-keyed first, name-keyed as legacy fallback)
+        // Opening balance for display — shared bankDetails config first, per-user cache as legacy fallback
+        const hasSharedOpeningConfig = bank.openingBalanceConfig && bank.openingBalanceConfig.amount !== undefined;
         const openingTs = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
-        const hasOpeningTimestamp = !!openingTs;
-        const openingBalance = hasOpeningTimestamp ? openingTs.balance : (bank.openingBalanceConfig?.amount || 0);
+        const hasOpeningTimestamp = hasSharedOpeningConfig || !!openingTs;
+        const openingBalance = hasSharedOpeningConfig ? (bank.openingBalanceConfig?.amount || 0) : (openingTs ? openingTs.balance : 0);
         // Calculate credits and debits for this bank
         const bankTransactions = state.ledger.filter(tx => 
             tx.bankId === bank.id || tx.toBankId === bank.id
@@ -3195,7 +3308,7 @@ function showAllBanksSummary() {
         const balance = state.balances[bank.id] || 0;
         const currencySymbol = bank.currency === 'USD' ? '$' : 'KES ';
         const _openingTs = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
-        const openingBalance = _openingTs?.balance || bank.openingBalanceConfig?.amount || 0;
+        const openingBalance = (bank.openingBalanceConfig?.amount !== undefined ? bank.openingBalanceConfig.amount : _openingTs?.balance) || 0;
         
         // Calculate credits and debits for this bank
         const bankTransactions = state.ledger.filter(tx => 
@@ -3220,7 +3333,9 @@ function showAllBanksSummary() {
         summary += `  Total Credits: ${currencySymbol}${formatNumber(totalCredits)}\n`;
         summary += `  Total Debits: ${currencySymbol}${formatNumber(totalDebits)}\n`;
         
-        const _ts = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
+        const _ts = bank.openingBalanceConfig?.dateString
+            ? { timestamp: bank.openingBalanceConfig.dateString }
+            : (state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name]);
         if (_ts) {
             summary += `  Opening Set: ${new Date(_ts.timestamp).toLocaleDateString()}\n`;
         } else {
@@ -3573,9 +3688,9 @@ function openOpeningModal(bankId) {
     // Fill details
     const detailsContainer = document.getElementById('opening-balance-details-enhanced');
     const currentBalance = state.balances[bankId] || 0;
-    const openingBalance = state.openingBalanceTimestamps[bank.id]?.balance || 
-                       state.openingBalanceTimestamps[bank.name]?.balance || // legacy fallback
-                       bank.openingBalanceConfig?.amount || 0;
+    const openingBalance = (bank.openingBalanceConfig?.amount !== undefined ? bank.openingBalanceConfig.amount : null) ??
+                       state.openingBalanceTimestamps[bank.id]?.balance ??
+                       state.openingBalanceTimestamps[bank.name]?.balance ?? 0;
     
     detailsContainer.innerHTML = `
         <div class="space-y-2">
@@ -4974,7 +5089,7 @@ function renderSummaryDashboard() {
     const bankRows = state.banks.map(bank => {
         const bal = state.balances[bank.id] || 0;
         const openTs = state.openingBalanceTimestamps[bank.id] || state.openingBalanceTimestamps[bank.name];
-        const opening = openTs?.balance ?? (bank.openingBalanceConfig?.amount || 0);
+        const opening = (bank.openingBalanceConfig?.amount !== undefined ? bank.openingBalanceConfig.amount : null) ?? openTs?.balance ?? 0;
         const txns = state.ledger.filter(t => t.bankId === bank.id || t.toBankId === bank.id);
         let inc = 0, exp = 0;
         txns.forEach(t => {
