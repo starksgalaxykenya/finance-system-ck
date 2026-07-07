@@ -1071,7 +1071,16 @@ async function initApp() {
         
         // Process receipt payments
         await processReceiptPayments();
-        
+
+        // Reconcile any receipts that were revoked/deleted in the source
+        // app before this session started — otherwise their money would
+        // stay in the balance until the next live-sync cycle catches it.
+        const { reversedCount } = await reconcileRevokedReceipts(false);
+        state.lastReconcileTime = Date.now();
+        if (reversedCount > 0) {
+            console.log(`Reconciled ${reversedCount} revoked receipt(s) on startup`);
+        }
+
         // Calculate balances
         calculateBalances();
         
@@ -1136,6 +1145,19 @@ function scheduleLiveRefresh(reason) {
         try {
             console.log(`Live sync: refreshing (${reason})`);
             await processReceiptPayments();
+
+            // Throttled: check for revoked/deleted receipts at most once every
+            // 20 seconds, since each check does a Firestore existence read
+            // per outstanding receipt ledger entry.
+            const now = Date.now();
+            if (!state.lastReconcileTime || now - state.lastReconcileTime > 20000) {
+                state.lastReconcileTime = now;
+                const { reversedCount } = await reconcileRevokedReceipts(false);
+                if (reversedCount > 0) {
+                    console.log(`Reconciled ${reversedCount} revoked receipt(s) during live sync`);
+                }
+            }
+
             calculateBalances();
             calculateExpenseSummary();
             renderDashboard();
@@ -1305,194 +1327,316 @@ async function processReceiptPayments() {
     state.transactionLock = true;
     
     try {
-        const receiptsSnap = await db.collection('receipt_payments')
-            .orderBy('createdAt', 'desc')
-            .limit(200)
-            .get();
-        
-        const batch = db.batch();
-        let newCount = 0;
-        let skippedCount = 0;
-        
-        for (const doc of receiptsSnap.docs) {
-            const transactionId = doc.id;
-            
-            // Skip if already processed
-            if (state.processedTransactions.has(transactionId)) {
-                skippedCount++;
-                continue;
-            }
-                    
-            const data = doc.data();
-            // Check for KSH amount first, then USD, then generic amount
-            let amount = 0;
-            
-            // Try to extract currency from payment method or data
-            const paymentMethod = data.paymentMethod || '';
-            const isUSD = paymentMethod.toLowerCase().includes('usd') || 
-                          (data.currency && data.currency.toUpperCase() === 'USD');
-            
-            if (isUSD) {
-                amount = parseFloat(data.amountUSD || data.amount || 0);
-            } else {
-                // Default to KSH for everything else
-                amount = parseFloat(data.amountKSH || data.amount || 0);
-            }
-            
-            // Validate amount
-            try {
-                amount = validateAmount(amount);
-            } catch (e) {
-                console.warn(`Invalid amount in receipt ${transactionId}:`, e.message);
-                skippedCount++;
-                continue;
-            }
-                    
-            // Parse bank name from payment method
-            const bankName = parseBankName(data.paymentMethod);
-            if (!bankName) {
-                console.warn(`Could not parse bank name from: ${data.paymentMethod}`);
-                skippedCount++;
-                continue;
-            }
-                    
-            // Find matching bank — must match both name AND currency
-            const receiptCurrency = isUSD ? 'USD' : 'KES';
-            let targetBank = state.banks.find(bank => {
-                const nameMatches = bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
-                                    bankName.toLowerCase().includes(bank.name.toLowerCase());
-                const currencyMatches = bank.currency === receiptCurrency;
-                return nameMatches && currencyMatches;
-            });
-            
-            // Fallback: if no currency-exact match, only fall back to a name-only match
-            // when there's exactly one bank account with that name (no currency ambiguity).
-            // If a bank has BOTH a KES and a USD account (e.g. "EQUITY BANK"), guessing here
-            // risks crediting a USD receipt into the KES account (or vice versa), so we must
-            // never silently pick one when more than one candidate exists.
-            if (!targetBank) {
-                const nameMatchingBanks = state.banks.filter(bank =>
-                    bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
-                    bankName.toLowerCase().includes(bank.name.toLowerCase())
-                );
+        // FIX: this used to be a single query with .limit(200), which means
+        // any receipt older than the 200 most recent could never be picked
+        // up at all — permanently missing from the ledger. This now pages
+        // through the full collection (newest first), page by page, until
+        // it runs out of documents (or hits a generous safety cap so a
+        // single call can never run away indefinitely).
+        const PAGE_SIZE = 200;
+        const MAX_PAGES = 25; // safety cap: 5,000 receipts per call
+        let totalNewCount = 0;
+        let totalSkippedCount = 0;
+        let cursor = null;
+        let page = 0;
 
-                if (nameMatchingBanks.length === 1) {
-                    targetBank = nameMatchingBanks[0];
-                    console.warn(`Currency mismatch for receipt ${transactionId}: expected ${receiptCurrency}, only match is ${targetBank.currency} account of ${targetBank.name}`);
-                } else if (nameMatchingBanks.length > 1) {
-                    console.error(`Ambiguous bank match for receipt ${transactionId}: "${bankName}" (expected ${receiptCurrency}) matches ${nameMatchingBanks.length} accounts with currencies [${nameMatchingBanks.map(b => b.currency).join(', ')}] — skipping instead of guessing to avoid crediting the wrong currency account.`);
-                }
+        while (page < MAX_PAGES) {
+            let pageQuery = db.collection('receipt_payments')
+                .orderBy('createdAt', 'desc')
+                .limit(PAGE_SIZE);
+            if (cursor) {
+                pageQuery = pageQuery.startAfter(cursor);
             }
-                    
-            if (!targetBank) {
-                console.warn(`No matching bank found for: ${bankName}`);
-                skippedCount++;
-                continue;
-            }
+            const receiptsSnap = await pageQuery.get();
+            if (receiptsSnap.empty) break;
 
-            // IMPORTANT: Get the actual receipt date, not just created/processed date
-            // Use paymentDate if available, otherwise createdAt
-            const receiptDate = data.paymentDate || data.createdAt || new Date();
-            const receiptDateTime = new Date(receiptDate).getTime();
-            
-            // Check opening balance cutoff for this bank.
-            // bankDetails.openingBalanceConfig is the SHARED, cross-user source of truth (updated
-            // on every reset, visible to all users). state.openingBalanceTimestamps is a per-user
-            // cache (stored under processedTransactions/{uid}) and must never take priority, or a
-            // user who previously set their own opening balance will keep seeing their own stale
-            // value even after another user resets it.
-            const openingConfig = (targetBank.openingBalanceConfig ? {
-                                     timestamp: targetBank.openingBalanceConfig.dateString,
-                                     balance: targetBank.openingBalanceConfig.amount
-                                 } : null) ||
-                                 state.openingBalanceTimestamps[targetBank.id] ||
-                                 state.openingBalanceTimestamps[targetBank.name];
-            
-            if (openingConfig && openingConfig.timestamp) {
-                const cutoffDateTime = new Date(openingConfig.timestamp).getTime();
+            const batch = db.batch();
+            let newCount = 0;
+            let skippedCount = 0;
+
+            for (const doc of receiptsSnap.docs) {
+                const transactionId = doc.id;
                 
-                // Skip if receipt is BEFORE opening balance cutoff date/time
-                if (receiptDateTime < cutoffDateTime) {
-                    console.log(`Skipping receipt ${doc.id} (${new Date(receiptDate)}) before opening balance cutoff (${new Date(cutoffDateTime)}) for bank ${targetBank.name}`);
-                    // Still mark as processed so we don't try again
-                    state.processedTransactions.add(transactionId);
-                    await saveProcessedTransactions();
+                // Skip if already processed
+                if (state.processedTransactions.has(transactionId)) {
                     skippedCount++;
                     continue;
                 }
-            }
-                    
-            // Generate idempotency key
-            const idempotencyKey = generateIdempotencyKey('receipt', { 
-                receiptId: transactionId,
-                amount,
-                bankId: targetBank.id,
-                date: receiptDate
-            });
-            
-            // Check if already processed via idempotency
-            const existingCheck = await db.collection('idempotencyKeys')
-                .doc(idempotencyKey)
-                .get();
+                        
+                const data = doc.data();
+                // Check for KSH amount first, then USD, then generic amount
+                let amount = 0;
                 
-            if (existingCheck.exists) {
-                console.log(`Duplicate receipt attempt prevented: ${transactionId}`);
+                // Try to extract currency from payment method or data
+                const paymentMethod = data.paymentMethod || '';
+                const isUSD = paymentMethod.toLowerCase().includes('usd') || 
+                              (data.currency && data.currency.toUpperCase() === 'USD');
+                
+                if (isUSD) {
+                    amount = parseFloat(data.amountUSD || data.amount || 0);
+                } else {
+                    // Default to KSH for everything else
+                    amount = parseFloat(data.amountKSH || data.amount || 0);
+                }
+                
+                // Validate amount
+                try {
+                    amount = validateAmount(amount);
+                } catch (e) {
+                    console.warn(`Invalid amount in receipt ${transactionId}:`, e.message);
+                    skippedCount++;
+                    continue;
+                }
+                        
+                // Parse bank name from payment method
+                const bankName = parseBankName(data.paymentMethod);
+                if (!bankName) {
+                    console.warn(`Could not parse bank name from: ${data.paymentMethod}`);
+                    skippedCount++;
+                    continue;
+                }
+                        
+                // Find matching bank — must match both name AND currency
+                const receiptCurrency = isUSD ? 'USD' : 'KES';
+                let targetBank = state.banks.find(bank => {
+                    const nameMatches = bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
+                                        bankName.toLowerCase().includes(bank.name.toLowerCase());
+                    const currencyMatches = bank.currency === receiptCurrency;
+                    return nameMatches && currencyMatches;
+                });
+                
+                // Fallback: if no currency-exact match, only fall back to a name-only match
+                // when there's exactly one bank account with that name (no currency ambiguity).
+                // If a bank has BOTH a KES and a USD account (e.g. "EQUITY BANK"), guessing here
+                // risks crediting a USD receipt into the KES account (or vice versa), so we must
+                // never silently pick one when more than one candidate exists.
+                if (!targetBank) {
+                    const nameMatchingBanks = state.banks.filter(bank =>
+                        bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
+                        bankName.toLowerCase().includes(bank.name.toLowerCase())
+                    );
+
+                    if (nameMatchingBanks.length === 1) {
+                        targetBank = nameMatchingBanks[0];
+                        console.warn(`Currency mismatch for receipt ${transactionId}: expected ${receiptCurrency}, only match is ${targetBank.currency} account of ${targetBank.name}`);
+                    } else if (nameMatchingBanks.length > 1) {
+                        console.error(`Ambiguous bank match for receipt ${transactionId}: "${bankName}" (expected ${receiptCurrency}) matches ${nameMatchingBanks.length} accounts with currencies [${nameMatchingBanks.map(b => b.currency).join(', ')}] — skipping instead of guessing to avoid crediting the wrong currency account.`);
+                    }
+                }
+                        
+                if (!targetBank) {
+                    console.warn(`No matching bank found for: ${bankName}`);
+                    skippedCount++;
+                    continue;
+                }
+
+                // IMPORTANT: Get the actual receipt date, not just created/processed date
+                // Use paymentDate if available, otherwise createdAt
+                const receiptDate = data.paymentDate || data.createdAt || new Date();
+                const receiptDateTime = new Date(receiptDate).getTime();
+                
+                // Check opening balance cutoff for this bank.
+                // bankDetails.openingBalanceConfig is the SHARED, cross-user source of truth (updated
+                // on every reset, visible to all users). state.openingBalanceTimestamps is a per-user
+                // cache (stored under processedTransactions/{uid}) and must never take priority, or a
+                // user who previously set their own opening balance will keep seeing their own stale
+                // value even after another user resets it.
+                const openingConfig = (targetBank.openingBalanceConfig ? {
+                                         timestamp: targetBank.openingBalanceConfig.dateString,
+                                         balance: targetBank.openingBalanceConfig.amount
+                                     } : null) ||
+                                     state.openingBalanceTimestamps[targetBank.id] ||
+                                     state.openingBalanceTimestamps[targetBank.name];
+                
+                if (openingConfig && openingConfig.timestamp) {
+                    const cutoffDateTime = new Date(openingConfig.timestamp).getTime();
+                    
+                    // Skip if receipt is BEFORE opening balance cutoff date/time
+                    if (receiptDateTime < cutoffDateTime) {
+                        console.log(`Skipping receipt ${doc.id} (${new Date(receiptDate)}) before opening balance cutoff (${new Date(cutoffDateTime)}) for bank ${targetBank.name}`);
+                        // Still mark as processed so we don't try again
+                        state.processedTransactions.add(transactionId);
+                        await saveProcessedTransactions();
+                        skippedCount++;
+                        continue;
+                    }
+                }
+                        
+                // Generate idempotency key
+                const idempotencyKey = generateIdempotencyKey('receipt', { 
+                    receiptId: transactionId,
+                    amount,
+                    bankId: targetBank.id,
+                    date: receiptDate
+                });
+                
+                // Check if already processed via idempotency
+                const existingCheck = await db.collection('idempotencyKeys')
+                    .doc(idempotencyKey)
+                    .get();
+                    
+                if (existingCheck.exists) {
+                    console.log(`Duplicate receipt attempt prevented: ${transactionId}`);
+                    state.processedTransactions.add(transactionId);
+                    skippedCount++;
+                    continue;
+                }
+                
+                // Create ledger entry with proper date
+                const ledgerRef = db.collection('bankLedger').doc();
+                batch.set(ledgerRef, {
+                    date: receiptDate, // Use the actual receipt/payment date
+                    type: 'receipt',
+                    amount: amount,
+                    bankId: targetBank.id,
+                    bankName: targetBank.name,
+                    currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'),
+                    description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
+                    sourceDocId: doc.id,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    userId: state.user?.uid,
+                    userEmail: state.user?.email,
+                    idempotencyKey: idempotencyKey
+                });
+                
+                // Store idempotency key
+                const idempotencyRef = db.collection('idempotencyKeys').doc(idempotencyKey);
+                batch.set(idempotencyRef, {
+                    operation: 'receipt',
+                    transactionId: transactionId,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
+                });
+                        
                 state.processedTransactions.add(transactionId);
-                skippedCount++;
-                continue;
+                newCount++;
             }
             
-            // Create ledger entry with proper date
-            const ledgerRef = db.collection('bankLedger').doc();
-            batch.set(ledgerRef, {
-                date: receiptDate, // Use the actual receipt/payment date
-                type: 'receipt',
-                amount: amount,
-                bankId: targetBank.id,
-                bankName: targetBank.name,
-                currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'),
-                description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
-                sourceDocId: doc.id,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: state.user?.uid,
-                userEmail: state.user?.email,
-                idempotencyKey: idempotencyKey
-            });
-            
-            // Store idempotency key
-            const idempotencyRef = db.collection('idempotencyKeys').doc(idempotencyKey);
-            batch.set(idempotencyRef, {
-                operation: 'receipt',
-                transactionId: transactionId,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
-            });
-                    
-            state.processedTransactions.add(transactionId);
-            newCount++;
+            // Commit this page's batch if we have new receipts
+            if (newCount > 0) {
+                await batch.commit();
+                await saveProcessedTransactions();
+            }
+
+            totalNewCount += newCount;
+            totalSkippedCount += skippedCount;
+
+            // Move cursor to the last doc in this page
+            cursor = receiptsSnap.docs[receiptsSnap.docs.length - 1];
+            page++;
+
+            // Reached the end of the collection
+            if (receiptsSnap.docs.length < PAGE_SIZE) break;
         }
-        
-        // Commit batch if we have new receipts
-        if (newCount > 0) {
-            await batch.commit();
-            
-            // Save processed transactions
-            await saveProcessedTransactions();
-            
+
+        if (totalNewCount > 0) {
             // Reload ledger to include new entries
             await loadLedger();
             
-            console.log(`Processed ${newCount} new receipts, ${skippedCount} skipped`);
-            await addAuditLog('RECEIPTS_PROCESSED', { newCount, skippedCount });
+            console.log(`Processed ${totalNewCount} new receipts, ${totalSkippedCount} skipped, across ${page} page(s)`);
+            await addAuditLog('RECEIPTS_PROCESSED', { newCount: totalNewCount, skippedCount: totalSkippedCount, pages: page });
         }
         
-        return { newCount, skippedCount };
+        return { newCount: totalNewCount, skippedCount: totalSkippedCount };
     } catch (error) {
         console.error("Error processing receipt payments:", error);
         await addAuditLog('RECEIPTS_PROCESSING_ERROR', { error: error.message }, 'failure');
         return { newCount: 0, skippedCount: 0 };
     } finally {
         state.transactionLock = false;
+    }
+}
+
+// -----------------------------------------------------------------
+// RECONCILE REVOKED / DELETED RECEIPTS
+// -----------------------------------------------------------------
+// The receipt-writing app deletes a receipt_payments document when a
+// receipt is revoked. Previously nothing here ever noticed: this app
+// only ever ADDS entries to bankLedger (see processReceiptPayments)
+// and never checks whether the source document it credited from is
+// still there. That's why revoking a receipt never subtracted the
+// money back out — this app kept trusting a ledger entry whose source
+// no longer existed.
+//
+// This walks every 'receipt' ledger entry that hasn't already been
+// reversed, checks whether its source receipt_payments doc still
+// exists, and if not, writes a reversing 'receipt_reversal' entry
+// (and flags the original so it's never reversed twice).
+async function reconcileRevokedReceipts(showNotification = false) {
+    if (state.reconcileInProgress) return { reversedCount: 0 };
+    state.reconcileInProgress = true;
+
+    try {
+        const receiptEntries = state.ledger.filter(tx => tx.type === 'receipt' && !tx.reversed && tx.sourceDocId);
+        const alreadyReversedSourceIds = new Set(
+            state.ledger.filter(tx => tx.type === 'receipt_reversal').map(tx => tx.sourceDocId)
+        );
+        const toCheck = receiptEntries.filter(tx => !alreadyReversedSourceIds.has(tx.sourceDocId));
+
+        if (toCheck.length === 0) return { reversedCount: 0 };
+
+        // Check existence of each source document in parallel. If a check
+        // itself errors out (network blip, permissions, etc.) we treat that
+        // source as "still exists" — we'd rather miss a reversal for one
+        // cycle than wrongly zero out a legitimate transaction.
+        const existenceChecks = await Promise.all(
+            toCheck.map(tx =>
+                db.collection('receipt_payments').doc(tx.sourceDocId).get()
+                    .then(snap => ({ tx, exists: snap.exists }))
+                    .catch(() => ({ tx, exists: true }))
+            )
+        );
+
+        const missing = existenceChecks.filter(r => !r.exists).map(r => r.tx);
+        if (missing.length === 0) return { reversedCount: 0 };
+
+        const batch = db.batch();
+        missing.forEach(tx => {
+            const reversalRef = db.collection('bankLedger').doc();
+            batch.set(reversalRef, {
+                type: 'receipt_reversal',
+                date: new Date().toISOString(),
+                amount: tx.amount,
+                bankId: tx.bankId,
+                bankName: tx.bankName,
+                currency: tx.currency,
+                description: `Reversal: source receipt was revoked (was: ${tx.description || 'N/A'})`,
+                sourceDocId: tx.sourceDocId,
+                reversalOfLedgerId: tx.id,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: state.user?.uid,
+                userEmail: state.user?.email
+            });
+
+            const originalRef = db.collection('bankLedger').doc(tx.id);
+            batch.update(originalRef, {
+                reversed: true,
+                reversedAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        await batch.commit();
+
+        await addAuditLog('REVOKED_RECEIPTS_RECONCILED', {
+            count: missing.length,
+            details: missing.map(tx => ({
+                sourceDocId: tx.sourceDocId,
+                bankName: tx.bankName,
+                amount: tx.amount,
+                currency: tx.currency
+            }))
+        }, 'warning');
+
+        if (showNotification) {
+            showToast(`Reconciled ${missing.length} revoked receipt(s) — bank balance(s) corrected.`, 'success');
+        }
+
+        return { reversedCount: missing.length };
+    } catch (error) {
+        console.error('Error reconciling revoked receipts:', error);
+        return { reversedCount: 0 };
+    } finally {
+        state.reconcileInProgress = false;
     }
 }
 
@@ -1686,6 +1830,7 @@ function calculateBalances() {
                 case 'withdrawal':
                 case 'expense':
                 case 'credit':
+                case 'receipt_reversal':
                     if (tx.bankId === bank.id) {
                         runningBalance -= amount;
                         state.balances[bank.id] = runningBalance;
@@ -1778,7 +1923,7 @@ async function verifyAllBalances(showNotification = true) {
                 
                 if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
                     calculatedBalance += amount;
-                } else if (['expense', 'credit', 'withdrawal', 'transfer_fee'].includes(tx.type)) {
+                } else if (['expense', 'credit', 'withdrawal', 'transfer_fee', 'receipt_reversal'].includes(tx.type)) {
                     calculatedBalance -= amount;
                 } else if (tx.type === 'transfer') {
                     if (tx.bankId === bank.id) {
@@ -1906,18 +2051,22 @@ async function syncReceipts() {
     
     try {
         const result = await processReceiptPayments();
-        
-        if (result.newCount > 0) {
+        const reconcileResult = await reconcileRevokedReceipts(false);
+
+        if (result.newCount > 0 || reconcileResult.reversedCount > 0) {
             // Recalculate balances
             calculateBalances();
             
             // Update UI
             renderDashboard();
             updateStatistics();
-            
-            showToast(`Successfully synced ${result.newCount} new receipts. ${result.skippedCount} skipped.`, 'success');
+
+            const parts = [];
+            if (result.newCount > 0) parts.push(`${result.newCount} new receipt(s) synced`);
+            if (reconcileResult.reversedCount > 0) parts.push(`${reconcileResult.reversedCount} revoked receipt(s) reconciled`);
+            showToast(parts.join(', ') + '.', 'success');
         } else {
-            showToast("No new receipts found to sync.", 'info');
+            showToast("No new receipts or revocations found to sync.", 'info');
         }
 
     } catch (error) {
@@ -2268,7 +2417,7 @@ function renderDashboard() {
             const amount = parseFloat(tx.amount) || 0;
             if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
                 totalCredits += amount;
-            } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
+            } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || tx.type === 'receipt_reversal' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
                 totalDebits += amount;
             }
         });
@@ -2386,6 +2535,12 @@ function renderLedgerTable() {
                 amountClass = 'text-blue-600';
                 sign = '-';
                 recipientInfo = tx.recipientName || tx.category || tx.bankName;
+                break;
+            case 'receipt_reversal':
+                typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">Revoked Receipt</span>';
+                amountClass = 'text-orange-600';
+                sign = '-';
+                recipientInfo = 'Revoked: ' + (tx.description || tx.bankName || '');
                 break;
             case 'transfer':
                 typeBadge = '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">Transfer</span>';
@@ -2705,6 +2860,7 @@ async function exportLedgerToPDF() {
                             case 'receipt': typeBadge = 'Receipt'; break;
                             case 'expense': typeBadge = 'Expense'; break;
                             case 'credit': typeBadge = 'Credit'; break;
+                            case 'receipt_reversal': typeBadge = 'Revoked Receipt'; break;
                             case 'transfer': typeBadge = 'Transfer'; break;
                             case 'withdrawal': typeBadge = 'Withdrawal'; break;
                             default: typeBadge = tx.type;
@@ -2937,6 +3093,11 @@ function renderReportTransactions(transactions) {
             case 'credit':
                 typeBadge = '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">Credit</span>';
                 amountClass = 'text-blue-600';
+                sign = '-';
+                break;
+            case 'receipt_reversal':
+                typeBadge = '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-orange-100 text-orange-800">Revoked Receipt</span>';
+                amountClass = 'text-orange-600';
                 sign = '-';
                 break;
             case 'transfer':
@@ -3322,7 +3483,7 @@ function showAllBanksSummary() {
             const amount = parseFloat(tx.amount) || 0;
             if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
                 totalCredits += amount;
-            } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
+            } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || tx.type === 'receipt_reversal' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
                 totalDebits += amount;
             }
         });
@@ -5047,7 +5208,7 @@ function renderSummaryDashboard() {
         if (tx.type === 'receipt') {
             if (cur === 'USD') cashIncomeUSD += amt; else cashIncomeKES += amt;
             monthlyData[mo].income += amt;
-        } else if (['expense', 'withdrawal', 'credit'].includes(tx.type)) {
+        } else if (['expense', 'withdrawal', 'credit', 'receipt_reversal'].includes(tx.type)) {
             if (cur === 'USD') cashExpUSD += amt; else cashExpKES += amt;
             monthlyData[mo].expense += amt;
         }
@@ -5095,7 +5256,7 @@ function renderSummaryDashboard() {
         txns.forEach(t => {
             const a = parseFloat(t.amount) || 0;
             if (t.type === 'receipt' || (t.type === 'transfer' && t.toBankId === bank.id)) inc += a;
-            else if (['expense','withdrawal','credit'].includes(t.type) || (t.type === 'transfer' && t.bankId === bank.id)) exp += a;
+            else if (['expense','withdrawal','credit','receipt_reversal'].includes(t.type) || (t.type === 'transfer' && t.bankId === bank.id)) exp += a;
         });
         const pctBar = (v, max) => {
             if (max === 0) return 0;
