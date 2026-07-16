@@ -89,6 +89,13 @@ let state = {
             pendingCount: { receivable: 0, payable: 0 },
             settledCount: { receivable: 0, payable: 0 }
         }
+    },
+
+    // Journal Entries (double-entry general ledger)
+    journal: {
+        accounts: [],   // chart of accounts
+        entries: [],    // posted journal entries
+        lineRowCount: 0 // used to generate unique DOM ids for dynamic line rows
     }
 };
 
@@ -1120,6 +1127,10 @@ async function initApp() {
         
         // Load accrual entries
         await loadAccruals();
+
+        // Load journal entries (double-entry general ledger)
+        await loadChartOfAccounts();
+        await loadJournalEntries();
         
         // Update UI
         renderDashboard();
@@ -1803,7 +1814,14 @@ function updateBankSelects() {
         }
         
         // Add event listeners for balance display
-        if (id.includes('from') || id === 'expense-bank' || id === 'credit-bank' || id === 'w-bank') {
+        // FIX: this previously only matched ids containing 'from', so
+        // 't-to-enhanced' (the destination bank dropdown) never got a
+        // change listener at all. Changing the "To" bank never triggered
+        // the currency-mismatch check, so the conversion-rate field could
+        // stay hidden even when it was required — leading to either a
+        // failed validation on submit or, worse, a transfer silently going
+        // through with no conversion applied.
+        if (id.includes('from') || id === 't-to-enhanced' || id === 'expense-bank' || id === 'credit-bank' || id === 'w-bank') {
             // Remove existing listener to prevent duplicates
             select.removeEventListener('change', handleBankSelectionChange);
             select.addEventListener('change', handleBankSelectionChange);
@@ -4970,6 +4988,662 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }, 5000);
 });
+
+// ============================================================
+// --- JOURNAL ENTRIES (DOUBLE-ENTRY GENERAL LEDGER) ---
+// ============================================================
+// A standard double-entry journal, separate from the bank ledger above.
+// The bank ledger tracks cash movements in/out of specific bank accounts;
+// this tracks the full accounting picture (assets, liabilities, equity,
+// income, expense) via balanced debit/credit entries against a chart of
+// accounts. Posted entries are never edited or deleted — corrections are
+// made by posting a reversing entry, exactly like receipt/transfer
+// corrections elsewhere in this app, so the audit trail stays intact.
+
+const ACCOUNT_TYPES = {
+    asset: { label: 'Asset', normalBalance: 'debit' },
+    liability: { label: 'Liability', normalBalance: 'credit' },
+    equity: { label: 'Equity', normalBalance: 'credit' },
+    income: { label: 'Income / Revenue', normalBalance: 'credit' },
+    expense: { label: 'Expense', normalBalance: 'debit' }
+};
+
+function getNormalBalanceForType(type) {
+    return ACCOUNT_TYPES[type]?.normalBalance || 'debit';
+}
+
+async function loadChartOfAccounts() {
+    try {
+        let snap = await db.collection('chartOfAccounts').orderBy('code').get();
+
+        if (snap.empty) {
+            await seedDefaultChartOfAccounts();
+            snap = await db.collection('chartOfAccounts').orderBy('code').get();
+        }
+
+        state.journal.accounts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderChartOfAccounts();
+        populateJournalAccountDropdowns();
+    } catch (error) {
+        console.error('Failed to load chart of accounts:', error);
+        showToast('Failed to load chart of accounts: ' + error.message, 'error');
+    }
+}
+
+async function seedDefaultChartOfAccounts() {
+    // A small, editable starter chart of accounts so the Journal tab isn't
+    // empty and useless on first use. The business can add/rename accounts
+    // freely afterward — these are just sensible defaults.
+    const defaults = [
+        { code: '1000', name: 'Cash and Bank Accounts', type: 'asset' },
+        { code: '1100', name: 'Accounts Receivable', type: 'asset' },
+        { code: '1500', name: 'Vehicle Inventory', type: 'asset' },
+        { code: '2000', name: 'Accounts Payable', type: 'liability' },
+        { code: '2100', name: 'Loans Payable', type: 'liability' },
+        { code: '3000', name: "Owner's Equity", type: 'equity' },
+        { code: '3900', name: 'Retained Earnings', type: 'equity' },
+        { code: '4000', name: 'Sales / Vehicle Revenue', type: 'income' },
+        { code: '4900', name: 'Other Income', type: 'income' },
+        { code: '5000', name: 'Cost of Goods Sold', type: 'expense' },
+        { code: '6000', name: 'Bank & Transaction Charges', type: 'expense' },
+        { code: '6100', name: 'Operating Expenses', type: 'expense' }
+    ];
+
+    const batch = db.batch();
+    defaults.forEach(acc => {
+        const ref = db.collection('chartOfAccounts').doc();
+        batch.set(ref, {
+            code: acc.code,
+            name: acc.name,
+            type: acc.type,
+            normalBalance: getNormalBalanceForType(acc.type),
+            isActive: true,
+            isDefault: true,
+            createdBy: 'system',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    });
+    await batch.commit();
+}
+
+function renderChartOfAccounts() {
+    const tbody = document.getElementById('je-accounts-body');
+    if (!tbody) return;
+
+    if (state.journal.accounts.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-gray-400">No accounts yet</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = state.journal.accounts.map(acc => `
+        <tr class="hover:bg-gray-50">
+            <td class="px-4 py-3 font-mono text-xs">${sanitizeString(acc.code)}</td>
+            <td class="px-4 py-3 font-medium">${sanitizeString(acc.name)}</td>
+            <td class="px-4 py-3">${ACCOUNT_TYPES[acc.type]?.label || acc.type}</td>
+            <td class="px-4 py-3 capitalize">${acc.normalBalance}</td>
+            <td class="px-4 py-3 text-center">
+                ${acc.isActive
+                    ? '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800">Active</span>'
+                    : '<span class="px-2 py-0.5 text-xs rounded-full bg-gray-200 text-gray-600">Inactive</span>'}
+            </td>
+            <td class="px-4 py-3 text-center">
+                <button onclick="toggleAccountActive('${acc.id}', ${!acc.isActive})" class="text-xs text-teal-700 hover:text-teal-900 underline">
+                    ${acc.isActive ? 'Deactivate' : 'Reactivate'}
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function openNewAccountForm() {
+    const container = document.getElementById('je-new-account-form-container');
+    if (container) container.classList.toggle('hidden');
+}
+
+document.getElementById('new-account-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const code = sanitizeString(document.getElementById('acc-code').value).trim();
+    const name = sanitizeString(document.getElementById('acc-name').value).trim();
+    const type = document.getElementById('acc-type').value;
+
+    if (!code || !name) {
+        showToast('Please enter both an account code and name.', 'error');
+        return;
+    }
+    if (!ACCOUNT_TYPES[type]) {
+        showToast('Invalid account type.', 'error');
+        return;
+    }
+    if (state.journal.accounts.some(a => a.code.toLowerCase() === code.toLowerCase())) {
+        showToast(`Account code "${code}" is already in use.`, 'error');
+        return;
+    }
+
+    showLoading(true, 'Saving account...');
+    try {
+        await db.collection('chartOfAccounts').add({
+            code,
+            name,
+            type,
+            normalBalance: getNormalBalanceForType(type),
+            isActive: true,
+            isDefault: false,
+            createdBy: state.user?.email || 'Unknown',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        document.getElementById('new-account-form').reset();
+        document.getElementById('je-new-account-form-container').classList.add('hidden');
+        await loadChartOfAccounts();
+        showToast(`Account "${name}" created.`, 'success');
+    } catch (error) {
+        console.error('Failed to save account:', error);
+        showToast('Failed to save account: ' + error.message, 'error');
+    } finally {
+        showLoading(false);
+    }
+});
+
+async function toggleAccountActive(accountId, newActiveState) {
+    try {
+        await db.collection('chartOfAccounts').doc(accountId).update({ isActive: newActiveState });
+        await loadChartOfAccounts();
+        showToast(`Account ${newActiveState ? 'reactivated' : 'deactivated'}.`, 'success');
+    } catch (error) {
+        console.error('Failed to update account:', error);
+        showToast('Failed to update account: ' + error.message, 'error');
+    }
+}
+
+// --- Journal Entry Line Rows (dynamic form) ---
+
+function populateJournalAccountDropdowns() {
+    document.querySelectorAll('.je-line-account-select').forEach(select => {
+        const currentValue = select.value;
+        select.innerHTML = '<option value="">Select account…</option>' +
+            state.journal.accounts
+                .filter(a => a.isActive)
+                .map(a => `<option value="${a.id}">${sanitizeString(a.code)} — ${sanitizeString(a.name)}</option>`)
+                .join('');
+        if (currentValue) select.value = currentValue;
+    });
+}
+
+function addJournalLineRow() {
+    const tbody = document.getElementById('je-lines-body');
+    if (!tbody) return;
+
+    const rowId = `je-line-${++state.journal.lineRowCount}`;
+    const row = document.createElement('tr');
+    row.id = rowId;
+    row.innerHTML = `
+        <td class="px-3 py-2">
+            <select class="je-line-account-select w-full border-gray-300 rounded-lg shadow-sm text-sm p-2 border">
+                <option value="">Select account…</option>
+                ${state.journal.accounts.filter(a => a.isActive).map(a =>
+                    `<option value="${a.id}">${sanitizeString(a.code)} — ${sanitizeString(a.name)}</option>`
+                ).join('')}
+            </select>
+        </td>
+        <td class="px-3 py-2">
+            <input type="text" class="je-line-memo w-full border-gray-300 rounded-lg shadow-sm text-sm p-2 border" placeholder="Optional note">
+        </td>
+        <td class="px-3 py-2">
+            <input type="number" step="0.01" min="0" class="je-line-debit w-full border-gray-300 rounded-lg shadow-sm text-sm p-2 border text-right" placeholder="0.00" oninput="handleJournalLineInput(this, 'debit')">
+        </td>
+        <td class="px-3 py-2">
+            <input type="number" step="0.01" min="0" class="je-line-credit w-full border-gray-300 rounded-lg shadow-sm text-sm p-2 border text-right" placeholder="0.00" oninput="handleJournalLineInput(this, 'credit')">
+        </td>
+        <td class="px-2 py-2 text-center">
+            <button type="button" onclick="document.getElementById('${rowId}').remove(); updateJournalBalanceIndicator();" class="text-red-500 hover:text-red-700">
+                <i class="fas fa-times-circle"></i>
+            </button>
+        </td>
+    `;
+    tbody.appendChild(row);
+    updateJournalBalanceIndicator();
+}
+
+// A line should only ever have EITHER a debit OR a credit, never both —
+// clearing the opposite field when one is typed into keeps that true
+// without needing extra validation noise on submit.
+function handleJournalLineInput(inputEl, side) {
+    const row = inputEl.closest('tr');
+    const opposite = side === 'debit' ? row.querySelector('.je-line-credit') : row.querySelector('.je-line-debit');
+    if (parseFloat(inputEl.value) > 0 && opposite) {
+        opposite.value = '';
+    }
+    updateJournalBalanceIndicator();
+}
+
+function updateJournalBalanceIndicator() {
+    const rows = document.querySelectorAll('#je-lines-body tr');
+    let totalDebit = 0;
+    let totalCredit = 0;
+    rows.forEach(row => {
+        totalDebit += parseFloat(row.querySelector('.je-line-debit')?.value) || 0;
+        totalCredit += parseFloat(row.querySelector('.je-line-credit')?.value) || 0;
+    });
+
+    const debitEl = document.getElementById('je-total-debit');
+    const creditEl = document.getElementById('je-total-credit');
+    const statusEl = document.getElementById('je-balance-status');
+    const indicator = document.getElementById('je-balance-indicator');
+    if (debitEl) debitEl.textContent = formatNumber(totalDebit);
+    if (creditEl) creditEl.textContent = formatNumber(totalCredit);
+
+    if (!statusEl || !indicator) return;
+
+    const isBalanced = rows.length >= 2 && totalDebit > 0 && Math.abs(totalDebit - totalCredit) < 0.005;
+    if (rows.length < 2) {
+        statusEl.textContent = 'Add at least two lines';
+        indicator.className = 'mt-3 p-3 rounded-lg text-sm font-semibold flex justify-between items-center bg-gray-50 text-gray-600';
+    } else if (isBalanced) {
+        statusEl.textContent = '✓ Balanced';
+        indicator.className = 'mt-3 p-3 rounded-lg text-sm font-semibold flex justify-between items-center bg-green-50 text-green-700';
+    } else {
+        statusEl.textContent = `✗ Out of balance by ${formatNumber(Math.abs(totalDebit - totalCredit))}`;
+        indicator.className = 'mt-3 p-3 rounded-lg text-sm font-semibold flex justify-between items-center bg-red-50 text-red-700';
+    }
+}
+
+document.getElementById('journal-entry-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await saveJournalEntry();
+});
+
+async function saveJournalEntry() {
+    if (state.transactionLock) {
+        showToast('Another transaction is in progress. Please wait.', 'error');
+        return;
+    }
+
+    const date = document.getElementById('je-date').value;
+    const reference = sanitizeString(document.getElementById('je-reference').value).trim();
+    const description = sanitizeString(document.getElementById('je-description').value).trim();
+
+    if (!date) {
+        showToast('Please select a date.', 'error');
+        return;
+    }
+    if (!description) {
+        showToast('Please enter a description.', 'error');
+        return;
+    }
+
+    // Collect and validate lines
+    const rows = document.querySelectorAll('#je-lines-body tr');
+    if (rows.length < 2) {
+        showToast('A journal entry needs at least two lines.', 'error');
+        return;
+    }
+
+    const lines = [];
+    let totalDebit = 0;
+    let totalCredit = 0;
+    let hasInvalidLine = false;
+
+    rows.forEach(row => {
+        const accountSelect = row.querySelector('.je-line-account-select');
+        const accountId = accountSelect?.value;
+        const memo = sanitizeString(row.querySelector('.je-line-memo')?.value || '').trim();
+        const debit = parseFloat(row.querySelector('.je-line-debit')?.value) || 0;
+        const credit = parseFloat(row.querySelector('.je-line-credit')?.value) || 0;
+
+        if (!accountId || (debit <= 0 && credit <= 0) || (debit > 0 && credit > 0)) {
+            hasInvalidLine = true;
+            return;
+        }
+
+        const account = state.journal.accounts.find(a => a.id === accountId);
+        if (!account) {
+            hasInvalidLine = true;
+            return;
+        }
+
+        lines.push({
+            accountId,
+            accountCode: account.code,
+            accountName: account.name,
+            memo,
+            debit: Math.round(debit * 100) / 100,
+            credit: Math.round(credit * 100) / 100
+        });
+        totalDebit += debit;
+        totalCredit += credit;
+    });
+
+    if (hasInvalidLine) {
+        showToast('Every line needs an account and exactly one of debit or credit filled in.', 'error');
+        return;
+    }
+
+    totalDebit = Math.round(totalDebit * 100) / 100;
+    totalCredit = Math.round(totalCredit * 100) / 100;
+
+    if (Math.abs(totalDebit - totalCredit) >= 0.01) {
+        showToast(`Entry is out of balance: debit ${formatNumber(totalDebit)} vs credit ${formatNumber(totalCredit)}. They must be equal.`, 'error');
+        return;
+    }
+    if (totalDebit <= 0) {
+        showToast('Entry total must be greater than zero.', 'error');
+        return;
+    }
+
+    state.transactionLock = true;
+    showLoading(true, 'Posting journal entry...');
+
+    try {
+        const entryNumber = `JE-${Date.now()}`;
+        const entryRef = db.collection('journalEntries').doc();
+        await entryRef.set({
+            entryNumber,
+            date: new Date(date).toISOString(),
+            reference: reference || null,
+            description,
+            lines,
+            totalDebit,
+            totalCredit,
+            status: 'posted',
+            reversalOfEntryId: null,
+            reversedByEntryId: null,
+            createdBy: state.user?.email || 'Unknown',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        document.getElementById('journal-entry-form').reset();
+        document.getElementById('je-lines-body').innerHTML = '';
+        addJournalLineRow();
+        addJournalLineRow();
+        document.getElementById('je-date').value = new Date().toISOString().split('T')[0];
+
+        await loadJournalEntries();
+        switchJournalSubtab('je-entries');
+
+        await addAuditLog('JOURNAL_ENTRY_POSTED', { entryNumber, totalDebit, totalCredit, lineCount: lines.length });
+        showToast(`Journal entry ${entryNumber} posted.`, 'success');
+    } catch (error) {
+        console.error('Failed to post journal entry:', error);
+        showToast('Failed to post journal entry: ' + error.message, 'error');
+        await addAuditLog('JOURNAL_ENTRY_FAILED', { error: error.message }, 'failure');
+    } finally {
+        state.transactionLock = false;
+        showLoading(false);
+    }
+}
+
+async function loadJournalEntries() {
+    try {
+        const snap = await db.collection('journalEntries').orderBy('createdAt', 'desc').limit(500).get();
+        state.journal.entries = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        renderJournalEntriesList();
+        renderTrialBalance();
+    } catch (error) {
+        console.error('Failed to load journal entries:', error);
+        showToast('Failed to load journal entries: ' + error.message, 'error');
+    }
+}
+
+function renderJournalEntriesList() {
+    const tbody = document.getElementById('je-entries-body');
+    const countSpan = document.getElementById('je-entries-count');
+    if (!tbody) return;
+
+    if (countSpan) countSpan.textContent = `${state.journal.entries.length} entries`;
+
+    if (state.journal.entries.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-400">No journal entries yet</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = state.journal.entries.map(entry => {
+        const dateStr = new Date(entry.date).toLocaleDateString();
+        let statusBadge;
+        if (entry.status === 'reversed') {
+            statusBadge = '<span class="px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-800">Reversed</span>';
+        } else if (entry.reversalOfEntryId) {
+            statusBadge = '<span class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800">Reversal</span>';
+        } else {
+            statusBadge = '<span class="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-800">Posted</span>';
+        }
+
+        const canReverse = entry.status === 'posted' && !entry.reversedByEntryId;
+
+        return `
+            <tr class="hover:bg-gray-50 ${entry.status === 'reversed' ? 'opacity-60' : ''}">
+                <td class="px-4 py-3 font-mono text-xs">${sanitizeString(entry.entryNumber)}</td>
+                <td class="px-4 py-3 text-sm text-gray-600">${dateStr}</td>
+                <td class="px-4 py-3">
+                    ${sanitizeString(entry.description)}
+                    ${entry.reference ? `<div class="text-xs text-gray-400">Ref: ${sanitizeString(entry.reference)}</div>` : ''}
+                </td>
+                <td class="px-4 py-3 text-right font-semibold">${formatNumber(entry.totalDebit)}</td>
+                <td class="px-4 py-3 text-right font-semibold">${formatNumber(entry.totalCredit)}</td>
+                <td class="px-4 py-3 text-center">${statusBadge}</td>
+                <td class="px-4 py-3 text-center">
+                    <button onclick="viewJournalEntryDetail('${entry.id}')" class="text-teal-700 hover:text-teal-900 text-xs underline mr-2">View</button>
+                    ${canReverse ? `<button onclick="reverseJournalEntry('${entry.id}')" class="text-red-600 hover:text-red-800 text-xs underline">Reverse</button>` : ''}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function viewJournalEntryDetail(entryId) {
+    const entry = state.journal.entries.find(e => e.id === entryId);
+    if (!entry) return;
+
+    const linesHtml = entry.lines.map(l => `
+        <tr>
+            <td class="px-3 py-2 text-sm">${sanitizeString(l.accountCode)} — ${sanitizeString(l.accountName)}</td>
+            <td class="px-3 py-2 text-sm text-gray-500">${sanitizeString(l.memo || '')}</td>
+            <td class="px-3 py-2 text-sm text-right">${l.debit > 0 ? formatNumber(l.debit) : ''}</td>
+            <td class="px-3 py-2 text-sm text-right">${l.credit > 0 ? formatNumber(l.credit) : ''}</td>
+        </tr>
+    `).join('');
+
+    const modal = document.createElement('div');
+    modal.id = 'je-detail-modal';
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+    modal.innerHTML = `
+        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="document.getElementById('je-detail-modal').remove()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-auto p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">${sanitizeString(entry.entryNumber)}</h2>
+                <button onclick="document.getElementById('je-detail-modal').remove()" class="text-gray-500 hover:text-gray-700 text-2xl"><i class="fas fa-times"></i></button>
+            </div>
+            <p class="text-sm text-gray-600 mb-1">${sanitizeString(entry.description)}</p>
+            <p class="text-xs text-gray-400 mb-4">${new Date(entry.date).toLocaleDateString()} ${entry.reference ? '· Ref: ' + sanitizeString(entry.reference) : ''} · Posted by ${sanitizeString(entry.createdBy || '')}</p>
+            <table class="min-w-full border border-gray-200 rounded-lg overflow-hidden">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Account</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Memo</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Debit</th>
+                        <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Credit</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">${linesHtml}</tbody>
+            </table>
+        </div>
+    `;
+    document.body.appendChild(modal);
+}
+
+async function reverseJournalEntry(entryId) {
+    const entry = state.journal.entries.find(e => e.id === entryId);
+    if (!entry) {
+        showToast('Journal entry not found.', 'error');
+        return;
+    }
+    if (entry.status !== 'posted' || entry.reversedByEntryId) {
+        showToast('This entry has already been reversed.', 'error');
+        return;
+    }
+    if (!confirm(`Reverse journal entry ${entry.entryNumber}? This posts an equal-and-opposite entry rather than deleting the original, to keep the audit trail intact.`)) {
+        return;
+    }
+
+    if (state.transactionLock) {
+        showToast('Another transaction is in progress. Please wait.', 'error');
+        return;
+    }
+
+    state.transactionLock = true;
+    showLoading(true, 'Reversing journal entry...');
+
+    try {
+        const reversalLines = entry.lines.map(l => ({
+            accountId: l.accountId,
+            accountCode: l.accountCode,
+            accountName: l.accountName,
+            memo: `Reversal of ${entry.entryNumber}${l.memo ? ': ' + l.memo : ''}`,
+            debit: l.credit,   // swapped
+            credit: l.debit    // swapped
+        }));
+
+        const reversalNumber = `JE-${Date.now()}-REV`;
+        const reversalRef = db.collection('journalEntries').doc();
+        const batch = db.batch();
+
+        batch.set(reversalRef, {
+            entryNumber: reversalNumber,
+            date: new Date().toISOString(),
+            reference: entry.entryNumber,
+            description: `Reversal of ${entry.entryNumber}: ${entry.description}`,
+            lines: reversalLines,
+            totalDebit: entry.totalCredit,
+            totalCredit: entry.totalDebit,
+            status: 'posted',
+            reversalOfEntryId: entry.id,
+            reversedByEntryId: null,
+            createdBy: state.user?.email || 'Unknown',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        batch.update(db.collection('journalEntries').doc(entry.id), {
+            status: 'reversed',
+            reversedByEntryId: reversalRef.id,
+            reversedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            reversedBy: state.user?.email || 'Unknown'
+        });
+
+        await batch.commit();
+        await loadJournalEntries();
+
+        await addAuditLog('JOURNAL_ENTRY_REVERSED', { original: entry.entryNumber, reversal: reversalNumber });
+        showToast(`${entry.entryNumber} reversed via ${reversalNumber}.`, 'success');
+    } catch (error) {
+        console.error('Failed to reverse journal entry:', error);
+        showToast('Failed to reverse journal entry: ' + error.message, 'error');
+    } finally {
+        state.transactionLock = false;
+        showLoading(false);
+    }
+}
+
+function calculateTrialBalance() {
+    // For each account, sum all debits and credits across every posted
+    // journal entry (reversed entries stay in the sum — their reversal
+    // entries already cancel them out arithmetically, which is the
+    // correct double-entry way to "undo" something rather than excluding
+    // history from the calculation).
+    const totals = {}; // accountId -> { debit, credit }
+
+    state.journal.entries.forEach(entry => {
+        entry.lines.forEach(line => {
+            if (!totals[line.accountId]) {
+                totals[line.accountId] = { debit: 0, credit: 0 };
+            }
+            totals[line.accountId].debit += line.debit || 0;
+            totals[line.accountId].credit += line.credit || 0;
+        });
+    });
+
+    const rows = state.journal.accounts
+        .filter(acc => totals[acc.id] && (totals[acc.id].debit > 0 || totals[acc.id].credit > 0))
+        .map(acc => {
+            const t = totals[acc.id];
+            const net = t.debit - t.credit;
+            // Present net balance on the account's normal-balance side
+            const debitBalance = net >= 0 ? net : 0;
+            const creditBalance = net < 0 ? -net : 0;
+            return {
+                code: acc.code,
+                name: acc.name,
+                debit: Math.round(debitBalance * 100) / 100,
+                credit: Math.round(creditBalance * 100) / 100
+            };
+        })
+        .sort((a, b) => a.code.localeCompare(b.code));
+
+    const totalDebit = Math.round(rows.reduce((sum, r) => sum + r.debit, 0) * 100) / 100;
+    const totalCredit = Math.round(rows.reduce((sum, r) => sum + r.credit, 0) * 100) / 100;
+
+    return { rows, totalDebit, totalCredit };
+}
+
+function renderTrialBalance() {
+    const tbody = document.getElementById('je-trial-balance-body');
+    const totalDebitEl = document.getElementById('je-trial-total-debit');
+    const totalCreditEl = document.getElementById('je-trial-total-credit');
+    const statusEl = document.getElementById('je-trial-balance-status');
+    if (!tbody) return;
+
+    const { rows, totalDebit, totalCredit } = calculateTrialBalance();
+
+    if (rows.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="px-4 py-8 text-center text-gray-400">No activity yet</td></tr>`;
+    } else {
+        tbody.innerHTML = rows.map(r => `
+            <tr class="hover:bg-gray-50">
+                <td class="px-4 py-3 font-mono text-xs">${sanitizeString(r.code)}</td>
+                <td class="px-4 py-3">${sanitizeString(r.name)}</td>
+                <td class="px-4 py-3 text-right">${r.debit > 0 ? formatNumber(r.debit) : ''}</td>
+                <td class="px-4 py-3 text-right">${r.credit > 0 ? formatNumber(r.credit) : ''}</td>
+            </tr>
+        `).join('');
+    }
+
+    if (totalDebitEl) totalDebitEl.textContent = formatNumber(totalDebit);
+    if (totalCreditEl) totalCreditEl.textContent = formatNumber(totalCredit);
+    if (statusEl) {
+        const balanced = Math.abs(totalDebit - totalCredit) < 0.01;
+        statusEl.textContent = balanced ? '✓ Balanced' : '✗ Out of balance';
+        statusEl.className = `text-sm font-semibold ${balanced ? 'text-green-600' : 'text-red-600'}`;
+    }
+}
+
+function switchJournalSubtab(subtabId) {
+    document.querySelectorAll('.journal-subtab-content').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.journal-subtab-btn').forEach(btn => {
+        btn.classList.remove('bg-teal-600', 'text-white');
+        btn.classList.add('text-gray-600');
+    });
+
+    const target = document.getElementById(subtabId);
+    if (target) target.classList.remove('hidden');
+
+    const activeBtn = document.querySelector(`.journal-subtab-btn[data-journal-subtab="${subtabId}"]`);
+    if (activeBtn) {
+        activeBtn.classList.add('bg-teal-600', 'text-white');
+        activeBtn.classList.remove('text-gray-600');
+    }
+
+    if (subtabId === 'je-new') {
+        // Ensure the new-entry form always starts with two blank lines
+        const linesBody = document.getElementById('je-lines-body');
+        if (linesBody && linesBody.children.length === 0) {
+            addJournalLineRow();
+            addJournalLineRow();
+            const dateInput = document.getElementById('je-date');
+            if (dateInput && !dateInput.value) dateInput.value = new Date().toISOString().split('T')[0];
+        }
+    } else if (subtabId === 'je-trial-balance') {
+        renderTrialBalance();
+    }
+}
 
 // ============================================================
 // --- ACCRUAL FINANCE ENGINE ---
