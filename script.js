@@ -225,6 +225,24 @@ function validateAmount(amount, bank = null, isFee = false, checkBalance = false
     
     return parseFloat(numAmount.toFixed(2));
 }
+// -----------------------------------------------------------------
+// Waits for state.transactionLock to be free before proceeding. Used by
+// writes that must never overlap with an in-flight processReceiptPayments()
+// pass — see the opening-balance handler for why this matters: without it,
+// a receipt-processing pass that started just before an opening balance
+// change can finish deciding (using the OLD cutoff) and commit its batch
+// AFTER the new cutoff has been written, silently including transactions
+// the user just tried to exclude.
+async function waitForTransactionLock(maxWaitMs = 15000, pollMs = 150) {
+    const start = Date.now();
+    while (state.transactionLock) {
+        if (Date.now() - start > maxWaitMs) {
+            throw new Error('Timed out waiting for an in-progress transaction to finish. Please try again in a moment.');
+        }
+        await new Promise(resolve => setTimeout(resolve, pollMs));
+    }
+}
+
 function generateIdempotencyKey(operation, params) {
     const str = `${operation}_${JSON.stringify(params)}_${Date.now()}_${Math.random()}`;
     let hash = 0;
@@ -1056,6 +1074,19 @@ function populateExpenseCategories() {
 
 async function initApp() {
     console.log("Initializing App...");
+
+    // Guard against overlapping full reloads — e.g. a live-sync tick firing
+    // while a user-triggered reload (such as after saving an opening
+    // balance) is already in progress. calculateBalances() itself always
+    // re-reads the current cutoff so it can't produce wrong numbers, but
+    // running two full reloads at once is wasteful and can flash a stale
+    // balance mid-way through.
+    if (state.initInProgress) {
+        console.log('initApp already in progress, skipping overlapping call');
+        return;
+    }
+    state.initInProgress = true;
+
     showLoading(true, "Loading bank data...");
     
     try {
@@ -1127,6 +1158,7 @@ async function initApp() {
         showToast('Failed to load data: ' + error.message, 'error');
         await addAuditLog('SYSTEM_INIT_FAILED', { error: error.message }, 'failure');
     } finally {
+        state.initInProgress = false;
         showLoading(false);
         
         // Update sync status
@@ -1142,6 +1174,10 @@ function scheduleLiveRefresh(reason) {
     if (liveSyncDebounceTimer) clearTimeout(liveSyncDebounceTimer);
     liveSyncDebounceTimer = setTimeout(async () => {
         if (!state.systemReady) return; // don't run before initial load has finished
+        if (state.initInProgress) {
+            console.log('Live sync: skipping, a full reload is already in progress');
+            return;
+        }
         try {
             console.log(`Live sync: refreshing (${reason})`);
             await processReceiptPayments();
@@ -1410,6 +1446,14 @@ async function processReceiptPayments() {
                 // If a bank has BOTH a KES and a USD account (e.g. "EQUITY BANK"), guessing here
                 // risks crediting a USD receipt into the KES account (or vice versa), so we must
                 // never silently pick one when more than one candidate exists.
+                //
+                // FIX: previously, when this fallback matched a bank whose currency did NOT match
+                // the receipt's currency (e.g. a KES receipt landing on a bank that only has a USD
+                // account), the raw un-converted amount was credited as-is — a KES 100,000 receipt
+                // became "+100,000" in the USD balance, i.e. treated as if it were USD. This now
+                // converts the amount into the target bank's actual currency using the receipt's
+                // own exchange rate before crediting it, and records the conversion for audit.
+                let conversionApplied = null;
                 if (!targetBank) {
                     const nameMatchingBanks = state.banks.filter(bank =>
                         bank.name.toLowerCase().includes(bankName.toLowerCase()) ||
@@ -1417,8 +1461,37 @@ async function processReceiptPayments() {
                     );
 
                     if (nameMatchingBanks.length === 1) {
-                        targetBank = nameMatchingBanks[0];
-                        console.warn(`Currency mismatch for receipt ${transactionId}: expected ${receiptCurrency}, only match is ${targetBank.currency} account of ${targetBank.name}`);
+                        const candidate = nameMatchingBanks[0];
+                        if (candidate.currency === receiptCurrency) {
+                            targetBank = candidate;
+                        } else {
+                            // Genuine currency mismatch — only account with this name is the
+                            // "wrong" currency. Convert using the receipt's own exchange rate
+                            // rather than silently crediting the raw figure.
+                            const exchangeRate = parseFloat(data.exchangeRate) || 0;
+                            if (!exchangeRate || exchangeRate <= 0) {
+                                console.error(`Cannot safely process receipt ${transactionId}: it's ${receiptCurrency} but the only matching account "${candidate.name}" is ${candidate.currency}, and the receipt has no valid exchange rate to convert with. Skipping instead of guessing.`);
+                            } else {
+                                const originalAmount = amount;
+                                let convertedAmount;
+                                if (receiptCurrency === 'KES' && candidate.currency === 'USD') {
+                                    convertedAmount = originalAmount / exchangeRate;
+                                } else if (receiptCurrency === 'USD' && candidate.currency === 'KES') {
+                                    convertedAmount = originalAmount * exchangeRate;
+                                } else {
+                                    convertedAmount = originalAmount; // shouldn't happen given the currency check above
+                                }
+                                convertedAmount = Math.round(convertedAmount * 100) / 100;
+                                console.warn(`Converting receipt ${transactionId}: ${originalAmount} ${receiptCurrency} -> ${convertedAmount} ${candidate.currency} using exchange rate ${exchangeRate} (only ${candidate.currency} account found for "${bankName}")`);
+                                conversionApplied = {
+                                    originalAmount,
+                                    originalCurrency: receiptCurrency,
+                                    exchangeRateUsed: exchangeRate
+                                };
+                                amount = convertedAmount;
+                                targetBank = candidate;
+                            }
+                        }
                     } else if (nameMatchingBanks.length > 1) {
                         console.error(`Ambiguous bank match for receipt ${transactionId}: "${bankName}" (expected ${receiptCurrency}) matches ${nameMatchingBanks.length} accounts with currencies [${nameMatchingBanks.map(b => b.currency).join(', ')}] — skipping instead of guessing to avoid crediting the wrong currency account.`);
                     }
@@ -1490,13 +1563,24 @@ async function processReceiptPayments() {
                     amount: amount,
                     bankId: targetBank.id,
                     bankName: targetBank.name,
-                    currency: isUSD ? 'USD' : (data.currency || targetBank.currency || 'KES'),
+                    // FIX: this must be the currency actually credited (the target bank's own
+                    // currency), not the receipt's original currency — `amount` above has already
+                    // been converted into the bank's currency when a mismatch fallback occurred,
+                    // so labeling it with the original currency would misrepresent what's in the
+                    // ledger and make the balance math wrong.
+                    currency: targetBank.currency || (isUSD ? 'USD' : 'KES'),
                     description: `Receipt #${data.receiptNumber || 'N/A'} - ${data.description || data.customerName || ''}`,
                     sourceDocId: doc.id,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
                     userId: state.user?.uid,
                     userEmail: state.user?.email,
-                    idempotencyKey: idempotencyKey
+                    idempotencyKey: idempotencyKey,
+                    ...(conversionApplied ? {
+                        currencyConverted: true,
+                        originalAmount: conversionApplied.originalAmount,
+                        originalCurrency: conversionApplied.originalCurrency,
+                        exchangeRateUsed: conversionApplied.exchangeRateUsed
+                    } : {})
                 });
                 
                 // Store idempotency key
@@ -1750,6 +1834,82 @@ function handleBankSelectionChange(event) {
                      id === 'credit-bank' ? 'credit-bank-balance' :
                      `${id}-balance`;
     updateBankBalanceDisplay(value, balanceId);
+
+    // If this change affects the transfer form's from/to selection, check
+    // whether the two accounts are in different currencies and show the
+    // conversion-rate field accordingly.
+    if (id === 't-from-enhanced' || id === 't-to-enhanced') {
+        updateTransferConversionUI();
+    }
+}
+
+/**
+ * Shows/hides the conversion-rate field on the transfer form depending on
+ * whether the sender and receiver accounts are in different currencies.
+ * Fixes: previously a transfer between a KES account and a USD account
+ * moved the exact same number out of one and into the other with no
+ * conversion at all (e.g. a KES 10,000 transfer showed up as "+10,000" in
+ * the USD account).
+ */
+function updateTransferConversionUI() {
+    const fromId = document.getElementById('t-from-enhanced')?.value;
+    const toId = document.getElementById('t-to-enhanced')?.value;
+    const section = document.getElementById('t-conversion-section-enhanced');
+    const label = document.getElementById('t-conversion-label-enhanced');
+    const rateInput = document.getElementById('t-conversion-rate-enhanced');
+    if (!section || !fromId || !toId) {
+        if (section) section.classList.add('hidden');
+        return;
+    }
+
+    const fromBank = state.banks.find(b => b.id === fromId);
+    const toBank = state.banks.find(b => b.id === toId);
+
+    if (fromBank && toBank && fromBank.currency !== toBank.currency) {
+        section.classList.remove('hidden');
+        if (label) label.textContent = `1 USD = X KES, applied ${fromBank.currency} → ${toBank.currency}`;
+        if (rateInput) rateInput.required = true;
+        updateTransferConversionPreview();
+    } else {
+        section.classList.add('hidden');
+        if (rateInput) rateInput.required = false;
+    }
+}
+
+function updateTransferConversionPreview() {
+    const fromId = document.getElementById('t-from-enhanced')?.value;
+    const toId = document.getElementById('t-to-enhanced')?.value;
+    const fromBank = state.banks.find(b => b.id === fromId);
+    const toBank = state.banks.find(b => b.id === toId);
+    const amount = parseFloat(document.getElementById('t-amount-enhanced')?.value) || 0;
+    const rate = parseFloat(document.getElementById('t-conversion-rate-enhanced')?.value) || 0;
+    const previewEl = document.getElementById('t-conversion-preview-enhanced');
+    if (!previewEl || !fromBank || !toBank || !rate || !amount) {
+        if (previewEl) previewEl.textContent = '';
+        return;
+    }
+
+    let received;
+    if (fromBank.currency === 'KES' && toBank.currency === 'USD') {
+        received = amount / rate;
+    } else if (fromBank.currency === 'USD' && toBank.currency === 'KES') {
+        received = amount * rate;
+    } else {
+        received = amount;
+    }
+    previewEl.textContent = `${toBank.name} will receive ≈ ${formatCurrency(received, toBank.currency)}`;
+}
+
+function toggleTransferFeeInput(feeUnknown) {
+    const fieldsContainer = document.getElementById('t-fee-fields-enhanced');
+    const feeInput = document.getElementById('t-fee-enhanced');
+    if (!fieldsContainer || !feeInput) return;
+    if (feeUnknown) {
+        fieldsContainer.classList.add('opacity-50', 'pointer-events-none');
+        feeInput.value = '0.00';
+    } else {
+        fieldsContainer.classList.remove('opacity-50', 'pointer-events-none');
+    }
 }
 
 function updateBankBalanceDisplay(bankId, elementId) {
@@ -1838,7 +1998,7 @@ function calculateBalances() {
                     break;
                     
                 case 'transfer':
-                    // Outgoing transfer
+                    // Outgoing transfer (always in the sender's own currency/amount)
                     if (tx.bankId === bank.id) {
                         runningBalance -= amount;
                         // Deduct transaction fee if sender bears it
@@ -1847,9 +2007,15 @@ function calculateBalances() {
                         }
                         state.balances[bank.id] = runningBalance;
                     }
-                    // Incoming transfer
+                    // Incoming transfer — use toAmount (converted into the
+                    // receiving bank's own currency) when present; falls back
+                    // to `amount` for transfers recorded before conversion
+                    // support existed, which were always same-currency.
                     if (tx.toBankId === bank.id) {
-                        runningBalance += amount;
+                        const creditedAmount = (tx.toAmount !== undefined && tx.toAmount !== null)
+                            ? parseFloat(tx.toAmount) || 0
+                            : amount;
+                        runningBalance += creditedAmount;
                         // Deduct transaction fee if receiver bears it
                         if (tx.transactionFee && tx.transactionFeeBearer === 'receiver' && tx.feeAmount) {
                             runningBalance -= parseFloat(tx.feeAmount);
@@ -1910,7 +2076,7 @@ async function verifyAllBalances(showNotification = true) {
                 }
             }
             
-            // Process each transaction
+            // Process each transaction where this bank is the SENDER
             allTx.docs.forEach(doc => {
                 const tx = doc.data();
                 const txDateTime = new Date(tx.date).getTime();
@@ -1921,7 +2087,7 @@ async function verifyAllBalances(showNotification = true) {
                     return;
                 }
                 
-                if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
+                if (tx.type === 'receipt') {
                     calculatedBalance += amount;
                 } else if (['expense', 'credit', 'withdrawal', 'transfer_fee', 'receipt_reversal'].includes(tx.type)) {
                     calculatedBalance -= amount;
@@ -1932,6 +2098,33 @@ async function verifyAllBalances(showNotification = true) {
                             calculatedBalance -= parseFloat(tx.feeAmount);
                         }
                     }
+                }
+            });
+
+            // FIX: this bank's incoming transfers were never checked at all —
+            // the query above only matches `bankId == bank.id`, which is the
+            // SENDER side. A transfer where this bank is the RECEIVER
+            // (toBankId == bank.id) never showed up here, so verification
+            // always looked wrong (or silently missed real problems) for any
+            // bank that had ever received a transfer. This runs a second,
+            // targeted query for those and credits the actual amount received
+            // (toAmount, converted, when present).
+            const incomingTx = await db.collection('bankLedger')
+                .where('toBankId', '==', bank.id)
+                .where('type', '==', 'transfer')
+                .get();
+
+            incomingTx.docs.forEach(doc => {
+                const tx = doc.data();
+                const txDateTime = new Date(tx.date).getTime();
+                if (cutoffDateTime && txDateTime < cutoffDateTime) return;
+
+                const creditedAmount = (tx.toAmount !== undefined && tx.toAmount !== null)
+                    ? parseFloat(tx.toAmount) || 0
+                    : (parseFloat(tx.amount) || 0);
+                calculatedBalance += creditedAmount;
+                if (tx.transactionFee && tx.transactionFeeBearer === 'receiver' && tx.feeAmount) {
+                    calculatedBalance -= parseFloat(tx.feeAmount);
                 }
             });
             
@@ -2094,8 +2287,10 @@ document.getElementById('transfer-form-enhanced')?.addEventListener('submit', as
     const toId = document.getElementById('t-to-enhanced').value;
     const amountInput = document.getElementById('t-amount-enhanced').value;
     const desc = sanitizeString(document.getElementById('t-desc-enhanced').value);
+    const feeUnknown = document.getElementById('t-fee-unknown-enhanced')?.checked || false;
     const feeAmountInput = document.getElementById('t-fee-enhanced').value;
     const feeBearer = document.querySelector('input[name="fee-bearer"]:checked').value;
+    const conversionRateInput = document.getElementById('t-conversion-rate-enhanced')?.value;
     
     // Validation
     if (!fromId || !toId) {
@@ -2120,15 +2315,58 @@ document.getElementById('transfer-form-enhanced')?.addEventListener('submit', as
         showToast('Invalid bank selection', 'error');
         return;
     }
+
+    // FIX: currency conversion for cross-currency transfers. Previously the
+    // exact same numeric amount was debited from the sender AND credited to
+    // the receiver, even when they were different currencies — a KES 10,000
+    // transfer into a USD account showed up as "+10,000" there with no
+    // conversion at all. When the two accounts differ in currency, a
+    // conversion rate is now required, and the receiving side gets the
+    // converted amount instead of the raw sender-side figure.
+    const currenciesDiffer = fromBank.currency !== toBank.currency;
+    let conversionRate = null;
+    if (currenciesDiffer) {
+        conversionRate = parseFloat(conversionRateInput);
+        if (!conversionRate || conversionRate <= 0) {
+            showToast(`Please enter a valid conversion rate — ${fromBank.name} (${fromBank.currency}) and ${toBank.name} (${toBank.currency}) are different currencies.`, 'error');
+            return;
+        }
+    }
     
     // Validate amounts
+    // FIX: the fee was always run through validateAmount(), which throws for
+    // any amount <= 0 — so even though the fee field defaulted to "0.00" and
+    // looked optional, submitting with no fee always failed validation. Fee
+    // is now genuinely optional: leaving it at 0 (or checking "fee not known
+    // yet") simply means no fee entry is created, exactly like the
+    // conditional `if (feeAmount > 0)` further down already expected.
     let amount, feeAmount;
     try {
         amount = validateAmount(amountInput, fromBank);
-        feeAmount = validateAmount(feeAmountInput, null, true);
     } catch (error) {
         showToast(error.message, 'error');
         return;
+    }
+    if (feeUnknown) {
+        feeAmount = 0;
+    } else {
+        const parsedFee = parseFloat(feeAmountInput);
+        if (isNaN(parsedFee) || parsedFee < 0) {
+            showToast('Transaction fee must be zero or a positive number.', 'error');
+            return;
+        }
+        feeAmount = parsedFee > 0 ? Math.round(parsedFee * 100) / 100 : 0;
+    }
+
+    // Amount actually received on the other side, converted if needed
+    let toAmount = amount;
+    if (currenciesDiffer) {
+        if (fromBank.currency === 'KES' && toBank.currency === 'USD') {
+            toAmount = amount / conversionRate;
+        } else if (fromBank.currency === 'USD' && toBank.currency === 'KES') {
+            toAmount = amount * conversionRate;
+        }
+        toAmount = Math.round(toAmount * 100) / 100;
     }
     
     // Check balance (including fee if sender bears it)
@@ -2169,15 +2407,24 @@ document.getElementById('transfer-form-enhanced')?.addEventListener('submit', as
             type: 'transfer',
             date: transferDate,
             amount: amount,
+            // Amount actually credited to the receiving bank, in ITS currency.
+            // Equal to `amount` for same-currency transfers; converted via
+            // conversionRate otherwise. calculateBalances()/verifyAllBalances()
+            // use this (falling back to `amount` for older records that
+            // predate this field) for the credit side of the transfer.
+            toAmount: toAmount,
+            conversionRate: currenciesDiffer ? conversionRate : null,
             bankId: fromId,
             bankName: fromBank.name,
             toBankId: toId,
             toBankName: toBank.name,
             currency: fromBank.currency,
+            toCurrency: toBank.currency,
             description: `Transfer: ${desc}`,
             reference: reference,
             transactionFee: feeAmount > 0,
             feeAmount: feeAmount,
+            feeStatus: feeAmount > 0 ? 'recorded' : (feeUnknown ? 'pending' : 'none'),
             transactionFeeBearer: feeBearer,
             createdBy: state.user?.email || 'Unknown',
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -2249,6 +2496,195 @@ document.getElementById('transfer-form-enhanced')?.addEventListener('submit', as
         showLoading(false);
     }
 });
+
+// -----------------------------------------------------------------
+// SETTLE A DEFERRED TRANSFER FEE
+// -----------------------------------------------------------------
+// The transfer form already lets you check "Fee not known yet — record it
+// later" (feeStatus: 'pending' on the transfer's ledger entry), but nothing
+// anywhere let you actually go back and add that fee — it just sat there
+// forever with no fee entry. This adds that missing step: a small modal
+// from the ledger table's "+ Add Fee" button that creates the deferred
+// transfer_fee entry and marks the original transfer as settled.
+function openSettleTransferFeeModal(ledgerDocId) {
+    const tx = state.ledger.find(t => t.id === ledgerDocId);
+    if (!tx || tx.type !== 'transfer') {
+        showToast('Transfer not found.', 'error');
+        return;
+    }
+    if (tx.transactionFee) {
+        showToast('This transfer already has a fee recorded.', 'info');
+        return;
+    }
+
+    const existing = document.getElementById('settle-transfer-fee-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'settle-transfer-fee-modal';
+    modal.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+    modal.innerHTML = `
+        <div class="absolute inset-0 bg-black bg-opacity-50" onclick="document.getElementById('settle-transfer-fee-modal').remove()"></div>
+        <div class="relative bg-white rounded-xl shadow-2xl max-w-md w-full mx-auto p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-gray-800">Add Transfer Fee</h2>
+                <button onclick="document.getElementById('settle-transfer-fee-modal').remove()" class="text-gray-500 hover:text-gray-700 text-2xl">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3 mb-4 text-sm text-gray-700">
+                <div class="flex justify-between"><span>Transfer:</span><span class="font-semibold">${sanitizeString(tx.bankName)} → ${sanitizeString(tx.toBankName)}</span></div>
+                <div class="flex justify-between"><span>Amount:</span><span class="font-semibold">${formatCurrency(tx.amount, tx.currency)}</span></div>
+                <div class="flex justify-between"><span>Reference:</span><span class="font-mono text-xs">${sanitizeString(tx.reference || '')}</span></div>
+            </div>
+            <form id="settle-transfer-fee-form" class="space-y-4">
+                <input type="hidden" id="stf-ledger-id" value="${ledgerDocId}">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Fee Amount</label>
+                    <input type="number" id="stf-fee-amount" step="0.01" min="0.01" required
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-600"
+                           placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Who bears the fee?</label>
+                    <div class="flex gap-4">
+                        <label class="flex items-center"><input type="radio" name="stf-fee-bearer" value="sender" checked class="mr-2">Sender (${sanitizeString(tx.bankName)})</label>
+                        <label class="flex items-center"><input type="radio" name="stf-fee-bearer" value="receiver" class="mr-2">Receiver (${sanitizeString(tx.toBankName)})</label>
+                    </div>
+                </div>
+                <div class="flex space-x-3 pt-2">
+                    <button type="button" onclick="document.getElementById('settle-transfer-fee-modal').remove()"
+                            class="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2.5 rounded-lg transition-all">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2.5 rounded-lg transition-all">
+                        Save Fee
+                    </button>
+                </div>
+            </form>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('settle-transfer-fee-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await settleTransferFee(
+            document.getElementById('stf-ledger-id').value,
+            parseFloat(document.getElementById('stf-fee-amount').value),
+            document.querySelector('input[name="stf-fee-bearer"]:checked').value
+        );
+    });
+}
+
+async function settleTransferFee(ledgerDocId, feeAmountInput, feeBearer) {
+    if (state.transactionLock) {
+        showToast('Another transaction is in progress. Please wait.', 'error');
+        return;
+    }
+
+    let feeAmount;
+    try {
+        feeAmount = validateAmount(feeAmountInput, null, true);
+    } catch (error) {
+        showToast(error.message, 'error');
+        return;
+    }
+
+    const tx = state.ledger.find(t => t.id === ledgerDocId);
+    if (!tx || tx.type !== 'transfer') {
+        showToast('Transfer not found.', 'error');
+        return;
+    }
+    if (tx.transactionFee) {
+        showToast('This transfer already has a fee recorded.', 'error');
+        return;
+    }
+
+    const fromBank = state.banks.find(b => b.id === tx.bankId);
+    const toBank = state.banks.find(b => b.id === tx.toBankId);
+    if (!fromBank || !toBank) {
+        showToast('Could not find one of the banks for this transfer.', 'error');
+        return;
+    }
+
+    const idempotencyKey = generateIdempotencyKey('settle_transfer_fee', {
+        ledgerDocId, feeAmount, feeBearer
+    });
+    const existingCheck = await db.collection('idempotencyKeys').doc(idempotencyKey).get();
+    if (existingCheck.exists) {
+        showToast('This fee appears to have already been recorded.', 'error');
+        return;
+    }
+
+    state.transactionLock = true;
+    showLoading(true, 'Saving fee...');
+
+    const batch = db.batch();
+    try {
+        const feeBankId = feeBearer === 'sender' ? tx.bankId : tx.toBankId;
+        const feeBankName = feeBearer === 'sender' ? tx.bankName : tx.toBankName;
+        const feeBankCurrency = feeBearer === 'sender' ? fromBank.currency : toBank.currency;
+
+        const feeRef = db.collection('bankLedger').doc();
+        batch.set(feeRef, {
+            type: 'transfer_fee',
+            date: new Date().toISOString(),
+            amount: feeAmount,
+            bankId: feeBankId,
+            bankName: feeBankName,
+            currency: feeBankCurrency,
+            description: `Transaction fee (added later) for transfer ${tx.reference}: ${tx.description || ''}`,
+            reference: `FEE-${tx.reference}`,
+            relatedTransferRef: tx.reference,
+            createdBy: state.user?.email || 'Unknown',
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            status: 'completed',
+            userId: 'global',
+            idempotencyKey: idempotencyKey
+        });
+
+        // Mark the original transfer as settled so "+ Add Fee" stops showing
+        const transferRef = db.collection('bankLedger').doc(ledgerDocId);
+        batch.update(transferRef, {
+            transactionFee: true,
+            feeAmount: feeAmount,
+            feeStatus: 'recorded',
+            transactionFeeBearer: feeBearer,
+            feeAddedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            feeAddedBy: state.user?.email || 'Unknown'
+        });
+
+        const idempotencyRef = db.collection('idempotencyKeys').doc(idempotencyKey);
+        batch.set(idempotencyRef, {
+            operation: 'settle_transfer_fee',
+            ledgerDocId, feeAmount, feeBearer,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+        });
+
+        await batch.commit();
+
+        const modalEl = document.getElementById('settle-transfer-fee-modal');
+        if (modalEl) modalEl.remove();
+
+        await initApp();
+
+        await addAuditLog('TRANSFER_FEE_SETTLED', {
+            transferRef: tx.reference,
+            feeAmount, feeBearer
+        });
+
+        showToast(`Fee of ${formatCurrency(feeAmount, feeBankCurrency)} recorded for transfer ${tx.reference}.`, 'success');
+    } catch (error) {
+        console.error('Settle transfer fee failed:', error);
+        showToast('Failed to save fee: ' + error.message, 'error');
+        await addAuditLog('TRANSFER_FEE_SETTLE_FAILED', { ledgerDocId, error: error.message }, 'failure');
+    } finally {
+        state.transactionLock = false;
+        showLoading(false);
+    }
+}
 
 // --- EXPENSE PAYMENT (NEW FEATURE) ---
 
@@ -2415,8 +2851,11 @@ function renderDashboard() {
         
         bankTransactions.forEach(tx => {
             const amount = parseFloat(tx.amount) || 0;
+            const creditAmount = (tx.type === 'transfer' && tx.toBankId === bank.id && tx.toAmount !== undefined && tx.toAmount !== null)
+                ? (parseFloat(tx.toAmount) || 0)
+                : amount;
             if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
-                totalCredits += amount;
+                totalCredits += creditAmount;
             } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || tx.type === 'receipt_reversal' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
                 totalDebits += amount;
             }
@@ -2516,6 +2955,7 @@ function renderLedgerTable() {
         let amountClass = '';
         let sign = '';
         let recipientInfo = tx.bankName || '';
+        let pendingFeeButton = ''; // built separately so it isn't HTML-escaped by sanitizeString()
         
         switch(tx.type) {
             case 'receipt':
@@ -2549,6 +2989,10 @@ function renderLedgerTable() {
                 recipientInfo = `${tx.bankName} → ${tx.toBankName}`;
                 if (tx.transactionFee) {
                     recipientInfo += ` (Fee: ${tx.feeAmount} ${tx.currency})`;
+                } else if (tx.feeStatus === 'pending') {
+                    // FIX: "fee not known yet" was recorded but there was never any way to
+                    // actually come back and add it — the deferred fee just sat there forever.
+                    pendingFeeButton = ` <button onclick="openSettleTransferFeeModal('${tx.id}')" class="ml-1 text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 hover:bg-yellow-200 border border-yellow-300 transition-colors">+ Add Fee</button>`;
                 }
                 break;
             case 'transfer_fee':
@@ -2567,7 +3011,7 @@ function renderLedgerTable() {
                 <td class="px-6 py-4 whitespace-nowrap text-gray-600 text-sm">${dateStr}</td>
                 <td class="px-6 py-4 whitespace-nowrap">${typeBadge}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-gray-900 font-medium">
-                    ${sanitizeString(recipientInfo)}
+                    ${sanitizeString(recipientInfo)}${pendingFeeButton}
                 </td>
                 <td class="px-6 py-4 text-gray-500 max-w-xs truncate" title="${sanitizeString(tx.description || '')}">${sanitizeString(tx.description || '')}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-right font-bold ${amountClass}">
@@ -3481,8 +3925,11 @@ function showAllBanksSummary() {
         
         bankTransactions.forEach(tx => {
             const amount = parseFloat(tx.amount) || 0;
+            const creditAmount = (tx.type === 'transfer' && tx.toBankId === bank.id && tx.toAmount !== undefined && tx.toAmount !== null)
+                ? (parseFloat(tx.toAmount) || 0)
+                : amount;
             if (tx.type === 'receipt' || (tx.type === 'transfer' && tx.toBankId === bank.id)) {
-                totalCredits += amount;
+                totalCredits += creditAmount;
             } else if (tx.type === 'withdrawal' || tx.type === 'expense' || tx.type === 'credit' || tx.type === 'receipt_reversal' || (tx.type === 'transfer' && tx.bankId === bank.id)) {
                 totalDebits += amount;
             }
@@ -3923,6 +4370,19 @@ function openOpeningModal(bankId) {
         showLoading(true, 'Setting opening balance...');
         
         try {
+            // FIX (race condition): if a receipt-processing pass is
+            // currently deciding which receipts to credit, it's using the
+            // OLD cutoff. If we write the new cutoff while that's still
+            // running, the in-flight pass can still commit receipts the
+            // user is right now trying to exclude — because its decisions
+            // were already made before this write landed. Waiting for the
+            // lock, then holding it ourselves while we write, guarantees
+            // the next processReceiptPayments() run is the first one to
+            // see the new cutoff, with no straddling.
+            showLoading(true, 'Waiting for any in-progress sync to finish...');
+            await waitForTransactionLock();
+            state.transactionLock = true;
+
             // Store in openingBalanceTimestamps — keyed by bank.id to isolate KES/USD accounts
 state.openingBalanceTimestamps[bank.id] = {
     balance: amount,
@@ -3947,6 +4407,10 @@ state.openingBalanceTimestamps[bank.id] = {
                     notes: notes
                 }
             });
+
+            // Release the lock before triggering a fresh reprocess, so
+            // initApp()'s own call to processReceiptPayments() can acquire it.
+            state.transactionLock = false;
             
             closeOpeningModalEnhanced();
             
@@ -3957,7 +4421,10 @@ state.openingBalanceTimestamps[bank.id] = {
                 cutoffDate: timestamp.toISOString()
             });
             
-            // Refresh data
+            showLoading(true, 'Reprocessing receipts with new opening balance...');
+            // Refresh data — this now re-runs processReceiptPayments() fresh
+            // against the newly-written cutoff, with no earlier pass able to
+            // straddle the change.
             await initApp();
             
             // Verify balances after opening balance change
@@ -3972,6 +4439,7 @@ state.openingBalanceTimestamps[bank.id] = {
                 error: error.message 
             }, 'failure');
         } finally {
+            state.transactionLock = false; // safety net in case an error left it held
             showLoading(false);
         }
     });
@@ -5255,7 +5723,10 @@ function renderSummaryDashboard() {
         let inc = 0, exp = 0;
         txns.forEach(t => {
             const a = parseFloat(t.amount) || 0;
-            if (t.type === 'receipt' || (t.type === 'transfer' && t.toBankId === bank.id)) inc += a;
+            const creditA = (t.type === 'transfer' && t.toBankId === bank.id && t.toAmount !== undefined && t.toAmount !== null)
+                ? (parseFloat(t.toAmount) || 0)
+                : a;
+            if (t.type === 'receipt' || (t.type === 'transfer' && t.toBankId === bank.id)) inc += creditA;
             else if (['expense','withdrawal','credit','receipt_reversal'].includes(t.type) || (t.type === 'transfer' && t.bankId === bank.id)) exp += a;
         });
         const pctBar = (v, max) => {
